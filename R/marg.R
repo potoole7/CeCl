@@ -1,13 +1,24 @@
-#' @title ???
+#' @title Fit marginal models for multivariate conditional extremes
+#' @description Fit marginal models for multivariate conditional extremes.
 #' @param data List of dataframes at each location containing data for each
 #' variable. Optionally, can be an object of class `evc_marg` from a previous
 #' call to `fit_ce`, with elements `marginal`, `data_thresh` and `original`.
-#' @param vars Variable names for each location.
+#' @param vars Names of variable columns.
+#' @param thresh_method Method to select marginal thresholds, one of
+#' "value" (fixed value), "quantile" (quantile thresholding),
+#' "regression" (covariate dependent thresholding via `qgam`) or "none", for no
+#' thresholding (or where you have already thresholded the data prior to input).
+#' @param thresh_args Arguments to be passed to thresholding function. For
+#' "value", a numeric value (scalar for shared value or vector for each
+#' `vars`) for simple value thresholding. For "quantile", a numeric value
+#' (scalar for shared value or vector for each `vars`) for quantile
+#' thresholding. For "regression", a list of arguments to be passed to
+#' `qgam_thresh` (see documentation for details).
+# not implemented from here
+#' @param thresh_only If TRUE, only threshold data and do not fit marginal
 #' @param marg_prob Can be a list of arguments to `evgam_ald_thresh` if a
 #' variable quantile is desired, or a numeric value (scalar for a shared value
 #' or a vector for each `vars`) for simple quantile thresholding.
-#' @param thresh_fun Function to threshold data, default is `evgam_ald_thresh`,
-#' alternative is `qgam_thresh`.
 #' @param marg_val Explicit value for marginal thresholds for each variable,
 #' only specified if marg_prob is NULL.
 #' @param f Formula for `evgam` model.
@@ -16,22 +27,23 @@
 #' @rdname cecl_marg
 #' @importFrom rlang .data :=
 #' @export
-
+# TODO Allow for any "name" column
 cecl_marg <- \(
   data,
   vars = NULL,
-  marg_prob = list(
-    f          = list("response ~ name", "~ name"), # must be as character
-    tau        = .95,
-    jitter     = TRUE
-  ),
-  thresh_fun = qgam_thresh,
-  marg_val = NULL,
-  f = list(excess ~ name, ~1), # keep shape constant for now
+  thresh_method = c("value", "quantile", "regression", "none"),
+  thresh_args, # TODO Expand description
+  thresh_only = FALSE,
+  # marg_prob = list(
+  #   f          = list("response ~ name", "~ name"), # must be as character
+  #   tau        = .95,
+  #   jitter     = TRUE
+  # ),
+  # marg_val = NULL,
+  # f = list(excess ~ name, ~1), # keep shape constant for now
   ncores = 1
 ) {
-  # number of variables
-  nvars <- length(vars)
+  ## Initial ##
 
   # Parallel setup
   apply_fun <- ifelse(ncores == 1, lapply, parallel::mclapply)
@@ -43,34 +55,149 @@ cecl_marg <- \(
     do.call(apply_fun, c(list(...), ext_args))
   }
 
-  # if marg_prob used as args to thresh_fun, check args correct
-  if (is.list(marg_prob)) {
-    stopifnot(all(names(marg_prob) %in% names(formals(thresh_fun))))
-    stopifnot(is.list(marg_prob$f))
-    if (!all(vapply(marg_prob$f, is.character, logical(1)))) {
-      stop(paste(
-        "f should be a list of characters where 'response' is replaced by",
-        "each specified 'vars'"
-      ))
-    }
+  ## Argument Checks ##
+
+  # if (is.list(marg_prob)) {
+  #   stopifnot(is.list(marg_prob$f))
+  #   if (!all(vapply(marg_prob$f, is.character, logical(1)))) {
+  #     stop(paste(
+  #       "f should be a list of characters where 'response' is replaced by",
+  #       "each specified 'vars'"
+  #     ))
+  #   }
+  # }
+
+  # # check marginal thresholds specified correctly
+  # if (is.null(marg_val) && is.null(marg_prob)) { # must provide one
+  #   stop("you must provide one of marg_val or marg_prob")
+  # }
+  # if (!is.null(marg_val) && !is.null(marg_prob)) { # must provide only one
+  #   stop("you must provide precisely one of marg_val or marg_prob")
+  # }
+
+  # # must have marginal values for each variable
+  # # TODO Expand so marg_val can be a list of locations like `start`
+  # # TODO Expand so marg_val can be a list of dataframes with varying thresh
+  # if (!is.null(marg_val) && is.numeric(marg_val)) {
+  #   stopifnot(
+  #     length(marg_val) == length(vars) && all(names(marg_val) == vars)
+  #   )
+  # }
+
+  # TODO Check arguments correctly specified for each thresh_method
+  # Need to do regression!
+  stopifnot(
+    length(thresh_method) == 1 &&
+      thresh_method %in% c("value", "quantile", "regression", "none")
+  )
+
+  if (thresh_method == "regression") {
+    stopifnot(is.list(thresh_args))
+    stopifnot("f" %in% names(thresh_args))
+    stopifnot(!names(thresh_args) %in% c("f", "qu", "jitter"))
   }
 
-  # check marginal thresholds specified correctly
-  if (is.null(marg_val) && is.null(marg_prob)) { # must provide one
-    stop("you must provide one of marg_val or marg_prob")
-  }
-  if (!is.null(marg_val) && !is.null(marg_prob)) { # must provide only one
-    stop("you must provide precisely one of marg_val or marg_prob")
-  }
-  # must have marginal values for each variable
-  # TODO Expand so marg_val can be a list of locations like `start`
-  # TODO Expand so marg_val can be a list of dataframes with varying thresh
-  if (!is.null(marg_val) && is.numeric(marg_val)) {
+  # prepare data frame
+  prep_out <- prep_df(data, vars)
+  data_df <- prep_out[[1]]
+  vars <- prep_out[[2]] # in case vars = NULL in call
+
+  # ensure that values or quantiles for thresholding are correct length
+  if (thresh_method %in% c("value", "quantile")) {
     stopifnot(
-      length(marg_val) == length(vars) && all(names(marg_val) == vars)
+      length(thresh_args) %in% c(1, length(vars))
     )
   }
 
+  # threshold data using specified function
+  thresh_out <- marg_thresh(
+    data_df       = data_df,
+    vars          = vars,
+    thresh_method = thresh_method,
+    thresh_args   = thresh_args
+  )
+  data_thresh <- thresh_out[[1]]
+  locs_keep <- thresh_out[[2]] # locations with exceedances for all variables
+  names(data_thresh) <- vars
+
+  # Only keep locs with exceedances for all vars, otherwise can't do CE!
+  data_df <- dplyr::filter(data_df, name %in% locs_keep)
+
+  # original data split by location (for returning later)
+  orig_dat <- data_df |>
+    dplyr::group_by(name) |>
+    dplyr::group_split(.keep = TRUE)
+  # add names to list elements
+  names(orig_dat) <- purrr::map_chr(orig_dat, ~ as.character(.x$name[1]))
+
+  # return thresholded data only if specified
+  # TODO Make into S3 class??
+  if (thresh_only) {
+    ret <- list(
+      "data_thresh" = data_thresh,
+      "original"    = orig_dat,
+      "vars"        = vars
+    )
+    class(ret) <- c(
+      "cecl_thresh",
+      paste0("cecl_thresh_", thresh_method),
+      class(ret)
+    )
+
+    return(ret)
+  }
+
+  # reverse splitting of data_thresh into locations
+  data_thresh <- lapply(data_thresh, bind_rows)
+
+  # fit marginal models
+  marginal <- fit_marg(
+    data_df      = data_df,
+    data_thresh  = data_thresh,
+    vars         = vars,
+    f            = f,
+    loop_fun     = loop_fun
+  )
+
+  # return
+  ret <- list(
+    "marginal"    = marginal,
+    "data_thresh" = data_thresh,
+    "original"    = orig_dat,
+    "vars"        = vars
+  )
+  # add evgam fit object if fitted
+  # TODO Add to output of fit_marg
+  if (exists("evgam_fit", envir = environment())) {
+    names(evgam_fit) <- vars
+    ret$evgam_fit <- evgam_fit
+  }
+
+  # make ret object of class `evc_marg`
+  class(ret) <- c(
+    "cecl_marg",
+    paste0("cecl_marg_", thresh_method),
+    class(ret)
+  )
+  return(ret)
+}
+
+## Data Prep ##
+
+#' @title Prepare data frame for cecl_marg
+#' @description Prepare data frame for cecl_marg: Convert list of data into
+#' dataframe with `name` columne specifying multivariate structure.
+#' @inheritParams cecl_marg
+#' @return Data frame ready for `cecl_marg`.
+#' @rdname prep_df
+#' @keywords internal
+prep_df <- function(data, vars) {
+  # if already thresholded, just return data
+  if (inherits(data, "cecl_thresh")) {
+    return(list(data, data$vars))
+  }
+
+  nvars <- length(vars)
   # convert to data frame, if required
   if (!is.data.frame(data) && is.list(data)) {
     data_df <- dplyr::bind_rows(lapply(seq_along(data), \(i) {
@@ -90,6 +217,10 @@ cecl_marg <- \(
     }
   } else {
     data_df <- as.data.frame(data)
+    # set vars if NULL
+    if (is.null(vars)) {
+      vars <- names(data_df)[!names(data_df) %in% "name"]
+    }
     # convert matrix names if required
     names(data_df)[names(data_df) %in% paste0("V", seq_len(nvars))] <- vars
   }
@@ -98,29 +229,67 @@ cecl_marg <- \(
   stopifnot("Must have a `name` column" = "name" %in% names(data_df))
   stopifnot("All of `vars` must be in data" = all(vars %in% names(data_df)))
 
-  # locations (before thresholding)
-  locs <- unique(data_df$name)
+  # make name a factor in order of appearance
   data_df$name <- forcats::fct_inorder(data_df$name)
 
-  ## Threshold Selection ##
+  return(list(data_df, vars))
+}
+
+#' @title Threshold data for cecl_marg
+#' @description Threshold data for cecl_marg using specified method.
+#' @inheritParams cecl_marg
+#' @return List of thresholded data frames for each variable.
+#' @rdname marg_thresh
+#' @keywords internal
+marg_thresh <- \(
+  data_df,
+  vars,
+  thresh_method,
+  thresh_args
+) {
+  # locations (before thresholding)
+  locs <- unique(data_df$name)
+
+  if (inherits(data_df, "cecl_thresh")) {
+    return(list(data_df$data_thresh, locs))
+  }
+
+  if (thresh_method == "none") {
+    data_thresh <- lapply(vars, \(x) {
+      ret <- data_df |>
+        # remove other responses, will be joined together after
+        dplyr::select(-dplyr::all_of(vars[vars != x])) |>
+        dplyr::mutate(
+          thresh = NA_real_,
+          excess = !!rlang::sym(x)
+        ) |>
+        # also split by location
+        group_split(name, .keep = TRUE)
+      names(ret) <- purrr::map_chr(ret, ~ as.character(.x$name[1]))
+      return(ret)
+    })
+    names(data_thresh) <- vars
+
+    return(list(data_thresh, locs))
+  }
 
   # If marg_val not specified, calculate thresh as quantile across all locs
-  # TODO Allow marg_val to change by location
-  if (is.null(marg_prob) || (!is.list(marg_prob) && is.numeric(marg_prob))) {
-    # TODO Could also calculate for each location/name??
-    if (is.null(marg_val)) {
-      # marg_val <- apply(
-      #   data_df[, c(vars)], 2, stats::quantile, marg_prob,
-      #   na.rm = TRUE
-      # )
+  if (thresh_method %in% c("value", "quantile")) {
+    if (thresh_method == "quantile") {
       marg_val <- mapply(
         quantile,
         data_df[, vars],
-        marg_prob, # can be scalar or vector
+        thresh_args, # can be scalar or vector
         MoreArgs = list(na.rm = TRUE)
       )
-      names(marg_val) <- vars
+    } else {
+      marg_val <- thresh_args
+      if (length(marg_val) == 1) {
+        marg_val <- rep(marg_val, length(vars))
+      }
     }
+    names(marg_val) <- vars
+
     # for each variable, calculate excess over threshold
     data_thresh <- lapply(vars, \(x) {
       data_df |>
@@ -130,29 +299,35 @@ cecl_marg <- \(
           thresh = marg_val[x],
           excess = !!rlang::sym(x) - marg_val[x]
         ) |>
-        dplyr::filter(excess > 0)
+        dplyr::filter(excess > 0) |>
+        # also split by location
+        group_split(name, .keep = TRUE)
     })
-    # If thresh is a list, assume it is arguments to thresh_fun
+    # If thresh is a list, assume it is arguments to thresh_fun (now qgam_thresh)
     # TODO: May be easier to just copy each vars column as response in data_df
     # Would allow for simpler formula specification
-  } else if (is.list(marg_prob)) {
+  }
+
+  if (thresh_method == "regression") {
     data_thresh <- lapply(vars, \(x) {
       print(paste0("thresholding ", x))
 
       # Change formula to include response in question
-      spec_params <- marg_prob
-      spec_params$f <- lapply(marg_prob$f, \(f_spec) {
+      # spec_params <- marg_prob
+      spec_params <- thresh_args
+      # spec_params$f <- lapply(marg_prob$f, \(f_spec) {
+      spec_params$f <- lapply(thresh_args$f, \(f_spec) {
         stats::formula(stringr::str_replace_all(f_spec, "response", x))
       })
       # allow different thresholds for each variable
-      if (length(spec_params$tau) > 1) {
-        spec_params$tau <- spec_params$tau[vars == x]
+      if (length(spec_params$qu) > 1) {
+        spec_params$qu <- spec_params$qu[vars == x]
       }
 
       # Run thresholding function for each response with specified args
       # TODO Also return evgam fits to ald
       quantile_fits <- do.call(
-        thresh_fun,
+        qgam_thresh,
         args = c(
           list(data = data_df, response = x), # data args
           spec_params
@@ -173,30 +348,101 @@ cecl_marg <- \(
       }
       return(ret)
     })
-  } else {
-    stop("marg_prob must be numeric or arguments to specified marg_fun")
   }
-  # Only keep locs with exceedances for all vars, otherwise can't do CE!
-  # TODO evc only works for locations, add error if data not in this form!
+
+  # locations with exceedances for all variables
   locs_keep <- Reduce(intersect, lapply(data_thresh, \(x) unique(x$name)))
-  data_df <- dplyr::filter(data_df, name %in% locs_keep)
+
   # remove duplicate threshold rows kept through floating point errors
   data_thresh <- lapply(data_thresh, \(x) {
-    dplyr::filter(x, name %in% locs_keep) |>
+    ret <- dplyr::filter(x, name %in% locs_keep) |>
       dplyr::group_by(
         name,
         dplyr::across(dplyr::any_of(c("date", !!vars)))
       ) |>
       dplyr::slice(1) |>
-      dplyr::ungroup()
+      dplyr::ungroup() |>
+      # also split by location
+      group_split(name, .keep = TRUE)
+
+    names(ret) <- purrr::map_chr(ret, ~ as.character(.x$name[1]))
+    return(ret)
   })
-  # TODO Add option to only return thresholded data!
-  if (thresh_only) {
-    return(list("data_thresh" = data_thresh, "original" = data_df))
+  return(list(data_thresh, locs_keep))
+}
+
+#' @title `qgam` varying threshold
+#' @description Fit varying threshold using quantile regression via `qgam`.
+#' @param data Dataframe for one location which we wish to
+#' threshold.
+#' @param response Name of variable to threshold.
+#' @param f Formula for `evgam` model, specified in `cecl_marg`.
+#' @param qu Quantile to threshold at (see \link[qgam]{qgam} for details),
+#' specified in `cecl_marg`, default 0.95.
+#' @param jitter Add jitter to data to remove 0s, specified in `cecl_marg`,
+#' default TRUE.
+#' @param thresh return thresholded (i.e. filtered) data if TRUE, default TRUE.
+#' @return Dataframe with `thresh` and `excess` columns, optionally thresholded.
+#' @rdname qgam_thresh
+#' @export
+qgam_thresh <- \(
+  data,
+  response,
+  f,
+  qu = .95,
+  jitter = TRUE,
+  thresh = TRUE
+) {
+  excess <- NULL
+
+  # jitter, if specified, to remove 0s when calculating quantiles
+  # TODO Change jitter to match magnitude, may be too large for small data
+  if (jitter == TRUE) {
+    data <- data |>
+      dplyr::mutate(dplyr::across(
+        dplyr::all_of(response), ~ . + abs(
+          stats::rnorm(dplyr::n(), 0, 1e-6)
+        )
+      ))
   }
 
-  ## Marginal Model ##
+  # fit the quantile regression model at qu'th percentile
+  qgam_fit <- qgam::qgam(
+    f,
+    data,
+    qu = qu
+  )
 
+  # add threshold to data
+  predictors <- names(qgam_fit$var.summary)
+  predictions <- data |>
+    dplyr::mutate(thresh = qgam_fit$fitted.values) |>
+    dplyr::distinct(across(c(all_of(predictors), thresh)))
+
+  data_thresh <- data |>
+    dplyr::left_join(predictions, by = predictors) |>
+    dplyr::mutate(excess = !!rlang::sym(response) - thresh)
+  # threshold if desired
+  if (thresh == TRUE) {
+    data_thresh <- dplyr::filter(data_thresh, excess > 0)
+  }
+
+  # return model fit and thresholded data
+  return(list(
+    "m"           = qgam_fit,
+    "data_thresh" = data_thresh
+  ))
+}
+
+
+# put below into function
+fit_marg <- \(
+  data_df,
+  data_thresh,
+  vars,
+  f,
+  loop_fun
+) {
   # If f NULL, fit ordinary marginal models with `ismev::gpd.fit` for each loc
   if (is.null(f)) {
     # calculate for all locations
@@ -283,27 +529,5 @@ cecl_marg <- \(
     marginal <- purrr::transpose(marginal)
   }
 
-  # original data
-  orig_dat <- data_df |>
-    dplyr::group_by(name) |>
-    dplyr::group_split(.keep = TRUE)
-
-  names(orig_dat) <- purrr::map_chr(orig_dat, ~ as.character(.x$name[1]))
-
-  # names(marginal) <- locs_keep # TODO Check that this is correct!!!
-  names(data_thresh) <- vars
-  ret <- list(
-    "marginal"    = marginal,
-    "data_thresh" = data_thresh,
-    "original"    = orig_dat,
-    "vars"        = vars
-  )
-  # add evgam fit object if fitted
-  if (exists("evgam_fit", envir = environment())) {
-    names(evgam_fit) <- vars
-    ret$evgam_fit <- evgam_fit
-  }
-  # make ret object of class `evc_marg`
-  class(ret) <- c("cecl_marg", class(ret))
-  return(ret)
+  return(marginal)
 }
