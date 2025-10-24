@@ -95,7 +95,7 @@ cecl_marg <- \(
   if (thresh_method == "regression") {
     stopifnot(is.list(thresh_args))
     stopifnot("f" %in% names(thresh_args))
-    stopifnot(!names(thresh_args) %in% c("f", "qu", "jitter"))
+    stopifnot(all(names(thresh_args) %in% c("f", "qu", "jitter")))
   }
 
   # prepare data frame
