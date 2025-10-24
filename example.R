@@ -10,7 +10,7 @@ library(dplyr)
 
 #### Metadata ####
 
-cor <- c(0.5)
+cor <- c(0.7)
 n_vars <- 2
 n_locs <- 10
 df <- 3

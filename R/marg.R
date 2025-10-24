@@ -859,7 +859,7 @@ coef.cecl_marg <- \(object, ...) {
       loc_df
     }))
     rownames(coefs_df) <- NULL
-    coefs_df
+    return(coefs_df)
   }
 
   stop("coef method not implemented for this marg_method")
@@ -1075,11 +1075,11 @@ plot.cecl_marg <- \(
     z_T_upper <- ci[2, ]
     graphics::lines(
       T_vals, z_T_upper,
-      lty = 2, col = ggsci::pal_nejm()(n = 2)[2]
+      lty = 2, col = ggsci::pal_nejm()(1)[1]
     )
     graphics::lines(
       T_vals, z_T_lower,
-      lty = 2, col = ggsci::pal_nejm()(n = 2)[2]
+      lty = 2, col = ggsci::pal_nejm()(1)[1]
     )
   }
 }
