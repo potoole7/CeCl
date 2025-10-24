@@ -16,12 +16,11 @@
 #' `qgam_thresh` (see documentation for details).
 # not implemented from here
 #' @param thresh_only If TRUE, only threshold data and do not fit marginal
-#' @param marg_prob Can be a list of arguments to `evgam_ald_thresh` if a
-#' variable quantile is desired, or a numeric value (scalar for a shared value
-#' or a vector for each `vars`) for simple quantile thresholding.
-#' @param marg_val Explicit value for marginal thresholds for each variable,
-#' only specified if marg_prob is NULL.
-#' @param f Formula for `evgam` model.
+#' models, Default: FALSE.
+#' @param marg_method Method to fit marginal models, one of "ecdf" (empirical
+#' CDF), "ismev" (using `ismev::gpd.fit`) or "evgam" (using
+#' `evgam::evgam`).
+#' @param marg_args Arguments to be passed to marginal fitting function.
 #' @param ncores Number of cores to use for parallel computation, Default: 1.
 #' @return Object of type `cecl_marg` for each location.
 #' @rdname cecl_marg
@@ -32,8 +31,10 @@ cecl_marg <- \(
   data,
   vars = NULL,
   thresh_method = c("value", "quantile", "regression", "none"),
-  thresh_args, # TODO Expand description
+  thresh_args = NULL, # TODO Expand description
   thresh_only = FALSE,
+  marg_method = c("ecdf", "ismev", "evgam"),
+  marg_args = NULL,
   # marg_prob = list(
   #   f          = list("response ~ name", "~ name"), # must be as character
   #   tau        = .95,
@@ -148,14 +149,16 @@ cecl_marg <- \(
   }
 
   # reverse splitting of data_thresh into locations
-  data_thresh <- lapply(data_thresh, bind_rows)
+  data_thresh <- lapply(data_thresh, \(x) bind_rows(unname(x)))
 
   # fit marginal models
   marginal <- fit_marg(
-    data_df      = data_df,
+    data_df      = data_df, # TODO data_df will be weird if thresh = none
     data_thresh  = data_thresh,
     vars         = vars,
-    f            = f,
+    marg_method  = marg_method,
+    marg_args    = marg_args,
+    # f            = f,
     loop_fun     = loop_fun
   )
 
@@ -301,7 +304,8 @@ marg_thresh <- \(
         ) |>
         dplyr::filter(excess > 0) |>
         # also split by location
-        group_split(name, .keep = TRUE)
+        # group_split(name, .keep = TRUE) |>
+        identity()
     })
     # If thresh is a list, assume it is arguments to thresh_fun (now qgam_thresh)
     # TODO: May be easier to just copy each vars column as response in data_df
@@ -435,16 +439,23 @@ qgam_thresh <- \(
 }
 
 
-# put below into function
+#' @title Fit marginal models for cecl_marg
+#' @description Fit marginal models for cecl_marg using specified method.
+#' @inheritParams cecl_marg
+#' @return List of marginal model fits for each location.
+#' @rdname fit_marg
+#' @keywords internal
 fit_marg <- \(
   data_df,
   data_thresh,
   vars,
-  f,
+  marg_method,
+  marg_args,
   loop_fun
 ) {
   # If f NULL, fit ordinary marginal models with `ismev::gpd.fit` for each loc
-  if (is.null(f)) {
+  # if (is.null(f)) {
+  if (marg_method == "ismev") {
     # calculate for all locations
     marginal <- data_df |>
       dplyr::group_split(name, .keep = TRUE) |>
@@ -457,8 +468,8 @@ fit_marg <- \(
             dplyr::slice(1) |>
             dplyr::pull(thresh)
         }, numeric(1))
+
         # fit
-        # TODO Could replace with mapply!
         gpd_fits <- lapply(seq_along(vars), \(i) {
           fit <- ismev::gpd.fit(
             x[[vars[i]]],
@@ -483,7 +494,7 @@ fit_marg <- \(
     names(marginal) <- purrr::map_chr(marginal, ~ as.character(.x[[1]]$name))
 
     # fit evgam model for each marginal
-  } else {
+  } else if (marg_method == "evgam") {
     evgam_fit <- loop_fun(data_thresh, \(x) {
       fit_evgam(
         data      = x,
