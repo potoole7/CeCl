@@ -161,16 +161,23 @@ cecl_marg <- \(
     # f            = f,
     loop_fun     = loop_fun
   )
+  names(marginal) <- locs_keep
+
+  # Transform data to Laplace margins
+  marginal_trans <- trans_marg(marginal, data_df, vars)
+  names(marginal_trans) <- locs_keep
 
   # return
   ret <- list(
     "marginal"    = marginal,
     "data_thresh" = data_thresh,
     "original"    = orig_dat,
+    "transformed" = marginal_trans,
     "vars"        = vars
   )
   # add evgam fit object if fitted
   # TODO Add to output of fit_marg
+  # TODO Fix
   if (exists("evgam_fit", envir = environment())) {
     names(evgam_fit) <- vars
     ret$evgam_fit <- evgam_fit
@@ -179,7 +186,7 @@ cecl_marg <- \(
   # make ret object of class `evc_marg`
   class(ret) <- c(
     "cecl_marg",
-    paste0("cecl_marg_", thresh_method),
+    paste0("cecl_marg_", marg_method),
     class(ret)
   )
   return(ret)
@@ -453,8 +460,28 @@ fit_marg <- \(
   marg_args,
   loop_fun
 ) {
-  # If f NULL, fit ordinary marginal models with `ismev::gpd.fit` for each loc
-  # if (is.null(f)) {
+  if (marg_method == "ecdf") {
+    locs <- unique(data_df$name)
+    # dummy GPD fits
+    marginal <- lapply(locs, \(loc) {
+      gpd_y <- lapply(vars, \(var) {
+        list(
+          "sigma" = NA_real_,
+          "xi" = NA_real_,
+          # take as threshold the maximum value (to transform using only ECDF)
+          "thresh" = data_thresh[[var]] |>
+            dplyr::filter(name == loc) |>
+            arrange(!!rlang::sym(var)) |>
+            dplyr::slice(n()) |>
+            dplyr::pull(!!rlang::sym(var))
+        )
+      })
+      names(gpd_y) <- vars
+      return(gpd_y)
+    })
+    names(marginal) <- locs
+  }
+
   if (marg_method == "ismev") {
     # calculate for all locations
     marginal <- data_df |>
@@ -474,7 +501,6 @@ fit_marg <- \(
           fit <- ismev::gpd.fit(
             x[[vars[i]]],
             threshold = mth[i],
-            # threshold = quantile(x[[vars[i]]], 0.9),
             show      = FALSE
           )
           return(list(
@@ -490,16 +516,16 @@ fit_marg <- \(
       })
 
     # add names (correctly!)
-    # TODO Unsure if this works, test later
     names(marginal) <- purrr::map_chr(marginal, ~ as.character(.x[[1]]$name))
+  }
 
-    # fit evgam model for each marginal
-  } else if (marg_method == "evgam") {
+  # fit evgam model for each marginal
+  if (marg_method == "evgam") {
     evgam_fit <- loop_fun(data_thresh, \(x) {
       fit_evgam(
         data      = x,
         pred_data = data_df,
-        f         = f
+        f         = marg_args$f
       )
     })
 
@@ -541,4 +567,215 @@ fit_marg <- \(
   }
 
   return(marginal)
+}
+
+#' @title Transform data to Laplace margins for cecl_marg
+#' @description Transform data to Laplace margins for cecl_marg.
+#' @param marginal List of fitted marginal models for each location.
+#' @param data_df Data frame of original data.
+#' @param vars Names of variable columns.
+#' @return List of data matrices transformed to Laplace margins for each location.
+trans_marg <- \(
+  marginal,
+  data_df,
+  vars
+) {
+  # Calculate dependence from marginals (default output object)
+  # first, transform margins to Laplace
+  lapply(seq_along(marginal), \(i) {
+    # semi-parametric CDF
+    # TODO: More efficient to also split data_df by name and subset with i
+    F_hat <- data_df |>
+      # dplyr::filter(name == locs_keep[i]) |>
+      dplyr::filter(name == names(marginal)[i]) |>
+      dplyr::select(dplyr::all_of(vars)) |>
+      p_gpd_ecdf(marginal[[i]])
+    # Laplace transform
+    Y <- dlaplace(F_hat)
+    colnames(Y) <- vars
+    return(Y)
+  })
+}
+
+# TODO Move below to `utils.R` ??
+#' @title Semi-parametric CDF for marginal models
+#' @description Calculate semi-parametric CDF for marginal models:
+#' empirical CDF below threshold, GPD above threshold.
+#' @param dat Data matrix of observations.
+#' @param gpd List of fitted GPD parameters for each variable.
+#' @param n Number of observations.
+#' @return Matrix of semi-parametric CDF values.
+#' @rdname semi_par_cdf
+#' @keywords internal
+p_gpd_ecdf <- \(dat, gpd, n = nrow(dat)) {
+  # As in Heff & Tawn '04, semiparametric mod uses ecdf below thresh, GPD above
+  return(vapply(seq_along(gpd), \(i) {
+    dat_spec <- dat[, i, drop = TRUE]
+    spec_sigma <- gpd[[i]]$sigma
+    spec_xi <- gpd[[i]]$xi
+    spec_loc <- gpd[[i]]$thresh
+
+    # TODO: Replace with ecdf fun from evc
+    # order and sort data
+    dat_spec_ord <- order(dat_spec)
+    dat_spec_sort <- dat_spec[dat_spec_ord]
+
+    # calculate ECDF
+    m <- length(dat_spec)
+    ecdf_vals <- (seq_len(m)) / (m + 1)
+    # convert back to original order
+    ecdf_dat_ord <- numeric(m)
+    ecdf_dat_ord[dat_spec_ord] <- ecdf_vals
+
+    # initialise
+    cdf <- numeric(n)
+    # ecdf (i.e. non-parametric) below threshold
+    cdf[dat[, i] <= spec_loc] <- ecdf_dat_ord[dat_spec <= spec_loc]
+    # GPD above threshold (parametric part of model)
+    if (any(dat_spec > spec_loc)) {
+      para <- pmax(
+        0,
+        1 + spec_xi * (dat_spec[dat_spec > spec_loc] - spec_loc) / spec_sigma
+      )^(-1 / spec_xi)
+      cdf[dat[, i] > spec_loc] <- 1 - (mean(dat_spec > spec_loc) * para)
+    }
+    return(cdf)
+  }, FUN.VALUE = numeric(n)))
+}
+
+#' @title Inverse semi-parametric CDF for marginal models
+#' @description Calculate inverse semi-parametric CDF for marginal models:
+#' empirical CDF below threshold, GPD above threshold.
+#' @param F_hat Matrix of semi-parametric CDF values.
+#' @param dat Data matrix of observations.
+#' @param gpd List of fitted GPD parameters for each variable.
+#' @return Matrix of reconstructed data values.
+#' @rdname inv_semi_par_cdf
+#' @keywords internal
+d_gpd_ecdf <- function(F_hat, dat, gpd) {
+  return(vapply(seq_along(gpd), function(i) {
+    dat_spec <- dat[, i, drop = TRUE]
+    stopifnot(names(gpd[[i]]) == c("sigma", "xi", "thresh"))
+
+    spec_sigma <- gpd[[i]][[1]]
+    spec_xi <- gpd[[i]][[2]]
+    spec_loc <- gpd[[i]][[3]]
+
+    n <- length(dat_spec)
+    probs <- (1:n) / (n + 1) # Empirical CDF probabilities
+
+    # Find closest probability match for each F_hat value
+    px <- vapply(F_hat[, i], function(x, p) {
+      p[[which.min(abs(x - p))]] # Nearest empirical CDF probability
+    }, 0, p = probs)
+
+    px <- as.integer(round(px * (1 + n)))
+    res <- sort(dat_spec)[px] # Get corresponding data values
+
+    # Adjust upper tail using GPD if above threshold
+    i_F <- F_hat[, i] >= mean(dat_spec <= spec_loc) # Upper tail condition
+    i_res <- res > spec_loc # Above threshold in reconstructed values
+    i_adjust <- i_F & i_res # Both conditions met
+
+    if (sum(i_adjust) > 0) {
+      # Compute inverse GPD transformation
+      p_above <- (1 - F_hat[i_adjust, i]) / mean(dat_spec > spec_loc)
+      gpd_vals <- spec_loc + (spec_sigma / spec_xi) *
+        ((pmax(0, p_above)^(-spec_xi)) - 1)
+
+      # Order properly
+      ordered_res <- res[i_adjust]
+      order_idx <- order(ordered_res)
+      ordered_res <- ordered_res[order_idx]
+      ordered_res[
+        length(ordered_res):(length(ordered_res) - length(gpd_vals) + 1)
+      ] <- rev(sort(gpd_vals))
+      ordered_res <- ordered_res[order(order_idx)]
+
+      res[i_adjust] <- ordered_res
+    }
+
+    # Ensure final ordering matches input ordering
+    res[order(F_hat[, i])] <- sort(res)
+
+    return(res)
+  }, FUN.VALUE = numeric(nrow(F_hat))))
+}
+
+#' @title Convert to matrix
+#' @description Convert input to matrix if it is a vector.
+#' @param F_hat Input data.
+#' @return Matrix of input data.
+#' @rdname to_matrix
+#' @keywords internal
+to_matrix <- \(F_hat) {
+  ret <- F_hat
+  if (!is.matrix(F_hat) && is.vector(F_hat)) {
+    ret <- as.matrix(F_hat)
+  }
+  return(ret)
+}
+
+#' @title Laplace transformation
+#' @description Transform data to Laplace margins.
+#' @param F_hat Matrix of CDF values.
+#' @param tol Tolerance to avoid issues at 0 and 1.
+#' @return Matrix of Laplace-transformed values.
+#' @rdname plaplace
+#' @keywords internal
+dlaplace <- \(F_hat, tol = .Machine$double.eps) {
+  apply(to_matrix(F_hat), 2, \(x) {
+    y <- pmin(pmax(x, tol), 1 - tol)
+    return(ifelse(y < 0.5, log(2 * y), -log(2 * (1 - y))))
+  })
+}
+
+#' @title Inverse Laplace transformation
+#' @description Transform data from Laplace margins back to original scale.
+#' @param F_hat Matrix of Laplace-transformed values.
+#' @return Matrix of CDF values.
+#' @rdname plaplace
+#' @keywords internal
+plaplace <- \(F_hat) {
+  apply(to_matrix(F_hat), 2, \(x) {
+    ifelse(x < 0, exp(x) / 2, 1 - exp(-x) / 2)
+  })
+}
+
+#' @title Fit `evgam` model
+#' @description Fit and generate predictions from `evgam` model
+#' @param data Dataframe for one location.
+#' @param pred_data Dataframe for one location to predict on.
+#' @param f Formula for `evgam` model.
+#' @return List with model `m` and predictions `predictions`.
+#' @rdname fit_evgam
+#' @keywords internal
+fit_evgam <- \(
+  data,
+  pred_data,
+  # formula used in evgam, fitting to both scale and shape parameters
+  f = list(
+    excess ~ s(lon, lat), # increase smoothing on scale parameter
+    ~ s(lon, lat) # shape parameter
+  )
+) {
+  # ensure f is a formula
+  f <- lapply(f, stats::formula)
+  # fit evgam model
+  m <- evgam::evgam(f, data = data, family = "gpd")
+
+  # create predictions for unique rows in pred_data (ensures one pred per loc)
+  predictors <- m$predictor.names
+  pred_dat_distinct <- pred_data |>
+    dplyr::distinct(name, dplyr::across(dplyr::all_of(predictors)))
+  predictions <- cbind(
+    pred_dat_distinct,
+    stats::predict(m, pred_dat_distinct, type = "response")
+  )
+
+  # return model fit and predictions
+  return(list(
+    "m"           = m,
+    "predictions" = predictions
+  ))
 }
