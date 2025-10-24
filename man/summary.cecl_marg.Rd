@@ -2,18 +2,20 @@
 % Please edit documentation in R/marg.R
 \name{summary.cecl_marg}
 \alias{summary.cecl_marg}
-\title{\code{summary} method for \code{cecl_marg} class}
+\title{Summary method for \code{cecl_marg} objects}
 \usage{
-\method{summary}{cecl_marg}(object, n)
+\method{summary}{cecl_marg}(object, n, ...)
 }
 \arguments{
 \item{object}{Object of class \code{cecl_marg}.}
 
+\item{n}{Number of rows of coefficients to display (default all).}
+
 \item{...}{Additional arguments (not used).}
 }
 \value{
-Printed summary of \code{cecl_marg} object.
+Invisibly returns the input object after printing summary information.
 }
 \description{
-Summarise \code{cecl_marg} object.
+Print a summary of a \code{cecl_marg} object, including marginal model coefficients.
 }

@@ -11,6 +11,9 @@ trans_marg(marginal, data_df, mult_col = NULL, vars)
 
 \item{data_df}{Data frame of original data.}
 
+\item{mult_col}{Name of column specifying multivariate structure, default
+"name".}
+
 \item{vars}{Names of variable columns.}
 }
 \value{

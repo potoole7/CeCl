@@ -2,7 +2,7 @@
 % Please edit documentation in R/marg.R
 \name{plot.cecl_marg}
 \alias{plot.cecl_marg}
-\title{\code{plot} method for \code{cecl_marg} class}
+\title{Plot method for \code{cecl_marg} objects}
 \usage{
 \method{plot}{cecl_marg}(
   x,
@@ -16,20 +16,19 @@
 \arguments{
 \item{x}{Object of class \code{cecl_marg}.}
 
-\item{which}{Type of plot to generate: "qq" for QQ plot,
-"pp" for PP plot, "hist" for histogram of residuals.}
+\item{which}{Type of plot to generate. Choices are \code{"qq"} for QQ plot, \code{"pp"} for PP plot, \code{"hist"} for histogram of residuals, or \code{"return"} for return level plot.}
 
 \item{loc}{Location name to plot.}
 
-\item{mult_col}{Name of the column representing locations, default "name"}
+\item{mult_col}{Name of the column representing locations, default \code{"name"}.}
 
 \item{var}{Variable name to plot.}
 
-\item{...}{Additional arguments (not used).}
+\item{...}{Additional arguments (not used)}
 }
 \value{
-Diagnostic plot for \code{cecl_marg} object.
+For QQ, PP, and histogram plots: invisible NULL after plotting. For return level plots: a \code{ggplot} object.
 }
 \description{
-Plot diagnostic plots for \code{cecl_marg} object.
+Generate diagnostic plots for a \code{cecl_marg} object, including QQ, PP, histogram, and return level plots.
 }

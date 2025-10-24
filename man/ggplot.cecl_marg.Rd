@@ -5,27 +5,32 @@
 \title{\code{ggplot} method for \code{cecl_marg} class}
 \usage{
 \method{ggplot}{cecl_marg}(
-  x,
+  data = NULL,
+  mapping = ggplot2::aes(),
   which = c("qq", "pp", "hist", "return"),
   loc,
   mult_col = "name",
   var,
-  ...
+  ...,
+  environment = parent.frame()
 )
 }
 \arguments{
-\item{x}{Object of class \code{cecl_marg}.}
+\item{data}{object of class \code{cecl_marg}.}
 
-\item{which}{Type of plot to generate: "qq" for QQ plot,
-"pp" for PP plot, "hist" for histogram of residuals.}
+\item{mapping}{Not used.}
+
+\item{which}{Type of plot to generate. Choices are \code{"qq"} for QQ plot, \code{"pp"} for PP plot, \code{"hist"} for histogram of residuals, or \code{"return"} for return level plot.}
 
 \item{loc}{Location name to plot.}
 
-\item{mult_col}{Name of the column representing locations, default "name"}
+\item{mult_col}{Name of the column representing locations, default \code{"name"}.}
 
 \item{var}{Variable name to plot.}
 
 \item{...}{Additional arguments (not used).}
+
+\item{environment}{Parent frame environment.}
 }
 \value{
 ggplot diagnostic plot for \code{cecl_marg} object.

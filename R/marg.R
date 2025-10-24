@@ -49,6 +49,9 @@ cecl_marg <- \(
 ) {
   ## Initial ##
 
+  # initialise to remove `devtools::check()` note
+  name <- NULL
+
   # Parallel setup
   apply_fun <- ifelse(ncores == 1, lapply, parallel::mclapply)
   ext_args <- NULL
@@ -222,7 +225,7 @@ cecl_marg <- \(
 #' @return Data frame ready for `cecl_marg`.
 #' @rdname prep_df
 #' @keywords internal
-prep_df <- function(data, mult_col = "name", vars) {
+prep_df <- \(data, mult_col = "name", vars) {
   # if already thresholded, just return data
   if (inherits(data, "cecl_thresh")) {
     return(list(data, data$vars))
@@ -283,6 +286,8 @@ marg_thresh <- \(
   thresh_method,
   thresh_args
 ) {
+  quantile <- excess <- NULL
+
   # locations (before thresholding)
   # locs <- unique(data_df$name)
   locs <- unique(data_df[[mult_col]])
@@ -472,7 +477,7 @@ qgam_thresh <- \(
   predictors <- names(qgam_fit$var.summary)
   predictions <- data |>
     dplyr::mutate(thresh = qgam_fit$fitted.values) |>
-    dplyr::distinct(across(c(all_of(predictors), thresh)))
+    dplyr::distinct(dplyr::across(c(dplyr::all_of(predictors), thresh)))
 
   data_thresh <- data |>
     dplyr::left_join(predictions, by = predictors) |>
@@ -505,6 +510,8 @@ fit_marg <- \(
   marg_args,
   loop_fun
 ) {
+  thresh <- shape <- sigma <- xi <- NULL
+
   if (marg_method == "ecdf") {
     # locs <- unique(data_df$name)
     locs <- unique(data_df[[mult_col]])
@@ -652,6 +659,8 @@ fit_marg <- \(
 #' @description Transform data to Laplace margins for cecl_marg.
 #' @param marginal List of fitted marginal models for each location.
 #' @param data_df Data frame of original data.
+#' @param mult_col Name of column specifying multivariate structure, default
+#' "name".
 #' @param vars Names of variable columns.
 #' @return List of data matrices transformed to Laplace margins for each location.
 trans_marg <- \(
@@ -733,8 +742,8 @@ p_gpd_ecdf <- \(dat, gpd, n = nrow(dat)) {
 #' @return Matrix of reconstructed data values.
 #' @rdname inv_semi_par_cdf
 #' @keywords internal
-d_gpd_ecdf <- function(F_hat, dat, gpd) {
-  return(vapply(seq_along(gpd), function(i) {
+d_gpd_ecdf <- \(F_hat, dat, gpd) {
+  return(vapply(seq_along(gpd), \(i) {
     dat_spec <- dat[, i, drop = TRUE]
     stopifnot(names(gpd[[i]]) == c("sigma", "xi", "thresh"))
 
@@ -746,7 +755,7 @@ d_gpd_ecdf <- function(F_hat, dat, gpd) {
     probs <- (1:n) / (n + 1) # Empirical CDF probabilities
 
     # Find closest probability match for each F_hat value
-    px <- vapply(F_hat[, i], function(x, p) {
+    px <- vapply(F_hat[, i], \(x, p) {
       p[[which.min(abs(x - p))]] # Nearest empirical CDF probability
     }, 0, p = probs)
 
@@ -824,7 +833,7 @@ plaplace <- \(F_hat) {
 }
 
 #' @title Fit `evgam` model
-#' @description Fit and generate predictions from `evgam` model
+#' @description Fit and generate predictions from `evgam` model.
 #' @param data Dataframe for one location.
 #' @param pred_data Dataframe for one location to predict on.
 #' @param f Formula for `evgam` model.
@@ -877,7 +886,7 @@ fit_evgam <- \(
 #' @method coef cecl_marg
 #' @export
 # TODO What to do with varying threshold???
-coef.cecl_marg <- function(object, ...) {
+coef.cecl_marg <- \(object, ...) {
   stopifnot(inherits(object, "cecl_marg"))
 
   if (inherits(object, "cecl_marg_ecdf")) {
@@ -911,7 +920,7 @@ coef.cecl_marg <- function(object, ...) {
 #' @rdname print.cecl_marg
 #' @method print cecl_marg
 #' @export
-print.cecl_marg <- function(x, ...) {
+print.cecl_marg <- \(x, ...) {
   stopifnot(inherits(x, "cecl_marg"))
 
   cat("Conditional Extremes Marginal Model Fit\n")
@@ -927,15 +936,16 @@ print.cecl_marg <- function(x, ...) {
   }
 }
 
-#' @title `summary` method for `cecl_marg` class
-#' @description Summarise `cecl_marg` object.
+#' @title Summary method for `cecl_marg` objects
+#' @description Print a summary of a `cecl_marg` object, including marginal model coefficients.
 #' @param object Object of class `cecl_marg`.
+#' @param n Number of rows of coefficients to display (default all).
 #' @param ... Additional arguments (not used).
-#' @return Printed summary of `cecl_marg` object.
-#' @rdname summary.cecl_marg
+#' @return Invisibly returns the input object after printing summary information.
 #' @method summary cecl_marg
+#' @rdname summary.cecl_marg
 #' @export
-summary.cecl_marg <- function(object, n) {
+summary.cecl_marg <- \(object, n, ...) {
   stopifnot(inherits(object, "cecl_marg"))
 
   print(object)
@@ -949,29 +959,30 @@ summary.cecl_marg <- function(object, n) {
 
   coefs_df <- coef.cecl_marg(object)
   if (!missing(n)) {
-    coefs_df <- head(coefs_df, n)
+    coefs_df <- utils::head(coefs_df, n)
     cat("\nMarginal Model Coefficients (first", n, "rows):\n")
   } else {
     cat("\nMarginal Model Coefficients:\n")
   }
 
   print(coefs_df)
+
+  invisible(object)
 }
 
-#' @title `plot` method for `cecl_marg` class
-#' @description Plot diagnostic plots for `cecl_marg` object.
+#' @title Plot method for `cecl_marg` objects
+#' @description Generate diagnostic plots for a `cecl_marg` object, including QQ, PP, histogram, and return level plots.
 #' @param x Object of class `cecl_marg`.
-#' @param which Type of plot to generate: "qq" for QQ plot,
-#' "pp" for PP plot, "hist" for histogram of residuals.
+#' @param which Type of plot to generate. Choices are `"qq"` for QQ plot, `"pp"` for PP plot, `"hist"` for histogram of residuals, or `"return"` for return level plot.
 #' @param loc Location name to plot.
-#' @param mult_col Name of the column representing locations, default "name"
+#' @param mult_col Name of the column representing locations, default `"name"`.
 #' @param var Variable name to plot.
-#' @param ... Additional arguments (not used).
-#' @return Diagnostic plot for `cecl_marg` object.
-#' @rdname plot.cecl_marg
+#' @param ... Additional arguments (not used)
+#' @return For QQ, PP, and histogram plots: invisible NULL after plotting. For return level plots: a `ggplot` object.
 #' @method plot cecl_marg
+#' @rdname plot.cecl_marg
 #' @export
-plot.cecl_marg <- function(x, which = c("qq", "pp", "hist", "return"), loc, mult_col = "name", var, ...) {
+plot.cecl_marg <- \(x, which = c("qq", "pp", "hist", "return"), loc, mult_col = "name", var, ...) {
   stopifnot(inherits(x, "cecl_marg"))
 
   if (inherits(x, "cecl_marg_ecdf")) {
@@ -1017,14 +1028,14 @@ plot.cecl_marg <- function(x, which = c("qq", "pp", "hist", "return"), loc, mult
 
   # Generate specified plot
   if (which == "qq") {
-    qqplot(
-      stats::qexp(ppoints(length(residuals))),
+    stats::qqplot(
+      stats::qexp(stats::ppoints(length(residuals))),
       residuals,
       main = paste("QQ Plot for", var, "at", loc),
       xlab = "Theoretical Quantiles",
       ylab = "Sample Quantiles"
     )
-    abline(0, 1, col = "red")
+    graphics::abline(0, 1, col = "red")
   } else if (which == "pp") {
     plot(
       stats::ppoints(length(residuals)),
@@ -1033,9 +1044,9 @@ plot.cecl_marg <- function(x, which = c("qq", "pp", "hist", "return"), loc, mult
       xlab = "Theoretical Probabilities",
       ylab = "Sample Probabilities"
     )
-    abline(0, 1, col = "red")
+    graphics::abline(0, 1, col = "red")
   } else if (which == "hist") {
-    hist(
+    graphics::hist(
       residuals,
       breaks = 20,
       main = paste("Histogram of Residuals for", var, "at", loc),
@@ -1073,11 +1084,11 @@ plot.cecl_marg <- function(x, which = c("qq", "pp", "hist", "return"), loc, mult
     zT_boot <- matrix(NA, nrow = nboot, ncol = length(T_vals))
 
     for (b in seq_len(nboot)) {
-      sim_data <- evd::rgpd(
-        n = nrow(thresh_data),
-        loc = gpd_params$thresh,
-        scale = gpd_params$sigma,
-        shape = gpd_params$xi
+      sim_data <- rgpd(
+        n     = nrow(thresh_data),
+        u     = gpd_params$thresh,
+        sigma = gpd_params$sigma,
+        xi    = gpd_params$xi
       )
 
       fit_b <- ismev::gpd.fit(sim_data, threshold = gpd_params$thresh, show = FALSE)
@@ -1096,11 +1107,17 @@ plot.cecl_marg <- function(x, which = c("qq", "pp", "hist", "return"), loc, mult
         (sigma_b / xi_b) * ((T_vals * lambda_u_b)^xi_b - 1)
     }
 
-    ci <- apply(zT_boot, 2, quantile, probs = c(0.025, 0.975))
+    ci <- apply(zT_boot, 2, stats::quantile, probs = c(0.025, 0.975))
     z_T_lower <- ci[1, ]
     z_T_upper <- ci[2, ]
-    lines(T_vals, z_T_upper, lty = 2, col = ggsci::pal_nejm()(n = 2)[2])
-    lines(T_vals, z_T_lower, lty = 2, col = ggsci::pal_nejm()(n = 2)[2])
+    graphics::lines(
+      T_vals, z_T_upper,
+      lty = 2, col = ggsci::pal_nejm()(n = 2)[2]
+    )
+    graphics::lines(
+      T_vals, z_T_lower,
+      lty = 2, col = ggsci::pal_nejm()(n = 2)[2]
+    )
   }
 }
 
@@ -1111,7 +1128,7 @@ plot.cecl_marg <- function(x, which = c("qq", "pp", "hist", "return"), loc, mult
 #' @return List of ggplot theme elements.
 #' @rdname cecl_theme
 #' @export
-cecl_theme <- function(legend.position = "bottom", nejm_pal = TRUE) {
+cecl_theme <- \(legend.position = "bottom", nejm_pal = TRUE) {
   ret <- ggplot2::theme_bw() + ggplot2::theme(
     legend.position = legend.position,
     plot.title = ggplot2::element_text(size = 16, hjust = 0.5),
@@ -1133,16 +1150,20 @@ cecl_theme <- function(legend.position = "bottom", nejm_pal = TRUE) {
 
 #' @title `ggplot` method for `cecl_marg` class
 #' @description Generate ggplot diagnostic plots for `cecl_marg` object.
+#' @param data object of class `cecl_marg`.
+#' @param mapping Not used.
+#' @param ... Additional arguments (not used).
+#' @param environment Parent frame environment.
 #' @inheritParams plot.cecl_marg
 #' @return ggplot diagnostic plot for `cecl_marg` object.
 #' @rdname ggplot.cecl_marg
 #' @method ggplot cecl_marg
 #' @export
 #' @importFrom ggplot2 ggplot
-ggplot.cecl_marg <- function(x, which = c("qq", "pp", "hist", "return"), loc, mult_col = "name", var, ...) {
-  stopifnot(inherits(x, "cecl_marg"))
+ggplot.cecl_marg <- \(data = NULL, mapping = ggplot2::aes(), which = c("qq", "pp", "hist", "return"), loc, mult_col = "name", var, ..., environment = parent.frame()) {
+  stopifnot(inherits(data, "cecl_marg"))
 
-  if (inherits(x, "cecl_marg_ecdf")) {
+  if (inherits(data, "cecl_marg_ecdf")) {
     stop(paste(
       "No residuals to plot for 'ecdf' marg_method.",
       "Use 'thresh_only = TRUE' in 'cecl_marg' to only threshold data."
@@ -1155,28 +1176,30 @@ ggplot.cecl_marg <- function(x, which = c("qq", "pp", "hist", "return"), loc, mu
     stop("Please specify both 'loc' and 'var' to plot.")
   }
 
-  if (!loc %in% names(x$original)) {
+  if (!loc %in% names(data$original)) {
     stop(paste("Location", loc, "not found in the cecl_marg object."))
   }
-  if (!var %in% x$vars) {
+  if (!var %in% data$vars) {
     stop(paste("Variable", var, "not found in the cecl_marg object."))
   }
 
+  quantile <- lower <- upper <- NULL
+
   # Extract original and thresholded data for specified location and variable
-  orig_data <- x$original[[loc]] |>
+  orig_data <- data$original[[loc]] |>
     dplyr::select(dplyr::all_of(var))
-  thresh_data <- x$data_thresh[[var]][[loc]] |>
+  thresh_data <- data$data_thresh[[var]][[loc]] |>
     dplyr::select(dplyr::all_of(var))
 
   # Calculate residuals based on marginal method
-  if (inherits(x, "cecl_marg_ismev")) {
-    gpd_params <- x$marginal[[loc]][[var]]
+  if (inherits(data, "cecl_marg_ismev")) {
+    gpd_params <- data$marginal[[loc]][[var]]
     residuals <- (thresh_data[[var]] - gpd_params$thresh) / gpd_params$sigma
-  } else if (inherits(x, "cecl_marg_evgam")) {
-    evgam_fit <- x$evgam_fit[[which(x$vars == var)]]
+  } else if (inherits(data, "cecl_marg_evgam")) {
+    evgam_fit <- data$evgam_fit[[which(data$vars == var)]]
     pred_row <- evgam_fit$predictions |>
       # dplyr::filter(name == loc)
-      dplyr::filter(.data[[x$mult_col]] == loc)
+      dplyr::filter(.data[[data$mult_col]] == loc)
     sigma <- pred_row$scale
     residuals <- (thresh_data[[var]] - pred_row$thresh) / sigma
   } else {
@@ -1225,7 +1248,7 @@ ggplot.cecl_marg <- function(x, which = c("qq", "pp", "hist", "return"), loc, mu
       cecl_theme()
   } else if (which == "return") {
     # Extract parameters
-    gpd_params <- x$marginal[[loc]][[var]]
+    gpd_params <- data$marginal[[loc]][[var]]
     u <- gpd_params$thresh
     sigma <- gpd_params$sigma
     xi <- gpd_params$xi
@@ -1252,7 +1275,13 @@ ggplot.cecl_marg <- function(x, which = c("qq", "pp", "hist", "return"), loc, mu
     nboot <- 200
     zT_list <- list()
     for (b in seq_len(nboot)) {
-      sim_data <- evd::rgpd(n = nrow(thresh_data), loc = u, scale = sigma, shape = xi)
+      # sim_data <- evd::rgpd(n = nrow(thresh_data), loc = u, scale = sigma, shape = xi)
+      sim_data <- rgpd(
+        n     = nrow(thresh_data),
+        u     = u,
+        sigma = sigma,
+        xi    = xi
+      )
       fit_b <- try(ismev::gpd.fit(sim_data, threshold = u, show = FALSE), silent = TRUE)
       if (inherits(fit_b, "try-error") || any(is.na(fit_b$mle))) next
       sigma_b <- fit_b$mle[1]
@@ -1261,8 +1290,8 @@ ggplot.cecl_marg <- function(x, which = c("qq", "pp", "hist", "return"), loc, mu
     }
     if (length(zT_list) > 0) {
       zT_boot <- do.call(rbind, zT_list)
-      df$lower <- apply(zT_boot, 2, quantile, probs = 0.025)
-      df$upper <- apply(zT_boot, 2, quantile, probs = 0.975)
+      df$lower <- apply(zT_boot, 2, stats::quantile, probs = 0.025)
+      df$upper <- apply(zT_boot, 2, stats::quantile, probs = 0.975)
     }
 
     # ggplot
