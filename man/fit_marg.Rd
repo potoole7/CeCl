@@ -4,9 +4,20 @@
 \alias{fit_marg}
 \title{Fit marginal models for cecl_marg}
 \usage{
-fit_marg(data_df, data_thresh, vars, marg_method, marg_args, loop_fun)
+fit_marg(
+  data_df,
+  data_thresh,
+  mult_col = "name",
+  vars,
+  marg_method,
+  marg_args,
+  loop_fun
+)
 }
 \arguments{
+\item{mult_col}{Name of column specifying multivariate structure, default
+"name".}
+
 \item{vars}{Names of variable columns.}
 
 \item{marg_method}{Method to fit marginal models, one of "ecdf" (empirical

@@ -4,7 +4,14 @@
 \alias{plot.cecl_marg}
 \title{\code{plot} method for \code{cecl_marg} class}
 \usage{
-\method{plot}{cecl_marg}(x, which = c("qq", "pp", "hist", "return"), loc, var, ...)
+\method{plot}{cecl_marg}(
+  x,
+  which = c("qq", "pp", "hist", "return"),
+  loc,
+  mult_col = "name",
+  var,
+  ...
+)
 }
 \arguments{
 \item{x}{Object of class \code{cecl_marg}.}
@@ -13,6 +20,8 @@
 "pp" for PP plot, "hist" for histogram of residuals.}
 
 \item{loc}{Location name to plot.}
+
+\item{mult_col}{Name of the column representing locations, default "name"}
 
 \item{var}{Variable name to plot.}
 

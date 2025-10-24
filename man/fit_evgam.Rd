@@ -4,7 +4,12 @@
 \alias{fit_evgam}
 \title{Fit \code{evgam} model}
 \usage{
-fit_evgam(data, pred_data, f = list(excess ~ s(lon, lat), ~s(lon, lat)))
+fit_evgam(
+  data,
+  pred_data,
+  mult_col = "name",
+  f = list(excess ~ s(lon, lat), ~s(lon, lat))
+)
 }
 \arguments{
 \item{data}{Dataframe for one location.}

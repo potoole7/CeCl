@@ -3,6 +3,8 @@
 #' @param data List of dataframes at each location containing data for each
 #' variable. Optionally, can be an object of class `evc_marg` from a previous
 #' call to `fit_ce`, with elements `marginal`, `data_thresh` and `original`.
+#' @param mult_col Name of column specifying multivariate structure, default
+#' "name".
 #' @param vars Names of variable columns.
 #' @param thresh_method Method to select marginal thresholds, one of
 #' "value" (fixed value), "quantile" (quantile thresholding),
@@ -29,6 +31,7 @@
 # TODO Allow for any "name" column
 cecl_marg <- \(
   data,
+  mult_col = "name",
   vars = NULL,
   thresh_method = c("value", "quantile", "regression", "none"),
   thresh_args = NULL, # TODO Expand description
@@ -102,7 +105,7 @@ cecl_marg <- \(
   }
 
   # prepare data frame
-  prep_out <- prep_df(data, vars)
+  prep_out <- prep_df(data, mult_col, vars)
   data_df <- prep_out[[1]]
   vars <- prep_out[[2]] # in case vars = NULL in call
 
@@ -116,6 +119,7 @@ cecl_marg <- \(
   # threshold data using specified function
   thresh_out <- marg_thresh(
     data_df       = data_df,
+    mult_col      = mult_col,
     vars          = vars,
     thresh_method = thresh_method,
     thresh_args   = thresh_args
@@ -129,10 +133,15 @@ cecl_marg <- \(
 
   # original data split by location (for returning later)
   orig_dat <- data_df |>
-    dplyr::group_by(name) |>
+    # dplyr::group_by(name) |>
+    dplyr::group_by(.data[[mult_col]]) |>
     dplyr::group_split(.keep = TRUE)
   # add names to list elements
-  names(orig_dat) <- purrr::map_chr(orig_dat, ~ as.character(.x$name[1]))
+  # names(orig_dat) <- purrr::map_chr(orig_dat, ~ as.character(.x$name[1]))
+  names(orig_dat) <- purrr::map_chr(
+    orig_dat,
+    ~ as.character(.x[[mult_col]][1])
+  )
 
   # return thresholded data only if specified
   # TODO Make into S3 class??
@@ -153,12 +162,13 @@ cecl_marg <- \(
   }
 
   # reverse splitting of data_thresh into locations
-  data_thresh <- lapply(data_thresh, \(x) bind_rows(unname(x)))
+  data_thresh <- lapply(data_thresh, \(x) dplyr::bind_rows(unname(x)))
 
   # fit marginal models
   marginal <- fit_marg(
     data_df      = data_df, # TODO data_df will be weird if thresh = none
     data_thresh  = data_thresh,
+    mult_col     = mult_col,
     vars         = vars,
     marg_method  = marg_method,
     marg_args    = marg_args,
@@ -172,7 +182,7 @@ cecl_marg <- \(
   names(marginal) <- locs_keep
 
   # Transform data to Laplace margins
-  marginal_trans <- trans_marg(marginal, data_df, vars)
+  marginal_trans <- trans_marg(marginal, data_df, mult_col, vars)
   names(marginal_trans) <- locs_keep
 
   # return
@@ -207,12 +217,12 @@ cecl_marg <- \(
 
 #' @title Prepare data frame for cecl_marg
 #' @description Prepare data frame for cecl_marg: Convert list of data into
-#' dataframe with `name` columne specifying multivariate structure.
+#' dataframe with `mult_col` column specifying multivariate structure.
 #' @inheritParams cecl_marg
 #' @return Data frame ready for `cecl_marg`.
 #' @rdname prep_df
 #' @keywords internal
-prep_df <- function(data, vars) {
+prep_df <- function(data, mult_col = "name", vars) {
   # if already thresholded, just return data
   if (inherits(data, "cecl_thresh")) {
     return(list(data, data$vars))
@@ -224,9 +234,11 @@ prep_df <- function(data, vars) {
     data_df <- dplyr::bind_rows(lapply(seq_along(data), \(i) {
       ret <- as.data.frame(data[[i]])
       # Add name column if not in list already
-      if (!"name" %in% names(ret)) {
+      # if (!"name" %in% names(ret)) {
+      if (!mult_col %in% names(ret)) {
         ret <- ret |>
-          dplyr::mutate(name = paste0("location_", i))
+          # dplyr::mutate(name = paste0("location_", i))
+          dplyr::mutate(!!mult_col := paste0("location_", i))
       }
     }))
     if (!is.null(vars)) {
@@ -240,18 +252,20 @@ prep_df <- function(data, vars) {
     data_df <- as.data.frame(data)
     # set vars if NULL
     if (is.null(vars)) {
-      vars <- names(data_df)[!names(data_df) %in% "name"]
+      # vars <- names(data_df)[!names(data_df) %in% "name"]
+      vars <- names(data_df)[!names(data_df) == mult_col]
     }
     # convert matrix names if required
     names(data_df)[names(data_df) %in% paste0("V", seq_len(nvars))] <- vars
   }
 
   # must have names column, and all of vars must be columns in data_df
-  stopifnot("Must have a `name` column" = "name" %in% names(data_df))
+  stopifnot("Must have a `mult_col` column" = "name" %in% names(data_df))
   stopifnot("All of `vars` must be in data" = all(vars %in% names(data_df)))
 
   # make name a factor in order of appearance
-  data_df$name <- forcats::fct_inorder(data_df$name)
+  # data_df$name <- forcats::fct_inorder(data_df$name)
+  data_df[[mult_col]] <- forcats::fct_inorder(data_df[[mult_col]])
 
   return(list(data_df, vars))
 }
@@ -264,12 +278,14 @@ prep_df <- function(data, vars) {
 #' @keywords internal
 marg_thresh <- \(
   data_df,
+  mult_col = "name",
   vars,
   thresh_method,
   thresh_args
 ) {
   # locations (before thresholding)
-  locs <- unique(data_df$name)
+  # locs <- unique(data_df$name)
+  locs <- unique(data_df[[mult_col]])
 
   if (inherits(data_df, "cecl_thresh")) {
     return(list(data_df$data_thresh, locs))
@@ -285,8 +301,13 @@ marg_thresh <- \(
           excess = !!rlang::sym(x)
         ) |>
         # also split by location
-        group_split(name, .keep = TRUE)
-      names(ret) <- purrr::map_chr(ret, ~ as.character(.x$name[1]))
+        # group_split(name, .keep = TRUE)
+        dplyr::group_split(.data[[mult_col]], .keep = TRUE)
+      # names(ret) <- purrr::map_chr(ret, ~ as.character(.x$name[1]))
+      names(ret) <- purrr::map_chr(
+        ret,
+        ~ as.character(.x[[mult_col]][1])
+      )
       return(ret)
     })
     names(data_thresh) <- vars
@@ -359,7 +380,8 @@ marg_thresh <- \(
 
       # return message where no exceedances are observed for any locations
       # TODO Implement for "normal" thresholding as well
-      thresh_locs <- unique(ret$name)
+      # thresh_locs <- unique(ret$name)
+      thresh_locs <- unique(ret[[mult_col]])
       if (length(thresh_locs) < length(locs)) {
         loc_missing <- setdiff(locs, thresh_locs)
         message(paste0(
@@ -373,21 +395,32 @@ marg_thresh <- \(
   }
 
   # locations with exceedances for all variables
-  locs_keep <- Reduce(intersect, lapply(data_thresh, \(x) unique(x$name)))
+  # locs_keep <- Reduce(intersect, lapply(data_thresh, \(x) unique(x$name)))
+  locs_keep <- Reduce(
+    intersect,
+    lapply(data_thresh, \(x) unique(x[[mult_col]]))
+  )
 
   # remove duplicate threshold rows kept through floating point errors
   data_thresh <- lapply(data_thresh, \(x) {
-    ret <- dplyr::filter(x, name %in% locs_keep) |>
+    # ret <- dplyr::filter(x, name %in% locs_keep) |>
+    ret <- dplyr::filter(x, .data[[mult_col]] %in% locs_keep) |>
       dplyr::group_by(
-        name,
+        # name,
+        .data[[mult_col]],
         dplyr::across(dplyr::any_of(c("date", !!vars)))
       ) |>
       dplyr::slice(1) |>
       dplyr::ungroup() |>
       # also split by location
-      group_split(name, .keep = TRUE)
+      # group_split(name, .keep = TRUE)
+      dplyr::group_split(.data[[mult_col]], .keep = TRUE)
 
-    names(ret) <- purrr::map_chr(ret, ~ as.character(.x$name[1]))
+    # names(ret) <- purrr::map_chr(ret, ~ as.character(.x$name[1]))
+    names(ret) <- purrr::map_chr(
+      ret,
+      ~ as.character(.x[[mult_col]][1])
+    )
     return(ret)
   })
   return(list(data_thresh, locs_keep))
@@ -466,13 +499,15 @@ qgam_thresh <- \(
 fit_marg <- \(
   data_df,
   data_thresh,
+  mult_col = "name",
   vars,
   marg_method,
   marg_args,
   loop_fun
 ) {
   if (marg_method == "ecdf") {
-    locs <- unique(data_df$name)
+    # locs <- unique(data_df$name)
+    locs <- unique(data_df[[mult_col]])
     # dummy GPD fits
     marginal <- lapply(locs, \(loc) {
       gpd_y <- lapply(vars, \(var) {
@@ -481,9 +516,10 @@ fit_marg <- \(
           "xi" = NA_real_,
           # take as threshold the maximum value (to transform using only ECDF)
           "thresh" = data_thresh[[var]] |>
-            dplyr::filter(name == loc) |>
-            arrange(!!rlang::sym(var)) |>
-            dplyr::slice(n()) |>
+            # dplyr::filter(name == loc) |>
+            dplyr::filter(.data[[mult_col]] == loc) |>
+            dplyr::arrange(!!rlang::sym(var)) |>
+            dplyr::slice(dplyr::n()) |>
             dplyr::pull(!!rlang::sym(var))
         )
       })
@@ -496,13 +532,15 @@ fit_marg <- \(
   if (marg_method == "ismev") {
     # calculate for all locations
     marginal <- data_df |>
-      dplyr::group_split(name, .keep = TRUE) |>
+      # dplyr::group_split(name, .keep = TRUE) |>
+      dplyr::group_split(.data[[mult_col]], .keep = TRUE) |>
       loop_fun(\(x) {
         # pull marginal thresholds
         mth <- vapply(data_thresh, \(y) {
           y |>
             # need thresh for correct loc
-            dplyr::filter(name == x$name[[1]]) |>
+            # dplyr::filter(name == x$name[[1]]) |>
+            dplyr::filter(.data[[mult_col]] == x[[mult_col]][[1]]) |>
             dplyr::slice(1) |>
             dplyr::pull(thresh)
         }, numeric(1))
@@ -514,20 +552,31 @@ fit_marg <- \(
             threshold = mth[i],
             show      = FALSE
           )
-          return(list(
+          # return(list(
+          #   "sigma"     = fit$mle[1],
+          #   "xi"        = fit$mle[2],
+          #   "thresh"    = fit$threshold[[1]],
+          #   "name"      = x$name[1]
+          # ))
+          ret <- list(
             "sigma"     = fit$mle[1],
             "xi"        = fit$mle[2],
             "thresh"    = fit$threshold[[1]],
-            # "name"      = fit$name[1]
-            "name"      = x$name[1]
-          ))
+            "name"      = x[[mult_col]][1]
+          )
+          names(ret)[4] <- mult_col
+          return(ret)
         })
         names(gpd_fits) <- vars
         return(gpd_fits)
       })
 
     # add names (correctly!)
-    names(marginal) <- purrr::map_chr(marginal, ~ as.character(.x[[1]]$name))
+    # names(marginal) <- purrr::map_chr(marginal, ~ as.character(.x[[1]]$name))
+    names(marginal) <- purrr::map_chr(
+      marginal,
+      ~ as.character(.x[[1]][[mult_col]])
+    )
   }
 
   # fit evgam model for each marginal
@@ -546,15 +595,22 @@ fit_marg <- \(
       # using signif to account for floating point errors
       params_df <- dplyr::select(
         evgam_fit[[i]]$predictions,
-        name,
+        # name,
+        !!mult_col,
         sigma = scale,
         xi = shape
       ) |>
         dplyr::distinct(signif(sigma, 6), signif(xi, 6), .keep_all = TRUE) |>
         # also pull in thresholds
         dplyr::left_join(
-          dplyr::select(data_thresh[[i]], name, thresh) |>
-            dplyr::distinct(name, signif(thresh, 6), .keep_all = TRUE)
+          # dplyr::select(data_thresh[[i]], name, thresh) |>
+          dplyr::select(data_thresh[[i]], !!mult_col, thresh) |>
+            # dplyr::distinct(name, signif(thresh, 6), .keep_all = TRUE)
+            dplyr::distinct(
+              .data[[mult_col]],
+              signif(thresh, 6),
+              .keep_all = TRUE
+            )
         ) |>
         dplyr::select(-dplyr::matches("signif"))
 
@@ -563,12 +619,18 @@ fit_marg <- \(
       out <- params_df |>
         # dplyr::group_split(dplyr::row_number(), .keep = FALSE) |>
         # dplyr::group_split(name, .keep = FALSE) |>
-        dplyr::relocate(name, .after = dplyr::last_col()) |>
-        dplyr::group_split(name, .keep = TRUE) |>
+        # dplyr::relocate(name, .after = dplyr::last_col()) |>
+        dplyr::relocate(!!mult_col, .after = dplyr::last_col()) |>
+        # dplyr::group_split(name, .keep = TRUE) |>
+        dplyr::group_split(.data[[mult_col]], .keep = TRUE) |>
         # setNames(loc_names_spec) |> # wrong, causes bug!!
         lapply(as.vector, mode = "list")
       # pull names correctly from list objects
-      names(out) <- purrr::map_chr(out, ~ as.character(.x$name))
+      # names(out) <- purrr::map_chr(out, ~ as.character(.x$name))
+      names(out) <- purrr::map_chr(
+        out,
+        ~ as.character(.x[[mult_col]][1])
+      )
       return(out)
     })
     names(marginal) <- vars
@@ -595,6 +657,7 @@ fit_marg <- \(
 trans_marg <- \(
   marginal,
   data_df,
+  mult_col = NULL,
   vars
 ) {
   # Calculate dependence from marginals (default output object)
@@ -604,7 +667,8 @@ trans_marg <- \(
     # TODO: More efficient to also split data_df by name and subset with i
     F_hat <- data_df |>
       # dplyr::filter(name == locs_keep[i]) |>
-      dplyr::filter(name == names(marginal)[i]) |>
+      # dplyr::filter(name == names(marginal)[i]) |>
+      dplyr::filter(.data[[mult_col]] == names(marginal)[i]) |>
       dplyr::select(dplyr::all_of(vars)) |>
       p_gpd_ecdf(marginal[[i]])
     # Laplace transform
@@ -770,6 +834,7 @@ plaplace <- \(F_hat) {
 fit_evgam <- \(
   data,
   pred_data,
+  mult_col = "name",
   # formula used in evgam, fitting to both scale and shape parameters
   f = list(
     excess ~ s(lon, lat), # increase smoothing on scale parameter
@@ -784,7 +849,11 @@ fit_evgam <- \(
   # create predictions for unique rows in pred_data (ensures one pred per loc)
   predictors <- m$predictor.names
   pred_dat_distinct <- pred_data |>
-    dplyr::distinct(name, dplyr::across(dplyr::all_of(predictors)))
+    # dplyr::distinct(name, dplyr::across(dplyr::all_of(predictors)))
+    dplyr::distinct(
+      .data[[mult_col]],
+      dplyr::across(dplyr::all_of(predictors))
+    )
   predictions <- cbind(
     pred_dat_distinct,
     stats::predict(m, pred_dat_distinct, type = "response")
@@ -895,13 +964,14 @@ summary.cecl_marg <- function(object, n) {
 #' @param which Type of plot to generate: "qq" for QQ plot,
 #' "pp" for PP plot, "hist" for histogram of residuals.
 #' @param loc Location name to plot.
+#' @param mult_col Name of the column representing locations, default "name"
 #' @param var Variable name to plot.
 #' @param ... Additional arguments (not used).
 #' @return Diagnostic plot for `cecl_marg` object.
 #' @rdname plot.cecl_marg
 #' @method plot cecl_marg
 #' @export
-plot.cecl_marg <- function(x, which = c("qq", "pp", "hist", "return"), loc, var, ...) {
+plot.cecl_marg <- function(x, which = c("qq", "pp", "hist", "return"), loc, mult_col = "name", var, ...) {
   stopifnot(inherits(x, "cecl_marg"))
 
   if (inherits(x, "cecl_marg_ecdf")) {
@@ -937,7 +1007,8 @@ plot.cecl_marg <- function(x, which = c("qq", "pp", "hist", "return"), loc, var,
   } else if (inherits(x, "cecl_marg_evgam")) {
     evgam_fit <- x$evgam_fit[[which(x$vars == var)]]
     pred_row <- evgam_fit$predictions |>
-      dplyr::filter(name == loc)
+      # dplyr::filter(name == loc)
+      dplyr::filter(.data[[x$mult_col]] == loc)
     sigma <- pred_row$scale
     residuals <- (thresh_data[[var]] - pred_row$thresh) / sigma
   } else {
@@ -1028,8 +1099,8 @@ plot.cecl_marg <- function(x, which = c("qq", "pp", "hist", "return"), loc, var,
     ci <- apply(zT_boot, 2, quantile, probs = c(0.025, 0.975))
     z_T_lower <- ci[1, ]
     z_T_upper <- ci[2, ]
-    lines(T_vals, z_T_upper, lty = 2, col = ggsci::nejm_pal()(n = 2)[2])
-    lines(T_vals, z_T_lower, lty = 2, col = ggsci::nejm_pal()(n = 2)[2])
+    lines(T_vals, z_T_upper, lty = 2, col = ggsci::pal_nejm()(n = 2)[2])
+    lines(T_vals, z_T_lower, lty = 2, col = ggsci::pal_nejm()(n = 2)[2])
   }
 }
 
@@ -1062,18 +1133,13 @@ cecl_theme <- function(legend.position = "bottom", nejm_pal = TRUE) {
 
 #' @title `ggplot` method for `cecl_marg` class
 #' @description Generate ggplot diagnostic plots for `cecl_marg` object.
-#' @param x Object of class `cecl_marg`.
-#' @param which Type of plot to generate: "qq" for QQ plot,
-#' "pp" for PP plot, "hist" for histogram of residuals.
-#' @param loc Location name to plot.
-#' @param var Variable name to plot.
-#' @param ... Additional arguments (not used).
+#' @inheritParams plot.cecl_marg
 #' @return ggplot diagnostic plot for `cecl_marg` object.
 #' @rdname ggplot.cecl_marg
 #' @method ggplot cecl_marg
 #' @export
 #' @importFrom ggplot2 ggplot
-ggplot.cecl_marg <- function(x, which = c("qq", "pp", "hist", "return"), loc, var, ...) {
+ggplot.cecl_marg <- function(x, which = c("qq", "pp", "hist", "return"), loc, mult_col = "name", var, ...) {
   stopifnot(inherits(x, "cecl_marg"))
 
   if (inherits(x, "cecl_marg_ecdf")) {
@@ -1109,7 +1175,8 @@ ggplot.cecl_marg <- function(x, which = c("qq", "pp", "hist", "return"), loc, va
   } else if (inherits(x, "cecl_marg_evgam")) {
     evgam_fit <- x$evgam_fit[[which(x$vars == var)]]
     pred_row <- evgam_fit$predictions |>
-      dplyr::filter(name == loc)
+      # dplyr::filter(name == loc)
+      dplyr::filter(.data[[x$mult_col]] == loc)
     sigma <- pred_row$scale
     residuals <- (thresh_data[[var]] - pred_row$thresh) / sigma
   } else {

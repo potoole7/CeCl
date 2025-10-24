@@ -4,9 +4,12 @@
 \alias{marg_thresh}
 \title{Threshold data for cecl_marg}
 \usage{
-marg_thresh(data_df, vars, thresh_method, thresh_args)
+marg_thresh(data_df, mult_col = "name", vars, thresh_method, thresh_args)
 }
 \arguments{
+\item{mult_col}{Name of column specifying multivariate structure, default
+"name".}
+
 \item{vars}{Names of variable columns.}
 
 \item{thresh_method}{Method to select marginal thresholds, one of

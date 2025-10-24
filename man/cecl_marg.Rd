@@ -6,6 +6,7 @@
 \usage{
 cecl_marg(
   data,
+  mult_col = "name",
   vars = NULL,
   thresh_method = c("value", "quantile", "regression", "none"),
   thresh_args = NULL,
@@ -19,6 +20,9 @@ cecl_marg(
 \item{data}{List of dataframes at each location containing data for each
 variable. Optionally, can be an object of class \code{evc_marg} from a previous
 call to \code{fit_ce}, with elements \code{marginal}, \code{data_thresh} and \code{original}.}
+
+\item{mult_col}{Name of column specifying multivariate structure, default
+"name".}
 
 \item{vars}{Names of variable columns.}
 

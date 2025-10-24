@@ -4,7 +4,7 @@
 \alias{trans_marg}
 \title{Transform data to Laplace margins for cecl_marg}
 \usage{
-trans_marg(marginal, data_df, vars)
+trans_marg(marginal, data_df, mult_col = NULL, vars)
 }
 \arguments{
 \item{marginal}{List of fitted marginal models for each location.}

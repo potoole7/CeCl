@@ -4,12 +4,15 @@
 \alias{prep_df}
 \title{Prepare data frame for cecl_marg}
 \usage{
-prep_df(data, vars)
+prep_df(data, mult_col = "name", vars)
 }
 \arguments{
 \item{data}{List of dataframes at each location containing data for each
 variable. Optionally, can be an object of class \code{evc_marg} from a previous
 call to \code{fit_ce}, with elements \code{marginal}, \code{data_thresh} and \code{original}.}
+
+\item{mult_col}{Name of column specifying multivariate structure, default
+"name".}
 
 \item{vars}{Names of variable columns.}
 }
@@ -18,6 +21,6 @@ Data frame ready for \code{cecl_marg}.
 }
 \description{
 Prepare data frame for cecl_marg: Convert list of data into
-dataframe with \code{name} columne specifying multivariate structure.
+dataframe with \code{mult_col} column specifying multivariate structure.
 }
 \keyword{internal}
