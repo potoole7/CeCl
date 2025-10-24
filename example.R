@@ -100,3 +100,29 @@ marg_evgam <- cecl_marg(
 )
 
 #### Marginal methods ####
+
+devtools::document()
+devtools::load_all(".")
+
+# coef method
+tryCatch(
+  coef(marg_ecdf),
+  error = function(e) message(e$message)
+)
+coef(marg_ismev)
+coef(marg_evgam)
+
+# print method
+print(marg_ecdf)
+print(marg_ismev)
+print(marg_evgam)
+
+# summary method
+tryCatch(
+  summary(marg_ecdf),
+  error = function(e) message(e$message)
+)
+summary(marg_ismev, n = 10)
+summary(marg_evgam)
+
+# plot method

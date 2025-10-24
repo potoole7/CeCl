@@ -161,6 +161,10 @@ cecl_marg <- \(
     # f            = f,
     loop_fun     = loop_fun
   )
+  if (marg_method == "evgam") {
+    evgam_fit <- marginal$evgam_fit
+    marginal <- marginal$marginal
+  }
   names(marginal) <- locs_keep
 
   # Transform data to Laplace margins
@@ -175,9 +179,11 @@ cecl_marg <- \(
     "transformed" = marginal_trans,
     "vars"        = vars
   )
+  # remove marginal fits if ecdf method used
+  if (marg_method == "ecdf") {
+    ret$marginal <- NULL
+  }
   # add evgam fit object if fitted
-  # TODO Add to output of fit_marg
-  # TODO Fix
   if (exists("evgam_fit", envir = environment())) {
     names(evgam_fit) <- vars
     ret$evgam_fit <- evgam_fit
@@ -564,6 +570,12 @@ fit_marg <- \(
 
     # transpose list from variables -> locations to locations -> variables
     marginal <- purrr::transpose(marginal)
+
+    # also return evgam fits
+    marginal <- list(
+      "marginal" = marginal,
+      "evgam_fit" = evgam_fit
+    )
   }
 
   return(marginal)
@@ -778,4 +790,96 @@ fit_evgam <- \(
     "m"           = m,
     "predictions" = predictions
   ))
+}
+
+#### Methods for cecl_marg class ####
+
+#' @title `coef` method for `cecl_marg` class
+#' @description Extract marginal model coefficients from `cecl_marg` object.
+#' @param object Object of class `cecl_marg`.
+#' @param ... Additional arguments (not used).
+#' @return Data frame of marginal model coefficients.
+#' @rdname coef.cecl_marg
+#' @method coef cecl_marg
+#' @export
+# TODO What to do with varying threshold???
+coef.cecl_marg <- function(object, ...) {
+  stopifnot(inherits(object, "cecl_marg"))
+
+  if (inherits(object, "cecl_marg_ecdf")) {
+    stop(paste(
+      "No marginal model coefficients to extract for 'ecdf' marg_method.",
+      "Use 'thresh_only = TRUE' in 'cecl_marg' to only threshold data."
+    ))
+  }
+
+  if (inherits(object, "cecl_marg_ismev") || inherits(object, "cecl_marg_evgam")) {
+    coefs <- lapply(object$marginal, \(loc) {
+      do.call(rbind, lapply(loc, as.data.frame))
+    })
+    coefs_df <- do.call(rbind, lapply(names(coefs), \(loc_name) {
+      loc_df <- coefs[[loc_name]]
+      loc_df$name <- loc_name
+      return(loc_df)
+    }))
+    rownames(coefs_df) <- NULL
+    return(coefs_df)
+  }
+
+  stop("coef method not implemented for this marg_method")
+}
+
+#' @title `print` method for `cecl_marg` class
+#' @description Print summary of `cecl_marg` object.
+#' @param x Object of class `cecl_marg`.
+#' @param ... Additional arguments (not used).
+#' @return Printed summary of `cecl_marg` object.
+#' @rdname print.cecl_marg
+#' @method print cecl_marg
+#' @export
+print.cecl_marg <- function(x, ...) {
+  stopifnot(inherits(x, "cecl_marg"))
+
+  cat("Conditional Extremes Marginal Model Fit\n")
+  cat("Number of sites:", length(x$original), "\n")
+  cat("Variables:", paste(x$vars, collapse = ", "), "\n")
+
+  if (inherits(x, "cecl_marg_ecdf")) {
+    cat("Marginal method: Empirical CDF (no parametric fit)\n")
+  } else if (inherits(x, "cecl_marg_ismev")) {
+    cat("Marginal method: GPD fit via ismev::gpd.fit\n")
+  } else if (inherits(x, "cecl_marg_evgam")) {
+    cat("Marginal method: GPD fit via evgam::evgam\n")
+  }
+}
+
+#' @title `summary` method for `cecl_marg` class
+#' @description Summarise `cecl_marg` object.
+#' @param object Object of class `cecl_marg`.
+#' @param ... Additional arguments (not used).
+#' @return Printed summary of `cecl_marg` object.
+#' @rdname summary.cecl_marg
+#' @method summary cecl_marg
+#' @export
+summary.cecl_marg <- function(object, n) {
+  stopifnot(inherits(object, "cecl_marg"))
+
+  print(object)
+
+  if (inherits(object, "cecl_marg_ecdf")) {
+    stop(paste(
+      "No marginal model coefficients to summarise for 'ecdf' marg_method.",
+      "Use 'thresh_only = TRUE' in 'cecl_marg' to only threshold data."
+    ))
+  }
+
+  coefs_df <- coef.cecl_marg(object)
+  if (!missing(n)) {
+    coefs_df <- head(coefs_df, n)
+    cat("\nMarginal Model Coefficients (first", n, "rows):\n")
+  } else {
+    cat("\nMarginal Model Coefficients:\n")
+  }
+
+  print(coefs_df)
 }
