@@ -140,7 +140,8 @@ cecl_marg <- \(
     ret <- list(
       "data_thresh" = data_thresh,
       "original"    = orig_dat,
-      "vars"        = vars
+      "vars"        = vars,
+      "call"        = match.call()
     )
     class(ret) <- c(
       "cecl_thresh",
@@ -180,7 +181,8 @@ cecl_marg <- \(
     "data_thresh" = data_thresh_out,
     "original"    = orig_dat,
     "transformed" = marginal_trans,
-    "vars"        = vars
+    "vars"        = vars,
+    "call"        = match.call()
   )
   # remove marginal fits if ecdf method used
   if (marg_method == "ecdf") {
