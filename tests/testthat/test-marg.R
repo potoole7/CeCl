@@ -1,7 +1,6 @@
 library(testthat)
 library(dplyr)
 library(copula)
-devtools::load_all(".")
 
 #### Setup data ####
 set.seed(123)
