@@ -17,7 +17,7 @@ trans_marg(marginal, data_df, mult_col = NULL, vars)
 \item{vars}{Names of variable columns.}
 }
 \value{
-List of data matrices transformed to Laplace margins for each location.
+List of matrices transformed to Laplace margins for each location.
 }
 \description{
 Transform data to Laplace margins for cecl_marg.

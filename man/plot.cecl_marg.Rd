@@ -16,7 +16,9 @@
 \arguments{
 \item{x}{Object of class \code{cecl_marg}.}
 
-\item{which}{Type of plot to generate. Choices are \code{"qq"} for QQ plot, \code{"pp"} for PP plot, \code{"hist"} for histogram of residuals, or \code{"return"} for return level plot.}
+\item{which}{Type of plot to generate. Choices are \code{"qq"} for QQ plot,
+\code{"pp"} for PP plot, \code{"hist"} for histogram of residuals, or \code{"return"} for
+return level plot.}
 
 \item{loc}{Location name to plot.}
 
@@ -27,8 +29,10 @@
 \item{...}{Additional arguments (not used)}
 }
 \value{
-For QQ, PP, and histogram plots: invisible NULL after plotting. For return level plots: a \code{ggplot} object.
+For QQ, PP, and histogram plots: invisible NULL after plotting.
+For return level plots: a \code{ggplot} object.
 }
 \description{
-Generate diagnostic plots for a \code{cecl_marg} object, including QQ, PP, histogram, and return level plots.
+Generate diagnostic plots for a \code{cecl_marg} object, including
+QQ, PP, histogram, and return level plots.
 }

@@ -16,7 +16,8 @@ rgpd(n, u, sigma, xi)
 \item{xi}{Numeric. The shape parameter of the GPD.}
 }
 \value{
-A numeric vector of length \code{n} containing random variates from the GPD.
+A numeric vector of length \code{n} containing random variates from the
+GPD.
 }
 \description{
 Generates random variates from the Generalized Pareto Distribution (GPD)

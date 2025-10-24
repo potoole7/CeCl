@@ -6,7 +6,8 @@
 #' @param u Numeric. The threshold (location parameter) of the GPD.
 #' @param sigma Numeric. The scale parameter of the GPD (must be positive).
 #' @param xi Numeric. The shape parameter of the GPD.
-#' @return A numeric vector of length `n` containing random variates from the GPD.
+#' @return A numeric vector of length `n` containing random variates from the
+#' GPD.
 #' @rdname rgpd
 #' @keywords internal
 rgpd <- \(n, u, sigma, xi) {

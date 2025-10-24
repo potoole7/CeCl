@@ -20,7 +20,9 @@
 
 \item{mapping}{Not used.}
 
-\item{which}{Type of plot to generate. Choices are \code{"qq"} for QQ plot, \code{"pp"} for PP plot, \code{"hist"} for histogram of residuals, or \code{"return"} for return level plot.}
+\item{which}{Type of plot to generate. Choices are \code{"qq"} for QQ plot,
+\code{"pp"} for PP plot, \code{"hist"} for histogram of residuals, or \code{"return"} for
+return level plot.}
 
 \item{loc}{Location name to plot.}
 

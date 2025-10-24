@@ -14,8 +14,10 @@
 \item{...}{Additional arguments (not used).}
 }
 \value{
-Invisibly returns the input object after printing summary information.
+Invisibly returns the input object after printing summary
+information.
 }
 \description{
-Print a summary of a \code{cecl_marg} object, including marginal model coefficients.
+Print a summary of a \code{cecl_marg} object, including marginal
+model coefficients.
 }

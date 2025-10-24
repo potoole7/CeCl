@@ -38,13 +38,6 @@ cecl_marg <- \(
   thresh_only = FALSE,
   marg_method = c("ecdf", "ismev", "evgam"),
   marg_args = NULL,
-  # marg_prob = list(
-  #   f          = list("response ~ name", "~ name"), # must be as character
-  #   tau        = .95,
-  #   jitter     = TRUE
-  # ),
-  # marg_val = NULL,
-  # f = list(excess ~ name, ~1), # keep shape constant for now
   ncores = 1
 ) {
   ## Initial ##
@@ -66,33 +59,6 @@ cecl_marg <- \(
 
   thresh_method <- match.arg(thresh_method)
   marg_method <- match.arg(marg_method)
-
-  # if (is.list(marg_prob)) {
-  #   stopifnot(is.list(marg_prob$f))
-  #   if (!all(vapply(marg_prob$f, is.character, logical(1)))) {
-  #     stop(paste(
-  #       "f should be a list of characters where 'response' is replaced by",
-  #       "each specified 'vars'"
-  #     ))
-  #   }
-  # }
-
-  # # check marginal thresholds specified correctly
-  # if (is.null(marg_val) && is.null(marg_prob)) { # must provide one
-  #   stop("you must provide one of marg_val or marg_prob")
-  # }
-  # if (!is.null(marg_val) && !is.null(marg_prob)) { # must provide only one
-  #   stop("you must provide precisely one of marg_val or marg_prob")
-  # }
-
-  # # must have marginal values for each variable
-  # # TODO Expand so marg_val can be a list of locations like `start`
-  # # TODO Expand so marg_val can be a list of dataframes with varying thresh
-  # if (!is.null(marg_val) && is.numeric(marg_val)) {
-  #   stopifnot(
-  #     length(marg_val) == length(vars) && all(names(marg_val) == vars)
-  #   )
-  # }
 
   # TODO Check arguments correctly specified for each thresh_method
   # Need to do regression!
@@ -136,11 +102,9 @@ cecl_marg <- \(
 
   # original data split by location (for returning later)
   orig_dat <- data_df |>
-    # dplyr::group_by(name) |>
     dplyr::group_by(.data[[mult_col]]) |>
     dplyr::group_split(.keep = TRUE)
   # add names to list elements
-  # names(orig_dat) <- purrr::map_chr(orig_dat, ~ as.character(.x$name[1]))
   names(orig_dat) <- purrr::map_chr(
     orig_dat,
     ~ as.character(.x[[mult_col]][1])
@@ -175,7 +139,6 @@ cecl_marg <- \(
     vars         = vars,
     marg_method  = marg_method,
     marg_args    = marg_args,
-    # f            = f,
     loop_fun     = loop_fun
   )
   if (marg_method == "evgam") {
@@ -216,8 +179,6 @@ cecl_marg <- \(
   return(ret)
 }
 
-## Data Prep ##
-
 #' @title Prepare data frame for cecl_marg
 #' @description Prepare data frame for cecl_marg: Convert list of data into
 #' dataframe with `mult_col` column specifying multivariate structure.
@@ -237,10 +198,8 @@ prep_df <- \(data, mult_col = "name", vars) {
     data_df <- dplyr::bind_rows(lapply(seq_along(data), \(i) {
       ret <- as.data.frame(data[[i]])
       # Add name column if not in list already
-      # if (!"name" %in% names(ret)) {
       if (!mult_col %in% names(ret)) {
         ret <- ret |>
-          # dplyr::mutate(name = paste0("location_", i))
           dplyr::mutate(!!mult_col := paste0("location_", i))
       }
     }))
@@ -255,7 +214,6 @@ prep_df <- \(data, mult_col = "name", vars) {
     data_df <- as.data.frame(data)
     # set vars if NULL
     if (is.null(vars)) {
-      # vars <- names(data_df)[!names(data_df) %in% "name"]
       vars <- names(data_df)[!names(data_df) == mult_col]
     }
     # convert matrix names if required
@@ -267,7 +225,6 @@ prep_df <- \(data, mult_col = "name", vars) {
   stopifnot("All of `vars` must be in data" = all(vars %in% names(data_df)))
 
   # make name a factor in order of appearance
-  # data_df$name <- forcats::fct_inorder(data_df$name)
   data_df[[mult_col]] <- forcats::fct_inorder(data_df[[mult_col]])
 
   return(list(data_df, vars))
@@ -289,7 +246,6 @@ marg_thresh <- \(
   quantile <- excess <- NULL
 
   # locations (before thresholding)
-  # locs <- unique(data_df$name)
   locs <- unique(data_df[[mult_col]])
 
   if (inherits(data_df, "cecl_thresh")) {
@@ -306,14 +262,12 @@ marg_thresh <- \(
           excess = !!rlang::sym(x)
         ) |>
         # also split by location
-        # group_split(name, .keep = TRUE)
         dplyr::group_split(.data[[mult_col]], .keep = TRUE)
-      # names(ret) <- purrr::map_chr(ret, ~ as.character(.x$name[1]))
       names(ret) <- purrr::map_chr(
         ret,
         ~ as.character(.x[[mult_col]][1])
       )
-      return(ret)
+      ret
     })
     names(data_thresh) <- vars
 
@@ -348,10 +302,9 @@ marg_thresh <- \(
         ) |>
         dplyr::filter(excess > 0) |>
         # also split by location
-        # group_split(name, .keep = TRUE) |>
         identity()
     })
-    # If thresh is a list, assume it is arguments to thresh_fun (now qgam_thresh)
+    # If thresh is a list, assume it is arguments to qgam_thresh
     # TODO: May be easier to just copy each vars column as response in data_df
     # Would allow for simpler formula specification
   }
@@ -361,9 +314,7 @@ marg_thresh <- \(
       print(paste0("thresholding ", x))
 
       # Change formula to include response in question
-      # spec_params <- marg_prob
       spec_params <- thresh_args
-      # spec_params$f <- lapply(marg_prob$f, \(f_spec) {
       spec_params$f <- lapply(thresh_args$f, \(f_spec) {
         stats::formula(stringr::str_replace_all(f_spec, "response", x))
       })
@@ -385,7 +336,6 @@ marg_thresh <- \(
 
       # return message where no exceedances are observed for any locations
       # TODO Implement for "normal" thresholding as well
-      # thresh_locs <- unique(ret$name)
       thresh_locs <- unique(ret[[mult_col]])
       if (length(thresh_locs) < length(locs)) {
         loc_missing <- setdiff(locs, thresh_locs)
@@ -395,12 +345,11 @@ marg_thresh <- \(
           ", removing for all variables"
         ))
       }
-      return(ret)
+      ret
     })
   }
 
   # locations with exceedances for all variables
-  # locs_keep <- Reduce(intersect, lapply(data_thresh, \(x) unique(x$name)))
   locs_keep <- Reduce(
     intersect,
     lapply(data_thresh, \(x) unique(x[[mult_col]]))
@@ -408,25 +357,21 @@ marg_thresh <- \(
 
   # remove duplicate threshold rows kept through floating point errors
   data_thresh <- lapply(data_thresh, \(x) {
-    # ret <- dplyr::filter(x, name %in% locs_keep) |>
     ret <- dplyr::filter(x, .data[[mult_col]] %in% locs_keep) |>
       dplyr::group_by(
-        # name,
         .data[[mult_col]],
         dplyr::across(dplyr::any_of(c("date", !!vars)))
       ) |>
       dplyr::slice(1) |>
       dplyr::ungroup() |>
       # also split by location
-      # group_split(name, .keep = TRUE)
       dplyr::group_split(.data[[mult_col]], .keep = TRUE)
 
-    # names(ret) <- purrr::map_chr(ret, ~ as.character(.x$name[1]))
     names(ret) <- purrr::map_chr(
       ret,
       ~ as.character(.x[[mult_col]][1])
     )
-    return(ret)
+    ret
   })
   return(list(data_thresh, locs_keep))
 }
@@ -513,7 +458,6 @@ fit_marg <- \(
   thresh <- shape <- sigma <- xi <- NULL
 
   if (marg_method == "ecdf") {
-    # locs <- unique(data_df$name)
     locs <- unique(data_df[[mult_col]])
     # dummy GPD fits
     marginal <- lapply(locs, \(loc) {
@@ -523,7 +467,6 @@ fit_marg <- \(
           "xi" = NA_real_,
           # take as threshold the maximum value (to transform using only ECDF)
           "thresh" = data_thresh[[var]] |>
-            # dplyr::filter(name == loc) |>
             dplyr::filter(.data[[mult_col]] == loc) |>
             dplyr::arrange(!!rlang::sym(var)) |>
             dplyr::slice(dplyr::n()) |>
@@ -531,7 +474,7 @@ fit_marg <- \(
         )
       })
       names(gpd_y) <- vars
-      return(gpd_y)
+      gpd_y
     })
     names(marginal) <- locs
   }
@@ -539,14 +482,12 @@ fit_marg <- \(
   if (marg_method == "ismev") {
     # calculate for all locations
     marginal <- data_df |>
-      # dplyr::group_split(name, .keep = TRUE) |>
       dplyr::group_split(.data[[mult_col]], .keep = TRUE) |>
       loop_fun(\(x) {
         # pull marginal thresholds
         mth <- vapply(data_thresh, \(y) {
           y |>
             # need thresh for correct loc
-            # dplyr::filter(name == x$name[[1]]) |>
             dplyr::filter(.data[[mult_col]] == x[[mult_col]][[1]]) |>
             dplyr::slice(1) |>
             dplyr::pull(thresh)
@@ -559,12 +500,6 @@ fit_marg <- \(
             threshold = mth[i],
             show      = FALSE
           )
-          # return(list(
-          #   "sigma"     = fit$mle[1],
-          #   "xi"        = fit$mle[2],
-          #   "thresh"    = fit$threshold[[1]],
-          #   "name"      = x$name[1]
-          # ))
           ret <- list(
             "sigma"     = fit$mle[1],
             "xi"        = fit$mle[2],
@@ -572,14 +507,13 @@ fit_marg <- \(
             "name"      = x[[mult_col]][1]
           )
           names(ret)[4] <- mult_col
-          return(ret)
+          ret
         })
         names(gpd_fits) <- vars
-        return(gpd_fits)
+        gpd_fits
       })
 
     # add names (correctly!)
-    # names(marginal) <- purrr::map_chr(marginal, ~ as.character(.x[[1]]$name))
     names(marginal) <- purrr::map_chr(
       marginal,
       ~ as.character(.x[[1]][[mult_col]])
@@ -602,7 +536,6 @@ fit_marg <- \(
       # using signif to account for floating point errors
       params_df <- dplyr::select(
         evgam_fit[[i]]$predictions,
-        # name,
         !!mult_col,
         sigma = scale,
         xi = shape
@@ -610,9 +543,7 @@ fit_marg <- \(
         dplyr::distinct(signif(sigma, 6), signif(xi, 6), .keep_all = TRUE) |>
         # also pull in thresholds
         dplyr::left_join(
-          # dplyr::select(data_thresh[[i]], name, thresh) |>
           dplyr::select(data_thresh[[i]], !!mult_col, thresh) |>
-            # dplyr::distinct(name, signif(thresh, 6), .keep_all = TRUE)
             dplyr::distinct(
               .data[[mult_col]],
               signif(thresh, 6),
@@ -622,23 +553,16 @@ fit_marg <- \(
         dplyr::select(-dplyr::matches("signif"))
 
       # split into list by name as dependence pars will also be this way
-      # loc_names_spec <- unique(params_df$name)
       out <- params_df |>
-        # dplyr::group_split(dplyr::row_number(), .keep = FALSE) |>
-        # dplyr::group_split(name, .keep = FALSE) |>
-        # dplyr::relocate(name, .after = dplyr::last_col()) |>
         dplyr::relocate(!!mult_col, .after = dplyr::last_col()) |>
-        # dplyr::group_split(name, .keep = TRUE) |>
         dplyr::group_split(.data[[mult_col]], .keep = TRUE) |>
-        # setNames(loc_names_spec) |> # wrong, causes bug!!
         lapply(as.vector, mode = "list")
       # pull names correctly from list objects
-      # names(out) <- purrr::map_chr(out, ~ as.character(.x$name))
       names(out) <- purrr::map_chr(
         out,
         ~ as.character(.x[[mult_col]][1])
       )
-      return(out)
+      out
     })
     names(marginal) <- vars
 
@@ -662,7 +586,7 @@ fit_marg <- \(
 #' @param mult_col Name of column specifying multivariate structure, default
 #' "name".
 #' @param vars Names of variable columns.
-#' @return List of data matrices transformed to Laplace margins for each location.
+#' @return List of matrices transformed to Laplace margins for each location.
 trans_marg <- \(
   marginal,
   data_df,
@@ -675,15 +599,13 @@ trans_marg <- \(
     # semi-parametric CDF
     # TODO: More efficient to also split data_df by name and subset with i
     F_hat <- data_df |>
-      # dplyr::filter(name == locs_keep[i]) |>
-      # dplyr::filter(name == names(marginal)[i]) |>
       dplyr::filter(.data[[mult_col]] == names(marginal)[i]) |>
       dplyr::select(dplyr::all_of(vars)) |>
       p_gpd_ecdf(marginal[[i]])
     # Laplace transform
     Y <- dlaplace(F_hat)
     colnames(Y) <- vars
-    return(Y)
+    Y
   })
 }
 
@@ -729,7 +651,7 @@ p_gpd_ecdf <- \(dat, gpd, n = nrow(dat)) {
       )^(-1 / spec_xi)
       cdf[dat[, i] > spec_loc] <- 1 - (mean(dat_spec > spec_loc) * para)
     }
-    return(cdf)
+    cdf
   }, FUN.VALUE = numeric(n)))
 }
 
@@ -743,7 +665,7 @@ p_gpd_ecdf <- \(dat, gpd, n = nrow(dat)) {
 #' @rdname inv_semi_par_cdf
 #' @keywords internal
 d_gpd_ecdf <- \(F_hat, dat, gpd) {
-  return(vapply(seq_along(gpd), \(i) {
+  vapply(seq_along(gpd), \(i) {
     dat_spec <- dat[, i, drop = TRUE]
     stopifnot(names(gpd[[i]]) == c("sigma", "xi", "thresh"))
 
@@ -788,8 +710,8 @@ d_gpd_ecdf <- \(F_hat, dat, gpd) {
     # Ensure final ordering matches input ordering
     res[order(F_hat[, i])] <- sort(res)
 
-    return(res)
-  }, FUN.VALUE = numeric(nrow(F_hat))))
+    res
+  }, FUN.VALUE = numeric(nrow(F_hat)))
 }
 
 #' @title Convert to matrix
@@ -803,7 +725,7 @@ to_matrix <- \(F_hat) {
   if (!is.matrix(F_hat) && is.vector(F_hat)) {
     ret <- as.matrix(F_hat)
   }
-  return(ret)
+  ret
 }
 
 #' @title Laplace transformation
@@ -816,7 +738,7 @@ to_matrix <- \(F_hat) {
 dlaplace <- \(F_hat, tol = .Machine$double.eps) {
   apply(to_matrix(F_hat), 2, \(x) {
     y <- pmin(pmax(x, tol), 1 - tol)
-    return(ifelse(y < 0.5, log(2 * y), -log(2 * (1 - y))))
+    ifelse(y < 0.5, log(2 * y), -log(2 * (1 - y)))
   })
 }
 
@@ -858,7 +780,6 @@ fit_evgam <- \(
   # create predictions for unique rows in pred_data (ensures one pred per loc)
   predictors <- m$predictor.names
   pred_dat_distinct <- pred_data |>
-    # dplyr::distinct(name, dplyr::across(dplyr::all_of(predictors)))
     dplyr::distinct(
       .data[[mult_col]],
       dplyr::across(dplyr::all_of(predictors))
@@ -896,17 +817,19 @@ coef.cecl_marg <- \(object, ...) {
     ))
   }
 
-  if (inherits(object, "cecl_marg_ismev") || inherits(object, "cecl_marg_evgam")) {
+  if (
+    inherits(object, "cecl_marg_ismev") || inherits(object, "cecl_marg_evgam")
+  ) {
     coefs <- lapply(object$marginal, \(loc) {
       do.call(rbind, lapply(loc, as.data.frame))
     })
     coefs_df <- do.call(rbind, lapply(names(coefs), \(loc_name) {
       loc_df <- coefs[[loc_name]]
       loc_df$name <- loc_name
-      return(loc_df)
+      loc_df
     }))
     rownames(coefs_df) <- NULL
-    return(coefs_df)
+    coefs_df
   }
 
   stop("coef method not implemented for this marg_method")
@@ -937,11 +860,13 @@ print.cecl_marg <- \(x, ...) {
 }
 
 #' @title Summary method for `cecl_marg` objects
-#' @description Print a summary of a `cecl_marg` object, including marginal model coefficients.
+#' @description Print a summary of a `cecl_marg` object, including marginal
+#' model coefficients.
 #' @param object Object of class `cecl_marg`.
 #' @param n Number of rows of coefficients to display (default all).
 #' @param ... Additional arguments (not used).
-#' @return Invisibly returns the input object after printing summary information.
+#' @return Invisibly returns the input object after printing summary
+#' information.
 #' @method summary cecl_marg
 #' @rdname summary.cecl_marg
 #' @export
@@ -971,18 +896,24 @@ summary.cecl_marg <- \(object, n, ...) {
 }
 
 #' @title Plot method for `cecl_marg` objects
-#' @description Generate diagnostic plots for a `cecl_marg` object, including QQ, PP, histogram, and return level plots.
+#' @description Generate diagnostic plots for a `cecl_marg` object, including
+#' QQ, PP, histogram, and return level plots.
 #' @param x Object of class `cecl_marg`.
-#' @param which Type of plot to generate. Choices are `"qq"` for QQ plot, `"pp"` for PP plot, `"hist"` for histogram of residuals, or `"return"` for return level plot.
+#' @param which Type of plot to generate. Choices are `"qq"` for QQ plot,
+#' `"pp"` for PP plot, `"hist"` for histogram of residuals, or `"return"` for
+#' return level plot.
 #' @param loc Location name to plot.
 #' @param mult_col Name of the column representing locations, default `"name"`.
 #' @param var Variable name to plot.
 #' @param ... Additional arguments (not used)
-#' @return For QQ, PP, and histogram plots: invisible NULL after plotting. For return level plots: a `ggplot` object.
+#' @return For QQ, PP, and histogram plots: invisible NULL after plotting.
+#' For return level plots: a `ggplot` object.
 #' @method plot cecl_marg
 #' @rdname plot.cecl_marg
 #' @export
-plot.cecl_marg <- \(x, which = c("qq", "pp", "hist", "return"), loc, mult_col = "name", var, ...) {
+plot.cecl_marg <- \(
+  x, which = c("qq", "pp", "hist", "return"), loc, mult_col = "name", var, ...
+) {
   stopifnot(inherits(x, "cecl_marg"))
 
   if (inherits(x, "cecl_marg_ecdf")) {
@@ -1018,7 +949,6 @@ plot.cecl_marg <- \(x, which = c("qq", "pp", "hist", "return"), loc, mult_col = 
   } else if (inherits(x, "cecl_marg_evgam")) {
     evgam_fit <- x$evgam_fit[[which(x$vars == var)]]
     pred_row <- evgam_fit$predictions |>
-      # dplyr::filter(name == loc)
       dplyr::filter(.data[[x$mult_col]] == loc)
     sigma <- pred_row$scale
     residuals <- (thresh_data[[var]] - pred_row$thresh) / sigma
@@ -1091,7 +1021,10 @@ plot.cecl_marg <- \(x, which = c("qq", "pp", "hist", "return"), loc, mult_col = 
         xi    = gpd_params$xi
       )
 
-      fit_b <- ismev::gpd.fit(sim_data, threshold = gpd_params$thresh, show = FALSE)
+      fit_b <- ismev::gpd.fit(
+        sim_data,
+        threshold = gpd_params$thresh, show = FALSE
+      )
 
       if (inherits(fit_b, "try-error")) next # skip failed fit
 
@@ -1124,7 +1057,8 @@ plot.cecl_marg <- \(x, which = c("qq", "pp", "hist", "return"), loc, mult_col = 
 #' @title CECL ggplot theme
 #' @description Custom ggplot theme for CECL plots.
 #' @param legend.position Position of legend in plot, default "bottom".
-#' @param nejm_pal Logical indicating whether to use NEJM color palette, default TRUE.
+#' @param nejm_pal Logical indicating whether to use NEJM color palette,
+#' default TRUE.
 #' @return List of ggplot theme elements.
 #' @rdname cecl_theme
 #' @export
@@ -1132,10 +1066,12 @@ cecl_theme <- \(legend.position = "bottom", nejm_pal = TRUE) {
   ret <- ggplot2::theme_bw() + ggplot2::theme(
     legend.position = legend.position,
     plot.title = ggplot2::element_text(size = 16, hjust = 0.5),
-    axis.text = ggplot2::element_text(size = 12), axis.title = ggplot2::element_text(
+    axis.text = ggplot2::element_text(size = 12),
+    axis.title = ggplot2::element_text(
       size = 14,
       face = "bold"
-    ), legend.text = ggplot2::element_text(size = 12),
+    ),
+    legend.text = ggplot2::element_text(size = 12),
     strip.text = ggplot2::element_text(size = 13, face = "bold"),
     strip.background = ggplot2::element_rect(fill = NA, colour = "black"),
     plot.tag = ggplot2::element_text(size = 16, face = "bold"),
@@ -1160,7 +1096,16 @@ cecl_theme <- \(legend.position = "bottom", nejm_pal = TRUE) {
 #' @method ggplot cecl_marg
 #' @export
 #' @importFrom ggplot2 ggplot
-ggplot.cecl_marg <- \(data = NULL, mapping = ggplot2::aes(), which = c("qq", "pp", "hist", "return"), loc, mult_col = "name", var, ..., environment = parent.frame()) {
+ggplot.cecl_marg <- \(
+  data = NULL,
+  mapping = ggplot2::aes(),
+  which = c("qq", "pp", "hist", "return"),
+  loc,
+  mult_col = "name",
+  var,
+  ...,
+  environment = parent.frame()
+) {
   stopifnot(inherits(data, "cecl_marg"))
 
   if (inherits(data, "cecl_marg_ecdf")) {
@@ -1198,7 +1143,6 @@ ggplot.cecl_marg <- \(data = NULL, mapping = ggplot2::aes(), which = c("qq", "pp
   } else if (inherits(data, "cecl_marg_evgam")) {
     evgam_fit <- data$evgam_fit[[which(data$vars == var)]]
     pred_row <- evgam_fit$predictions |>
-      # dplyr::filter(name == loc)
       dplyr::filter(.data[[data$mult_col]] == loc)
     sigma <- pred_row$scale
     residuals <- (thresh_data[[var]] - pred_row$thresh) / sigma
@@ -1267,26 +1211,29 @@ ggplot.cecl_marg <- \(data = NULL, mapping = ggplot2::aes(), which = c("qq", "pp
     }
 
     df <- data.frame(
-      T = T_vals,
+      T_val = T_vals,
       z_T = z_T
     )
 
-    # Optional: bootstrap CI
+    # bootstrap CI
     nboot <- 200
     zT_list <- list()
     for (b in seq_len(nboot)) {
-      # sim_data <- evd::rgpd(n = nrow(thresh_data), loc = u, scale = sigma, shape = xi)
       sim_data <- rgpd(
         n     = nrow(thresh_data),
         u     = u,
         sigma = sigma,
         xi    = xi
       )
-      fit_b <- try(ismev::gpd.fit(sim_data, threshold = u, show = FALSE), silent = TRUE)
+      fit_b <- try(
+        ismev::gpd.fit(sim_data, threshold = u, show = FALSE),
+        silent = TRUE
+      )
       if (inherits(fit_b, "try-error") || any(is.na(fit_b$mle))) next
       sigma_b <- fit_b$mle[1]
       xi_b <- ifelse(abs(fit_b$mle[2]) < 1e-6, 1e-6, fit_b$mle[2])
-      zT_list[[length(zT_list) + 1]] <- u + (sigma_b / xi_b) * ((T_vals * lambda_u)^xi_b - 1)
+      zT_list[[length(zT_list) + 1]] <- u +
+        (sigma_b / xi_b) * ((T_vals * lambda_u)^xi_b - 1)
     }
     if (length(zT_list) > 0) {
       zT_boot <- do.call(rbind, zT_list)
@@ -1295,7 +1242,7 @@ ggplot.cecl_marg <- \(data = NULL, mapping = ggplot2::aes(), which = c("qq", "pp
     }
 
     # ggplot
-    p <- ggplot2::ggplot(df, ggplot2::aes(x = T, y = z_T)) +
+    p <- ggplot2::ggplot(df, ggplot2::aes(x = T_vals, y = z_T)) +
       ggplot2::geom_line() +
       ggplot2::geom_point() +
       ggplot2::labs(

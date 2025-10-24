@@ -9,7 +9,8 @@ cecl_theme(legend.position = "bottom", nejm_pal = TRUE)
 \arguments{
 \item{legend.position}{Position of legend in plot, default "bottom".}
 
-\item{nejm_pal}{Logical indicating whether to use NEJM color palette, default TRUE.}
+\item{nejm_pal}{Logical indicating whether to use NEJM color palette,
+default TRUE.}
 }
 \value{
 List of ggplot theme elements.
