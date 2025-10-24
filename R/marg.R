@@ -28,7 +28,6 @@
 #' @rdname cecl_marg
 #' @importFrom rlang .data :=
 #' @export
-# TODO Allow for any "name" column
 cecl_marg <- \(
   data,
   mult_col = "name",
@@ -59,6 +58,34 @@ cecl_marg <- \(
 
   thresh_method <- match.arg(thresh_method)
   marg_method <- match.arg(marg_method)
+
+  # data type
+  stopifnot(is.list(data) || inherits(data, "evc_marg"))
+
+  # mult_col and vars
+  stopifnot(is.character(mult_col), length(mult_col) == 1)
+  if (!is.null(vars)) stopifnot(is.character(vars))
+
+  # thresholding method
+  if (thresh_method %in% c("value", "quantile")) {
+    stopifnot(!is.null(thresh_args))
+    stopifnot(is.numeric(thresh_args))
+    if (!is.null(vars) && !(length(thresh_args) %in% c(1, length(vars)))) {
+      stop("Length of 'thresh_args' must be 1 or equal to number of variables.")
+    }
+  } else if (thresh_method == "regression") {
+    stopifnot(is.list(thresh_args))
+    stopifnot("f" %in% names(thresh_args))
+  }
+
+  # marginal method
+  stopifnot(marg_method %in% c("ecdf", "ismev", "evgam"))
+
+  # thresh_only
+  stopifnot(is.logical(thresh_only), length(thresh_only) == 1)
+
+  # ncores
+  stopifnot(is.numeric(ncores), length(ncores) == 1, ncores >= 1)
 
   # TODO Check arguments correctly specified for each thresh_method
   # Need to do regression!
@@ -99,6 +126,9 @@ cecl_marg <- \(
 
   # Only keep locs with exceedances for all vars, otherwise can't do CE!
   data_df <- dplyr::filter(data_df, name %in% locs_keep)
+  if (length(locs_keep) == 0) {
+    stop("No locations have exceedances for all variables after thresholding.")
+  }
 
   # original data split by location (for returning later)
   orig_dat <- data_df |>
