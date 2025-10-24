@@ -1,3 +1,4 @@
+example.R
 ^scripts$
 ^Makefile$
 ^README\.Rmd$
