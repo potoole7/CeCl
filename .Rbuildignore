@@ -1,6 +1,7 @@
 example.R
 ^scripts$
 ^Makefile$
+News.md
 ^README\.Rmd$
 ^\.travis\.yml$
 ^docs$
