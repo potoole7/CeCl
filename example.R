@@ -1,5 +1,7 @@
 #### ?? ####
 
+# TODO Need to add functions for choosing thresholds
+
 #### Libs ####
 
 devtools::load_all(".")
@@ -126,3 +128,18 @@ summary(marg_ismev, n = 10)
 summary(marg_evgam)
 
 # plot method
+tryCatch(
+  plot(marg_ecdf),
+  error = function(e) message(e$message)
+)
+plot(marg_ismev, which = "pp", loc = "loc_1", var = "X1")
+plot(marg_ismev, which = "qq", loc = "loc_1", var = "X1")
+plot(marg_ismev, which = "hist", loc = "loc_1", var = "X1")
+plot(marg_ismev, which = "return", loc = "loc_1", var = "X1")
+
+# ggplot method
+ggplot(marg_ismev, which = "pp", loc = "loc_1", var = "X1")
+# TODO investigate why this is so bad! Lol
+ggplot(marg_ismev, which = "qq", loc = "loc_1", var = "X1")
+ggplot(marg_ismev, which = "hist", loc = "loc_1", var = "X1")
+ggplot(marg_ismev, which = "return", loc = "loc_1", var = "X1")

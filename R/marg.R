@@ -58,6 +58,9 @@ cecl_marg <- \(
 
   ## Argument Checks ##
 
+  thresh_method <- match.arg(thresh_method)
+  marg_method <- match.arg(marg_method)
+
   # if (is.list(marg_prob)) {
   #   stopifnot(is.list(marg_prob$f))
   #   if (!all(vapply(marg_prob$f, is.character, logical(1)))) {
@@ -117,9 +120,9 @@ cecl_marg <- \(
     thresh_method = thresh_method,
     thresh_args   = thresh_args
   )
-  data_thresh <- thresh_out[[1]]
+  data_thresh_out <- data_thresh <- thresh_out[[1]]
   locs_keep <- thresh_out[[2]] # locations with exceedances for all variables
-  names(data_thresh) <- vars
+  names(data_thresh_out) <- names(data_thresh) <- vars
 
   # Only keep locs with exceedances for all vars, otherwise can't do CE!
   data_df <- dplyr::filter(data_df, name %in% locs_keep)
@@ -174,7 +177,7 @@ cecl_marg <- \(
   # return
   ret <- list(
     "marginal"    = marginal,
-    "data_thresh" = data_thresh,
+    "data_thresh" = data_thresh_out,
     "original"    = orig_dat,
     "transformed" = marginal_trans,
     "vars"        = vars
@@ -882,4 +885,337 @@ summary.cecl_marg <- function(object, n) {
   }
 
   print(coefs_df)
+}
+
+#' @title `plot` method for `cecl_marg` class
+#' @description Plot diagnostic plots for `cecl_marg` object.
+#' @param x Object of class `cecl_marg`.
+#' @param which Type of plot to generate: "qq" for QQ plot,
+#' "pp" for PP plot, "hist" for histogram of residuals.
+#' @param loc Location name to plot.
+#' @param var Variable name to plot.
+#' @param ... Additional arguments (not used).
+#' @return Diagnostic plot for `cecl_marg` object.
+#' @rdname plot.cecl_marg
+#' @method plot cecl_marg
+#' @export
+plot.cecl_marg <- function(x, which = c("qq", "pp", "hist", "return"), loc, var, ...) {
+  stopifnot(inherits(x, "cecl_marg"))
+
+  if (inherits(x, "cecl_marg_ecdf")) {
+    stop(paste(
+      "No residuals to plot for 'ecdf' marg_method.",
+      "Use 'thresh_only = TRUE' in 'cecl_marg' to only threshold data."
+    ))
+  }
+
+  which <- match.arg(which)
+
+  if (missing(loc) || missing(var)) {
+    stop("Please specify both 'loc' and 'var' to plot.")
+  }
+
+  if (!loc %in% names(x$original)) {
+    stop(paste("Location", loc, "not found in the cecl_marg object."))
+  }
+  if (!var %in% x$vars) {
+    stop(paste("Variable", var, "not found in the cecl_marg object."))
+  }
+
+  # Extract original and thresholded data for specified location and variable
+  orig_data <- x$original[[loc]] |>
+    dplyr::select(dplyr::all_of(var))
+  thresh_data <- x$data_thresh[[var]][[loc]] |>
+    dplyr::select(dplyr::all_of(var))
+
+  # Calculate residuals based on marginal method
+  if (inherits(x, "cecl_marg_ismev")) {
+    gpd_params <- x$marginal[[loc]][[var]]
+    residuals <- (thresh_data[[var]] - gpd_params$thresh) / gpd_params$sigma
+  } else if (inherits(x, "cecl_marg_evgam")) {
+    evgam_fit <- x$evgam_fit[[which(x$vars == var)]]
+    pred_row <- evgam_fit$predictions |>
+      dplyr::filter(name == loc)
+    sigma <- pred_row$scale
+    residuals <- (thresh_data[[var]] - pred_row$thresh) / sigma
+  } else {
+    stop("Plot method not implemented for this marg_method")
+  }
+
+  # Generate specified plot
+  if (which == "qq") {
+    qqplot(
+      stats::qexp(ppoints(length(residuals))),
+      residuals,
+      main = paste("QQ Plot for", var, "at", loc),
+      xlab = "Theoretical Quantiles",
+      ylab = "Sample Quantiles"
+    )
+    abline(0, 1, col = "red")
+  } else if (which == "pp") {
+    plot(
+      stats::ppoints(length(residuals)),
+      stats::pexp(sort(residuals)),
+      main = paste("PP Plot for", var, "at", loc),
+      xlab = "Theoretical Probabilities",
+      ylab = "Sample Probabilities"
+    )
+    abline(0, 1, col = "red")
+  } else if (which == "hist") {
+    hist(
+      residuals,
+      breaks = 20,
+      main = paste("Histogram of Residuals for", var, "at", loc),
+      xlab = "Residuals"
+    )
+  } else if (which == "return") {
+    #  Extract fitted parameters
+    gpd_params <- x$marginal[[loc]][[var]]
+    u <- gpd_params$thresh
+    sigma <- gpd_params$sigma
+    xi <- gpd_params$xi
+
+    # Estimate exceedance rate
+    n_total <- nrow(orig_data)
+    n_exc <- nrow(thresh_data)
+    lambda_u <- n_exc / n_total
+
+    # Define return periods
+    T_vals <- c(1.5, 2, 5, 10, 20, 50, 100, 200)
+    z_T <- if (abs(xi) > 1e-6) {
+      u + (sigma / xi) * ((T_vals * lambda_u)^xi - 1)
+    } else {
+      u + sigma * log(T_vals * lambda_u)
+    }
+
+    plot(
+      T_vals, z_T,
+      type = "b", pch = 19,
+      main = paste("Return Level Plot for", var, "at", loc),
+      xlab = "Return Period",
+      ylab = "Return Level"
+    )
+
+    nboot <- 500
+    zT_boot <- matrix(NA, nrow = nboot, ncol = length(T_vals))
+
+    for (b in seq_len(nboot)) {
+      sim_data <- evd::rgpd(
+        n = nrow(thresh_data),
+        loc = gpd_params$thresh,
+        scale = gpd_params$sigma,
+        shape = gpd_params$xi
+      )
+
+      fit_b <- ismev::gpd.fit(sim_data, threshold = gpd_params$thresh, show = FALSE)
+
+      if (inherits(fit_b, "try-error")) next # skip failed fit
+
+      sigma_b <- fit_b$mle[1]
+      xi_b <- fit_b$mle[2]
+      lambda_u_b <- lambda_u
+
+      # skip if invalid MLEs
+      if (any(is.na(fit_b$mle))) next
+      xi_b <- ifelse(abs(xi_b) < 1e-6, 1e-6, xi_b)
+
+      zT_boot[b, ] <- gpd_params$thresh +
+        (sigma_b / xi_b) * ((T_vals * lambda_u_b)^xi_b - 1)
+    }
+
+    ci <- apply(zT_boot, 2, quantile, probs = c(0.025, 0.975))
+    z_T_lower <- ci[1, ]
+    z_T_upper <- ci[2, ]
+    lines(T_vals, z_T_upper, lty = 2, col = ggsci::nejm_pal()(n = 2)[2])
+    lines(T_vals, z_T_lower, lty = 2, col = ggsci::nejm_pal()(n = 2)[2])
+  }
+}
+
+#' @title CECL ggplot theme
+#' @description Custom ggplot theme for CECL plots.
+#' @param legend.position Position of legend in plot, default "bottom".
+#' @param nejm_pal Logical indicating whether to use NEJM color palette, default TRUE.
+#' @return List of ggplot theme elements.
+#' @rdname cecl_theme
+#' @export
+cecl_theme <- function(legend.position = "bottom", nejm_pal = TRUE) {
+  ret <- ggplot2::theme_bw() + ggplot2::theme(
+    legend.position = legend.position,
+    plot.title = ggplot2::element_text(size = 16, hjust = 0.5),
+    axis.text = ggplot2::element_text(size = 12), axis.title = ggplot2::element_text(
+      size = 14,
+      face = "bold"
+    ), legend.text = ggplot2::element_text(size = 12),
+    strip.text = ggplot2::element_text(size = 13, face = "bold"),
+    strip.background = ggplot2::element_rect(fill = NA, colour = "black"),
+    plot.tag = ggplot2::element_text(size = 16, face = "bold"),
+    panel.background = ggplot2::element_rect(fill = NA, colour = "black")
+  )
+  ret <- list(ret)
+  if (nejm_pal == TRUE) {
+    ret <- c(ret, list(ggsci::scale_colour_nejm(), ggsci::scale_fill_nejm()))
+  }
+  return(ret)
+}
+
+#' @title `ggplot` method for `cecl_marg` class
+#' @description Generate ggplot diagnostic plots for `cecl_marg` object.
+#' @param x Object of class `cecl_marg`.
+#' @param which Type of plot to generate: "qq" for QQ plot,
+#' "pp" for PP plot, "hist" for histogram of residuals.
+#' @param loc Location name to plot.
+#' @param var Variable name to plot.
+#' @param ... Additional arguments (not used).
+#' @return ggplot diagnostic plot for `cecl_marg` object.
+#' @rdname ggplot.cecl_marg
+#' @method ggplot cecl_marg
+#' @export
+#' @importFrom ggplot2 ggplot
+ggplot.cecl_marg <- function(x, which = c("qq", "pp", "hist", "return"), loc, var, ...) {
+  stopifnot(inherits(x, "cecl_marg"))
+
+  if (inherits(x, "cecl_marg_ecdf")) {
+    stop(paste(
+      "No residuals to plot for 'ecdf' marg_method.",
+      "Use 'thresh_only = TRUE' in 'cecl_marg' to only threshold data."
+    ))
+  }
+
+  which <- match.arg(which)
+
+  if (missing(loc) || missing(var)) {
+    stop("Please specify both 'loc' and 'var' to plot.")
+  }
+
+  if (!loc %in% names(x$original)) {
+    stop(paste("Location", loc, "not found in the cecl_marg object."))
+  }
+  if (!var %in% x$vars) {
+    stop(paste("Variable", var, "not found in the cecl_marg object."))
+  }
+
+  # Extract original and thresholded data for specified location and variable
+  orig_data <- x$original[[loc]] |>
+    dplyr::select(dplyr::all_of(var))
+  thresh_data <- x$data_thresh[[var]][[loc]] |>
+    dplyr::select(dplyr::all_of(var))
+
+  # Calculate residuals based on marginal method
+  if (inherits(x, "cecl_marg_ismev")) {
+    gpd_params <- x$marginal[[loc]][[var]]
+    residuals <- (thresh_data[[var]] - gpd_params$thresh) / gpd_params$sigma
+  } else if (inherits(x, "cecl_marg_evgam")) {
+    evgam_fit <- x$evgam_fit[[which(x$vars == var)]]
+    pred_row <- evgam_fit$predictions |>
+      dplyr::filter(name == loc)
+    sigma <- pred_row$scale
+    residuals <- (thresh_data[[var]] - pred_row$thresh) / sigma
+  } else {
+    stop("ggplot method not implemented for this marg_method")
+  }
+
+  res_df <- data.frame(residuals = residuals)
+
+  # Generate specified ggplot
+  if (which == "qq") {
+    ggplot2::ggplot(res_df, ggplot2::aes(
+      sample = residuals,
+    )) +
+      ggplot2::stat_qq() +
+      ggplot2::stat_qq_line(col = "red") +
+      ggplot2::labs(
+        title = paste("QQ Plot for", var, "at", loc),
+        x = "Theoretical Quantiles",
+        y = "Sample Quantiles"
+      ) +
+      cecl_theme()
+  } else if (which == "pp") {
+    ggplot2::ggplot(res_df, ggplot2::aes(
+      x = stats::ppoints(length(residuals)),
+      y = stats::pexp(sort(residuals))
+    )) +
+      ggplot2::geom_point() +
+      ggplot2::geom_abline(slope = 1, intercept = 0, col = "red") +
+      ggplot2::labs(
+        title = paste("PP Plot for", var, "at", loc),
+        x = "Theoretical Probabilities",
+        y = "Sample Probabilities"
+      ) +
+      cecl_theme()
+  } else if (which == "hist") {
+    ggplot2::ggplot(res_df, ggplot2::aes(x = residuals)) +
+      ggplot2::geom_histogram(
+        bins = 20,
+        fill = ggsci::pal_nejm()(1)[1],
+        color = "black"
+      ) +
+      ggplot2::labs(
+        title = paste("Histogram of Residuals for", var, "at", loc),
+        x = "Residuals"
+      ) +
+      cecl_theme()
+  } else if (which == "return") {
+    # Extract parameters
+    gpd_params <- x$marginal[[loc]][[var]]
+    u <- gpd_params$thresh
+    sigma <- gpd_params$sigma
+    xi <- gpd_params$xi
+
+    # Exceedance rate
+    n_total <- nrow(orig_data)
+    n_exc <- nrow(thresh_data)
+    lambda_u <- n_exc / n_total
+
+    # Return periods
+    T_vals <- c(1.5, 2, 5, 10, 20, 50, 100, 200)
+    z_T <- if (abs(xi) > 1e-6) {
+      u + (sigma / xi) * ((T_vals * lambda_u)^xi - 1)
+    } else {
+      u + sigma * log(T_vals * lambda_u)
+    }
+
+    df <- data.frame(
+      T = T_vals,
+      z_T = z_T
+    )
+
+    # Optional: bootstrap CI
+    nboot <- 200
+    zT_list <- list()
+    for (b in seq_len(nboot)) {
+      sim_data <- evd::rgpd(n = nrow(thresh_data), loc = u, scale = sigma, shape = xi)
+      fit_b <- try(ismev::gpd.fit(sim_data, threshold = u, show = FALSE), silent = TRUE)
+      if (inherits(fit_b, "try-error") || any(is.na(fit_b$mle))) next
+      sigma_b <- fit_b$mle[1]
+      xi_b <- ifelse(abs(fit_b$mle[2]) < 1e-6, 1e-6, fit_b$mle[2])
+      zT_list[[length(zT_list) + 1]] <- u + (sigma_b / xi_b) * ((T_vals * lambda_u)^xi_b - 1)
+    }
+    if (length(zT_list) > 0) {
+      zT_boot <- do.call(rbind, zT_list)
+      df$lower <- apply(zT_boot, 2, quantile, probs = 0.025)
+      df$upper <- apply(zT_boot, 2, quantile, probs = 0.975)
+    }
+
+    # ggplot
+    p <- ggplot2::ggplot(df, ggplot2::aes(x = T, y = z_T)) +
+      ggplot2::geom_line() +
+      ggplot2::geom_point() +
+      ggplot2::labs(
+        title = paste("Return Level Plot for", var, "at", loc),
+        x = "Return Period",
+        y = "Return Level"
+      ) +
+      cecl_theme()
+
+    # Add CI ribbon if available
+    if ("lower" %in% names(df) && "upper" %in% names(df)) {
+      p <- p + ggplot2::geom_ribbon(
+        ggplot2::aes(ymin = lower, ymax = upper),
+        alpha = 0.2,
+        fill = ggsci::pal_nejm()(1)
+      )
+    }
+
+    return(p)
+  }
 }
