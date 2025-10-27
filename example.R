@@ -34,7 +34,8 @@ df$name <- rep(paste0("loc_", 1:n_locs), each = n / n_locs)
 thresh_val <- cecl_marg(
   df,
   thresh_method = "value",
-  thresh_args = quantile(df$X1, 0.9), # TODO can be length 1 or length n
+  # thresh_args = quantile(df$X1, 0.9), # TODO can be length 1 or length n
+  thresh_args = apply(df[, c("X1", "X2")], 2, quantile, probs = 0.9),
   thresh_only = TRUE,
   ncores = 1
 )
@@ -51,7 +52,7 @@ thresh_q <- cecl_marg(
 # 3. Regression
 thresh_reg <- cecl_marg(
   df,
-  thresh_method = "regression",
+  thresh_method = "qgam",
   # TODO Add more checking for these arguments
   thresh_args = list(
     f      = list("response ~ name", "~ name"),
@@ -59,6 +60,7 @@ thresh_reg <- cecl_marg(
     jitter = TRUE
   ),
   thresh_only = TRUE,
+  ret_obj = TRUE,
   ncores = 1
 )
 
@@ -88,7 +90,9 @@ marg_ismev <- cecl_marg(
   thresh_method = "quantile",
   thresh_args = 0.9,
   marg_method = "ismev",
-  ncores = 1
+  ncores = 1,
+  # ret_obj = FALSE
+  ret_obj = TRUE
 )
 
 # 3: evgam
@@ -98,8 +102,11 @@ marg_evgam <- cecl_marg(
   thresh_args = 0.9,
   marg_method = "evgam",
   marg_args = list(f = list("excess ~ name", "~ name")),
-  ncores = 1
+  ncores = 1,
+  # ret_obj = FALSE
+  ret_obj = TRUE
 )
+
 
 #### Marginal methods ####
 
@@ -133,13 +140,16 @@ tryCatch(
   error = function(e) message(e$message)
 )
 plot(marg_ismev, which = "pp", loc = "loc_1", var = "X1")
+# TODO should QQ plot show more negative quantiles?
+# TODO ALso doesn't seem to match, investigate
+# rnfit <- gpd.fit(df[df$name == "loc_1", ]$X1, quantile(df[df$name == "loc_1", ]$X1, 0.9))
+# gpd.diag(rnfit)
 plot(marg_ismev, which = "qq", loc = "loc_1", var = "X1")
 plot(marg_ismev, which = "hist", loc = "loc_1", var = "X1")
 plot(marg_ismev, which = "return", loc = "loc_1", var = "X1")
 
 # ggplot method
 ggplot(marg_ismev, which = "pp", loc = "loc_1", var = "X1")
-# TODO investigate why this is so bad! Lol
 ggplot(marg_ismev, which = "qq", loc = "loc_1", var = "X1")
 ggplot(marg_ismev, which = "hist", loc = "loc_1", var = "X1")
 ggplot(marg_ismev, which = "return", loc = "loc_1", var = "X1")
