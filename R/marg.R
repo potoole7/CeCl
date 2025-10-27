@@ -1395,3 +1395,24 @@ ggplot.cecl_marg <- \(
     return(p)
   }
 }
+
+#' @title `as.cecl_marg` method
+#' @description Convert an object to class `cecl_marg`.
+#' @param obj Object to convert. Must be a list (like `transformed` returned 
+#' by `cecl_marg`) of groups/locations, each containing a matrix of transformed 
+#' data.
+#' @return Object of class `cecl_marg`.
+#' @rdname as.cecl_marg
+#' @export
+# TODO Need original data? Or anything else?
+as_cecl_marg <- \(obj) {
+  stopifnot(is.list(obj))
+  stopifnot(all(vapply(obj, is.matrix, logical(1))))
+
+  cecl_marg_obj <- list(
+    "transformed" = obj
+  )
+  class(cecl_marg_obj) <- c("cecl_marg_ecdf", "cecl_marg")
+  return(cecl_marg_obj)
+  
+}
