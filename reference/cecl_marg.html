@@ -54,11 +54,12 @@
 <span>  <span class="va">data</span>,</span>
 <span>  mult_col <span class="op">=</span> <span class="st">"name"</span>,</span>
 <span>  vars <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  thresh_method <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"value"</span>, <span class="st">"quantile"</span>, <span class="st">"regression"</span>, <span class="st">"none"</span><span class="op">)</span>,</span>
+<span>  thresh_method <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"value"</span>, <span class="st">"quantile"</span>, <span class="st">"qgam"</span>, <span class="st">"none"</span><span class="op">)</span>,</span>
 <span>  thresh_args <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  thresh_only <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  marg_method <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"ecdf"</span>, <span class="st">"ismev"</span>, <span class="st">"evgam"</span><span class="op">)</span>,</span>
 <span>  marg_args <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  ret_obj <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  ncores <span class="op">=</span> <span class="fl">1</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -85,7 +86,7 @@ call to <code>fit_ce</code>, with elements <code>marginal</code>, <code>data_thr
 <dt id="arg-thresh-method">thresh_method<a class="anchor" aria-label="anchor" href="#arg-thresh-method"></a></dt>
 <dd><p>Method to select marginal thresholds, one of
 "value" (fixed value), "quantile" (quantile thresholding),
-"regression" (covariate dependent thresholding via <code>qgam</code>) or "none", for no
+"qgam" (covariate dependent thresholding via <code>qgam</code>) or "none", for no
 thresholding (or where you have already thresholded the data prior to input).</p></dd>
 
 
@@ -94,7 +95,7 @@ thresholding (or where you have already thresholded the data prior to input).</p
 "value", a numeric value (scalar for shared value or vector for each
 <code>vars</code>) for simple value thresholding. For "quantile", a numeric value
 (scalar for shared value or vector for each <code>vars</code>) for quantile
-thresholding. For "regression", a list of arguments to be passed to
+thresholding. For "qgam", a list of arguments to be passed to
 <code>qgam_thresh</code> (see documentation for details).</p></dd>
 
 
@@ -113,6 +114,12 @@ CDF), "ismev" (using <code><a href="https://rdrr.io/pkg/ismev/man/gpd.fit.html" 
 <dd><p>Arguments to be passed to marginal fitting function.</p></dd>
 
 
+<dt id="arg-ret-obj">ret_obj<a class="anchor" aria-label="anchor" href="#arg-ret-obj"></a></dt>
+<dd><p>If TRUE and <code>thresh_method</code> is "qgam" or</p>
+<p><code>marg_method</code> is "ismev" or "evgam", return fitted
+marginal models. Default: TRUE.</p></dd>
+
+
 <dt id="arg-ncores">ncores<a class="anchor" aria-label="anchor" href="#arg-ncores"></a></dt>
 <dd><p>Number of cores to use for parallel computation, Default: 1.</p></dd>
 
@@ -122,6 +129,54 @@ CDF), "ismev" (using <code><a href="https://rdrr.io/pkg/ismev/man/gpd.fit.html" 
     <p>Object of type <code>cecl_marg</code> for each location.</p>
     </div>
 
+    <div id="ref-examples">
+    <h2>Examples</h2>
+    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="co"># simulate some data</span></span></span>
+<span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">123</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">n_locs</span> <span class="op">&lt;-</span> <span class="fl">5</span></span></span>
+<span class="r-in"><span><span class="va">n</span> <span class="op">&lt;-</span> <span class="fl">1000</span></span></span>
+<span class="r-in"><span><span class="va">vars</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"X1"</span>, <span class="st">"X2"</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">df</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/do.call.html" class="external-link">do.call</a></span><span class="op">(</span></span></span>
+<span class="r-in"><span>  <span class="va">rbind</span>,</span></span>
+<span class="r-in"><span>  <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">lapply</a></span><span class="op">(</span><span class="fl">1</span><span class="op">:</span><span class="va">n_locs</span>, <span class="kw">function</span><span class="op">(</span><span class="va">i</span><span class="op">)</span> <span class="op">{</span></span></span>
+<span class="r-in"><span>    <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span></span>
+<span class="r-in"><span>      X1 <span class="op">=</span> <span class="fu"><a href="rgpd.html">rgpd</a></span><span class="op">(</span><span class="va">n</span>, u <span class="op">=</span> <span class="fl">0</span>, sigma <span class="op">=</span> <span class="fl">1</span>, xi <span class="op">=</span> <span class="fl">0.2</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>      X2 <span class="op">=</span> <span class="fu"><a href="rgpd.html">rgpd</a></span><span class="op">(</span><span class="va">n</span>, u <span class="op">=</span> <span class="fl">0</span>, sigma <span class="op">=</span> <span class="fl">2</span>, xi <span class="op">=</span> <span class="op">-</span><span class="fl">0.1</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>      name <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="st">"loc_"</span>, <span class="va">i</span><span class="op">)</span></span></span>
+<span class="r-in"><span>    <span class="op">)</span></span></span>
+<span class="r-in"><span>  <span class="op">}</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="op">)</span></span></span>
+<span class="r-err co"><span class="r-pr">#&gt;</span> <span class="error">Error in rgpd(n, u = 0, sigma = 1, xi = 0.2):</span> could not find function "rgpd"</span>
+<span class="r-in"><span><span class="co"># fit marginal models with quantile thresholding and ISMEV GPD fits</span></span></span>
+<span class="r-in"><span><span class="va">marg_fit</span> <span class="op">&lt;-</span> <span class="fu">cecl_marg</span><span class="op">(</span></span></span>
+<span class="r-in"><span>  <span class="va">df</span>,</span></span>
+<span class="r-in"><span>  thresh_method <span class="op">=</span> <span class="st">"quantile"</span>,</span></span>
+<span class="r-in"><span>  thresh_args <span class="op">=</span> <span class="fl">0.9</span>,</span></span>
+<span class="r-in"><span>  marg_method <span class="op">=</span> <span class="st">"ismev"</span>,</span></span>
+<span class="r-in"><span>  ncores <span class="op">=</span> <span class="fl">1</span></span></span>
+<span class="r-in"><span><span class="op">)</span></span></span>
+<span class="r-err co"><span class="r-pr">#&gt;</span> <span class="error">Error in cecl_marg(df, thresh_method = "quantile", thresh_args = 0.9,     marg_method = "ismev", ncores = 1):</span> is.list(data) || inherits(data, "evc_marg") is not TRUE</span>
+<span class="r-in"><span><span class="co"># inspect output</span></span></span>
+<span class="r-in"><span><span class="va">marg_fit</span></span></span>
+<span class="r-err co"><span class="r-pr">#&gt;</span> <span class="error">Error:</span> object 'marg_fit' not found</span>
+<span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">marg_fit</span><span class="op">)</span></span></span>
+<span class="r-err co"><span class="r-pr">#&gt;</span> <span class="error">Error:</span> object 'marg_fit' not found</span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># fit marginal models using evgam</span></span></span>
+<span class="r-in"><span><span class="va">marg_fit_evgam</span> <span class="op">&lt;-</span> <span class="fu">cecl_marg</span><span class="op">(</span></span></span>
+<span class="r-in"><span>  <span class="va">df</span>,</span></span>
+<span class="r-in"><span>  thresh_method <span class="op">=</span> <span class="st">"quantile"</span>,</span></span>
+<span class="r-in"><span>  thresh_args <span class="op">=</span> <span class="fl">0.9</span>,</span></span>
+<span class="r-in"><span>  marg_method <span class="op">=</span> <span class="st">"evgam"</span>,</span></span>
+<span class="r-in"><span>  marg_args <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>f <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="st">"excess ~ name"</span>, <span class="st">"~ name"</span><span class="op">)</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>  ncores <span class="op">=</span> <span class="fl">1</span></span></span>
+<span class="r-in"><span><span class="op">)</span></span></span>
+<span class="r-err co"><span class="r-pr">#&gt;</span> <span class="error">Error in cecl_marg(df, thresh_method = "quantile", thresh_args = 0.9,     marg_method = "evgam", marg_args = list(f = list("excess ~ name",         "~ name")), ncores = 1):</span> is.list(data) || inherits(data, "evc_marg") is not TRUE</span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="va">marg_fit_evgam</span></span></span>
+<span class="r-err co"><span class="r-pr">#&gt;</span> <span class="error">Error:</span> object 'marg_fit_evgam' not found</span>
+</code></pre></div>
+    </div>
   </div>
   <div class="col-md-3 hidden-xs hidden-sm" id="pkgdown-sidebar">
     <nav id="toc" data-toggle="toc" class="sticky-top"><h2 data-toc-skip>Contents</h2>

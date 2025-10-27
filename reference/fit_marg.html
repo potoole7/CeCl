@@ -57,7 +57,8 @@
 <span>  <span class="va">vars</span>,</span>
 <span>  <span class="va">marg_method</span>,</span>
 <span>  <span class="va">marg_args</span>,</span>
-<span>  <span class="va">loop_fun</span></span>
+<span>  <span class="va">loop_fun</span>,</span>
+<span>  ret_obj <span class="op">=</span> <span class="cn">TRUE</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -82,6 +83,12 @@ CDF), "ismev" (using <code><a href="https://rdrr.io/pkg/ismev/man/gpd.fit.html" 
 
 <dt id="arg-marg-args">marg_args<a class="anchor" aria-label="anchor" href="#arg-marg-args"></a></dt>
 <dd><p>Arguments to be passed to marginal fitting function.</p></dd>
+
+
+<dt id="arg-ret-obj">ret_obj<a class="anchor" aria-label="anchor" href="#arg-ret-obj"></a></dt>
+<dd><p>If TRUE and <code>thresh_method</code> is "qgam" or</p>
+<p><code>marg_method</code> is "ismev" or "evgam", return fitted
+marginal models. Default: TRUE.</p></dd>
 
 </dl></div>
     <div id="value">
