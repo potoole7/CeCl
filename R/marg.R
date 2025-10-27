@@ -764,7 +764,7 @@ to_matrix <- \(F_hat) {
 #' @param tol Tolerance to avoid issues at 0 and 1.
 #' @return Matrix of Laplace-transformed values.
 #' @rdname plaplace
-#' @keywords internal
+#' @export
 dlaplace <- \(F_hat, tol = .Machine$double.eps) {
   apply(to_matrix(F_hat), 2, \(x) {
     y <- pmin(pmax(x, tol), 1 - tol)
@@ -777,11 +777,32 @@ dlaplace <- \(F_hat, tol = .Machine$double.eps) {
 #' @param F_hat Matrix of Laplace-transformed values.
 #' @return Matrix of CDF values.
 #' @rdname plaplace
-#' @keywords internal
+#' @export
 plaplace <- \(F_hat) {
   apply(to_matrix(F_hat), 2, \(x) {
     ifelse(x < 0, exp(x) / 2, 1 - exp(-x) / 2)
   })
+}
+
+#' @title Laplace quantile function
+#' @description Quantile function for Laplace distribution.
+#' @param p Vector of probabilities.
+#' @return Vector of quantiles.
+#' @rdname qlaplace
+#' @export
+qlaplace <- \(p) {
+  ifelse(p < 0.5, log(2 * p), -log(2 * (1 - p)))
+}
+
+#' @title Laplace random generation
+#' @description Generate random samples from Laplace distribution.
+#' @param n Number of samples to generate.
+#' @return Vector of random samples.
+#' @rdname rlaplace
+#' @export
+rlaplace <- \(n) {
+  u <- stats::runif(n)
+  qlaplace(u)
 }
 
 #' @title Fit `evgam` model
