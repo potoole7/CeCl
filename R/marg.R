@@ -8,13 +8,13 @@
 #' @param vars Names of variable columns.
 #' @param thresh_method Method to select marginal thresholds, one of
 #' "value" (fixed value), "quantile" (quantile thresholding),
-#' "regression" (covariate dependent thresholding via `qgam`) or "none", for no
+#' "qgam" (covariate dependent thresholding via `qgam`) or "none", for no
 #' thresholding (or where you have already thresholded the data prior to input).
 #' @param thresh_args Arguments to be passed to thresholding function. For
 #' "value", a numeric value (scalar for shared value or vector for each
 #' `vars`) for simple value thresholding. For "quantile", a numeric value
 #' (scalar for shared value or vector for each `vars`) for quantile
-#' thresholding. For "regression", a list of arguments to be passed to
+#' thresholding. For "qgam", a list of arguments to be passed to
 #' `qgam_thresh` (see documentation for details).
 # not implemented from here
 #' @param thresh_only If TRUE, only threshold data and do not fit marginal
@@ -23,8 +23,51 @@
 #' CDF), "ismev" (using `ismev::gpd.fit`) or "evgam" (using
 #' `evgam::evgam`).
 #' @param marg_args Arguments to be passed to marginal fitting function.
+#' @param ret_obj If TRUE and `thresh_method` is "qgam" or
+#'
+#' `marg_method` is "ismev" or "evgam", return fitted
+#' marginal models. Default: TRUE.
 #' @param ncores Number of cores to use for parallel computation, Default: 1.
 #' @return Object of type `cecl_marg` for each location.
+#' @examples
+#' # simulate some data
+#' set.seed(123)
+#' n_locs <- 5
+#' n <- 1000
+#' vars <- c("X1", "X2")
+#' df <- do.call(
+#'   rbind,
+#'   lapply(1:n_locs, function(i) {
+#'     data.frame(
+#'       X1 = rgpd(n, u = 0, sigma = 1, xi = 0.2),
+#'       X2 = rgpd(n, u = 0, sigma = 2, xi = -0.1),
+#'       name = paste0("loc_", i)
+#'     )
+#'   })
+#' )
+#' # fit marginal models with quantile thresholding and ISMEV GPD fits
+#' marg_fit <- cecl_marg(
+#'   df,
+#'   thresh_method = "quantile",
+#'   thresh_args = 0.9,
+#'   marg_method = "ismev",
+#'   ncores = 1
+#' )
+#' # inspect output
+#' marg_fit
+#' summary(marg_fit)
+#'
+#' # fit marginal models using evgam
+#' marg_fit_evgam <- cecl_marg(
+#'   df,
+#'   thresh_method = "quantile",
+#'   thresh_args = 0.9,
+#'   marg_method = "evgam",
+#'   marg_args = list(f = list("excess ~ name", "~ name")),
+#'   ncores = 1
+#' )
+#'
+#' marg_fit_evgam
 #' @rdname cecl_marg
 #' @importFrom rlang .data :=
 #' @export
@@ -32,11 +75,12 @@ cecl_marg <- \(
   data,
   mult_col = "name",
   vars = NULL,
-  thresh_method = c("value", "quantile", "regression", "none"),
+  thresh_method = c("value", "quantile", "qgam", "none"),
   thresh_args = NULL, # TODO Expand description
   thresh_only = FALSE,
   marg_method = c("ecdf", "ismev", "evgam"),
   marg_args = NULL,
+  ret_obj = TRUE,
   ncores = 1
 ) {
   ## Initial ##
@@ -73,7 +117,7 @@ cecl_marg <- \(
     if (!is.null(vars) && !(length(thresh_args) %in% c(1, length(vars)))) {
       stop("Length of 'thresh_args' must be 1 or equal to number of variables.")
     }
-  } else if (thresh_method == "regression") {
+  } else if (thresh_method == "qgam") {
     stopifnot(is.list(thresh_args))
     stopifnot("f" %in% names(thresh_args))
   }
@@ -88,13 +132,13 @@ cecl_marg <- \(
   stopifnot(is.numeric(ncores), length(ncores) == 1, ncores >= 1)
 
   # TODO Check arguments correctly specified for each thresh_method
-  # Need to do regression!
+  # Need to do qgam!
   stopifnot(
     length(thresh_method) == 1 &&
-      thresh_method %in% c("value", "quantile", "regression", "none")
+      thresh_method %in% c("value", "quantile", "qgam", "none")
   )
 
-  if (thresh_method == "regression") {
+  if (thresh_method == "qgam") {
     stopifnot(is.list(thresh_args))
     stopifnot("f" %in% names(thresh_args))
     stopifnot(all(names(thresh_args) %in% c("f", "qu", "jitter")))
@@ -118,10 +162,14 @@ cecl_marg <- \(
     mult_col      = mult_col,
     vars          = vars,
     thresh_method = thresh_method,
-    thresh_args   = thresh_args
+    thresh_args   = thresh_args,
+    ret_obj       = ret_obj
   )
   data_thresh_out <- data_thresh <- thresh_out[[1]]
   locs_keep <- thresh_out[[2]] # locations with exceedances for all variables
+  if (thresh_method == "qgam" && ret_obj) {
+    qgam_fit <- thresh_out[[3]]
+  }
   names(data_thresh_out) <- names(data_thresh) <- vars
 
   # Only keep locs with exceedances for all vars, otherwise can't do CE!
@@ -149,6 +197,9 @@ cecl_marg <- \(
       "vars"        = vars,
       "call"        = match.call()
     )
+    if (thresh_method == "qgam" && ret_obj) {
+      ret$qgam_fit <- qgam_fit
+    }
     class(ret) <- c(
       "cecl_thresh",
       paste0("cecl_thresh_", thresh_method),
@@ -169,9 +220,10 @@ cecl_marg <- \(
     vars         = vars,
     marg_method  = marg_method,
     marg_args    = marg_args,
-    loop_fun     = loop_fun
+    loop_fun     = loop_fun,
+    ret_obj      = ret_obj
   )
-  if (marg_method == "evgam") {
+  if (marg_method == "evgam" && ret_obj) {
     evgam_fit <- marginal$evgam_fit
     marginal <- marginal$marginal
   }
@@ -194,7 +246,10 @@ cecl_marg <- \(
   if (marg_method == "ecdf") {
     ret$marginal <- NULL
   }
-  # add evgam fit object if fitted
+  # add qgam_fit & evgam fit object if fitted
+  if (exists("qgam_fit", envir = environment())) {
+    ret$qgam_fit <- qgam_fit
+  }
   if (exists("evgam_fit", envir = environment())) {
     names(evgam_fit) <- vars
     ret$evgam_fit <- evgam_fit
@@ -271,7 +326,8 @@ marg_thresh <- \(
   mult_col = "name",
   vars,
   thresh_method,
-  thresh_args
+  thresh_args,
+  ret_obj = TRUE
 ) {
   quantile <- excess <- NULL
 
@@ -330,21 +386,21 @@ marg_thresh <- \(
           thresh = marg_val[x],
           excess = !!rlang::sym(x) - marg_val[x]
         ) |>
-        dplyr::filter(excess > 0) |>
-        # also split by location
-        identity()
+        dplyr::filter(excess > 0)
     })
-    # If thresh is a list, assume it is arguments to qgam_thresh
+    # If thresh is a list, assume it is arguments to qGam_thresh
     # TODO: May be easier to just copy each vars column as response in data_df
     # Would allow for simpler formula specification
   }
 
-  if (thresh_method == "regression") {
+  if (thresh_method == "qgam") {
     data_thresh <- lapply(vars, \(x) {
       print(paste0("thresholding ", x))
 
       # Change formula to include response in question
-      spec_params <- thresh_args
+      # spec_params <- thresh_args
+      # add thresh_args and ret_obj
+      spec_params <- c(thresh_args)
       spec_params$f <- lapply(thresh_args$f, \(f_spec) {
         stats::formula(stringr::str_replace_all(f_spec, "response", x))
       })
@@ -354,7 +410,6 @@ marg_thresh <- \(
       }
 
       # Run thresholding function for each response with specified args
-      # TODO Also return evgam fits to ald
       quantile_fits <- do.call(
         qgam_thresh,
         args = c(
@@ -375,8 +430,21 @@ marg_thresh <- \(
           ", removing for all variables"
         ))
       }
+      if (ret_obj) {
+        ret <- list(
+          "data_thresh" = ret,
+          "qgam_fit"    = quantile_fits$m
+        )
+      }
       ret
     })
+
+    if (ret_obj) {
+      qgam_fit <- lapply(data_thresh, \(x) x$qgam_fit)
+      names(qgam_fit) <- vars
+      data_thresh <- lapply(data_thresh, \(x) x$data_thresh)
+      names(data_thresh) <- vars
+    }
   }
 
   # locations with exceedances for all variables
@@ -403,7 +471,12 @@ marg_thresh <- \(
     )
     ret
   })
-  return(list(data_thresh, locs_keep))
+
+  ret <- list("data_thresh" = data_thresh, "locs_keep" = locs_keep)
+  if (thresh_method == "qgam" && ret_obj) {
+    ret$qgam_fit <- qgam_fit
+  }
+  return(ret)
 }
 
 #' @title `qgam` varying threshold
@@ -419,7 +492,7 @@ marg_thresh <- \(
 #' @param thresh return thresholded (i.e. filtered) data if TRUE, default TRUE.
 #' @return Dataframe with `thresh` and `excess` columns, optionally thresholded.
 #' @rdname qgam_thresh
-#' @export
+#' @keywords internal
 qgam_thresh <- \(
   data,
   response,
@@ -462,11 +535,13 @@ qgam_thresh <- \(
     data_thresh <- dplyr::filter(data_thresh, excess > 0)
   }
 
-  # return model fit and thresholded data
-  return(list(
-    "m"           = qgam_fit,
+  # return thresholded data (and model fit if desired)
+  ret <- list(
+    "m" = qgam_fit,
     "data_thresh" = data_thresh
-  ))
+  )
+
+  return(ret)
 }
 
 
@@ -483,7 +558,8 @@ fit_marg <- \(
   vars,
   marg_method,
   marg_args,
-  loop_fun
+  loop_fun,
+  ret_obj = TRUE
 ) {
   thresh <- shape <- sigma <- xi <- NULL
 
@@ -531,12 +607,13 @@ fit_marg <- \(
             show      = FALSE
           )
           ret <- list(
+            "fit"       = fit,
             "sigma"     = fit$mle[1],
             "xi"        = fit$mle[2],
             "thresh"    = fit$threshold[[1]],
             "name"      = x[[mult_col]][1]
           )
-          names(ret)[4] <- mult_col
+          names(ret)[5] <- mult_col
           ret
         })
         names(gpd_fits) <- vars
@@ -548,6 +625,12 @@ fit_marg <- \(
       marginal,
       ~ as.character(.x[[1]][[mult_col]])
     )
+
+    if (ret_obj == FALSE) {
+      marginal <- lapply(marginal, \(x) {
+        lapply(x, `[`, c("sigma", "xi", "thresh", "name"))
+      })
+    }
   }
 
   # fit evgam model for each marginal
@@ -604,6 +687,9 @@ fit_marg <- \(
       "marginal" = marginal,
       "evgam_fit" = evgam_fit
     )
+    if (ret_obj == FALSE) {
+      marginal <- marginal$marginal
+    }
   }
 
   return(marginal)
@@ -811,7 +897,9 @@ coef.cecl_marg <- \(object, ...) {
     inherits(object, "cecl_marg_ismev") || inherits(object, "cecl_marg_evgam")
   ) {
     coefs <- lapply(object$marginal, \(loc) {
-      do.call(rbind, lapply(loc, as.data.frame))
+      do.call(rbind, lapply(loc, \(var) {
+        as.data.frame(var[names(var) != "fit"])
+      }))
     })
     coefs_df <- do.call(rbind, lapply(names(coefs), \(loc_name) {
       loc_df <- coefs[[loc_name]]
@@ -836,17 +924,18 @@ coef.cecl_marg <- \(object, ...) {
 print.cecl_marg <- \(x, ...) {
   stopifnot(inherits(x, "cecl_marg"))
 
-  cat("Conditional Extremes Marginal Model Fit\n")
-  cat("Number of sites:", length(x$original), "\n")
+  cat("Call:\n")
+  print(x$call)
+  cat("\nNumber of locations:", length(x$marginal), "\n")
   cat("Variables:", paste(x$vars, collapse = ", "), "\n")
+  # cat("Marginal method:", class(x)[2], "\n")
+  cat(
+    "Marginal method:",
+    sub("cecl_marg_", "", class(x)[2]),
+    "\n"
+  )
 
-  if (inherits(x, "cecl_marg_ecdf")) {
-    cat("Marginal method: Empirical CDF (no parametric fit)\n")
-  } else if (inherits(x, "cecl_marg_ismev")) {
-    cat("Marginal method: GPD fit via ismev::gpd.fit\n")
-  } else if (inherits(x, "cecl_marg_evgam")) {
-    cat("Marginal method: GPD fit via evgam::evgam\n")
-  }
+  invisible(x)
 }
 
 #' @title Summary method for `cecl_marg` objects
@@ -901,6 +990,32 @@ summary.cecl_marg <- \(object, n, ...) {
 #' @method plot cecl_marg
 #' @rdname plot.cecl_marg
 #' @export
+#' @examples
+#' # simulate some data
+#' set.seed(123)
+#' n_locs <- 5
+#' n <- 1000
+#' vars <- c("X1", "X2")
+#' df <- do.call(
+#'   rbind,
+#'   lapply(1:n_locs, function(i) {
+#'     data.frame(
+#'       X1 = rgpd(n, u = 0, sigma = 1, xi = 0.2),
+#'       X2 = rgpd(n, u = 0, sigma = 2, xi = -0.1),
+#'       name = paste0("loc_", i)
+#'     )
+#'   })
+#' )
+#' # fit marginal models with quantile thresholding and ISMEV GPD fits
+#' marg_fit <- cecl_marg(
+#'   df,
+#'   thresh_method = "quantile",
+#'   thresh_args = 0.9,
+#'   marg_method = "ismev",
+#'   ncores = 1
+#' )
+#' plot for a specific location and variable
+#' plot.cecl_marg(marg_fit, which = "qq", loc = "loc_1", var = "X1")
 plot.cecl_marg <- \(
   x, which = c("qq", "pp", "hist", "return"), loc, mult_col = "name", var, ...
 ) {
@@ -1086,13 +1201,39 @@ cecl_theme <- \(legend.position = "bottom", nejm_pal = TRUE) {
 #' @method ggplot cecl_marg
 #' @export
 #' @importFrom ggplot2 ggplot
+#' @examples
+#' # simulate some data
+#' set.seed(123)
+#' n_locs <- 5
+#' n <- 1000
+#' vars <- c("X1", "X2")
+#' df <- do.call(
+#'   rbind,
+#'   lapply(1:n_locs, function(i) {
+#'     data.frame(
+#'       X1 = rgpd(n, u = 0, sigma = 1, xi = 0.2),
+#'       X2 = rgpd(n, u = 0, sigma = 2, xi = -0.1),
+#'       name = paste0("loc_", i)
+#'     )
+#'   })
+#' )
+#' # fit marginal models with quantile thresholding and ISMEV GPD fits
+#' marg_fit <- cecl_marg(
+#'   df,
+#'   thresh_method = "quantile",
+#'   thresh_args = 0.9,
+#'   marg_method = "ismev",
+#'   ncores = 1
+#' )
+#' plot for a specific location and variable
+#' ggplot.cecl_marg(marg_fit, which = "qq", loc = "loc_1", var = "X1")
 ggplot.cecl_marg <- \(
   data = NULL,
   mapping = ggplot2::aes(),
   which = c("qq", "pp", "hist", "return"),
   loc,
-  mult_col = "name",
   var,
+  mult_col = "name",
   ...,
   environment = parent.frame()
 ) {
