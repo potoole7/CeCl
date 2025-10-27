@@ -4,7 +4,14 @@
 \alias{marg_thresh}
 \title{Threshold data for cecl_marg}
 \usage{
-marg_thresh(data_df, mult_col = "name", vars, thresh_method, thresh_args)
+marg_thresh(
+  data_df,
+  mult_col = "name",
+  vars,
+  thresh_method,
+  thresh_args,
+  ret_obj = TRUE
+)
 }
 \arguments{
 \item{mult_col}{Name of column specifying multivariate structure, default
@@ -14,15 +21,20 @@ marg_thresh(data_df, mult_col = "name", vars, thresh_method, thresh_args)
 
 \item{thresh_method}{Method to select marginal thresholds, one of
 "value" (fixed value), "quantile" (quantile thresholding),
-"regression" (covariate dependent thresholding via \code{qgam}) or "none", for no
+"qgam" (covariate dependent thresholding via \code{qgam}) or "none", for no
 thresholding (or where you have already thresholded the data prior to input).}
 
 \item{thresh_args}{Arguments to be passed to thresholding function. For
 "value", a numeric value (scalar for shared value or vector for each
 \code{vars}) for simple value thresholding. For "quantile", a numeric value
 (scalar for shared value or vector for each \code{vars}) for quantile
-thresholding. For "regression", a list of arguments to be passed to
+thresholding. For "qgam", a list of arguments to be passed to
 \code{qgam_thresh} (see documentation for details).}
+
+\item{ret_obj}{If TRUE and \code{thresh_method} is "qgam" or
+
+\code{marg_method} is "ismev" or "evgam", return fitted
+marginal models. Default: TRUE.}
 }
 \value{
 List of thresholded data frames for each variable.

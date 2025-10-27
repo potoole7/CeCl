@@ -8,11 +8,12 @@ cecl_marg(
   data,
   mult_col = "name",
   vars = NULL,
-  thresh_method = c("value", "quantile", "regression", "none"),
+  thresh_method = c("value", "quantile", "qgam", "none"),
   thresh_args = NULL,
   thresh_only = FALSE,
   marg_method = c("ecdf", "ismev", "evgam"),
   marg_args = NULL,
+  ret_obj = TRUE,
   ncores = 1
 )
 }
@@ -28,14 +29,14 @@ call to \code{fit_ce}, with elements \code{marginal}, \code{data_thresh} and \co
 
 \item{thresh_method}{Method to select marginal thresholds, one of
 "value" (fixed value), "quantile" (quantile thresholding),
-"regression" (covariate dependent thresholding via \code{qgam}) or "none", for no
+"qgam" (covariate dependent thresholding via \code{qgam}) or "none", for no
 thresholding (or where you have already thresholded the data prior to input).}
 
 \item{thresh_args}{Arguments to be passed to thresholding function. For
 "value", a numeric value (scalar for shared value or vector for each
 \code{vars}) for simple value thresholding. For "quantile", a numeric value
 (scalar for shared value or vector for each \code{vars}) for quantile
-thresholding. For "regression", a list of arguments to be passed to
+thresholding. For "qgam", a list of arguments to be passed to
 \code{qgam_thresh} (see documentation for details).}
 
 \item{thresh_only}{If TRUE, only threshold data and do not fit marginal
@@ -47,6 +48,11 @@ CDF), "ismev" (using \code{ismev::gpd.fit}) or "evgam" (using
 
 \item{marg_args}{Arguments to be passed to marginal fitting function.}
 
+\item{ret_obj}{If TRUE and \code{thresh_method} is "qgam" or
+
+\code{marg_method} is "ismev" or "evgam", return fitted
+marginal models. Default: TRUE.}
+
 \item{ncores}{Number of cores to use for parallel computation, Default: 1.}
 }
 \value{
@@ -54,4 +60,44 @@ Object of type \code{cecl_marg} for each location.
 }
 \description{
 Fit marginal models for multivariate conditional extremes.
+}
+\examples{
+# simulate some data
+set.seed(123)
+n_locs <- 5
+n <- 1000
+vars <- c("X1", "X2")
+df <- do.call(
+  rbind,
+  lapply(1:n_locs, function(i) {
+    data.frame(
+      X1 = rgpd(n, u = 0, sigma = 1, xi = 0.2),
+      X2 = rgpd(n, u = 0, sigma = 2, xi = -0.1),
+      name = paste0("loc_", i)
+    )
+  })
+)
+# fit marginal models with quantile thresholding and ISMEV GPD fits
+marg_fit <- cecl_marg(
+  df,
+  thresh_method = "quantile",
+  thresh_args = 0.9,
+  marg_method = "ismev",
+  ncores = 1
+)
+# inspect output
+marg_fit
+summary(marg_fit)
+
+# fit marginal models using evgam
+marg_fit_evgam <- cecl_marg(
+  df,
+  thresh_method = "quantile",
+  thresh_args = 0.9,
+  marg_method = "evgam",
+  marg_args = list(f = list("excess ~ name", "~ name")),
+  ncores = 1
+)
+
+marg_fit_evgam
 }

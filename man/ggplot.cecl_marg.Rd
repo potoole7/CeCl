@@ -9,8 +9,8 @@
   mapping = ggplot2::aes(),
   which = c("qq", "pp", "hist", "return"),
   loc,
-  mult_col = "name",
   var,
+  mult_col = "name",
   ...,
   environment = parent.frame()
 )
@@ -26,9 +26,9 @@ return level plot.}
 
 \item{loc}{Location name to plot.}
 
-\item{mult_col}{Name of the column representing locations, default \code{"name"}.}
-
 \item{var}{Variable name to plot.}
+
+\item{mult_col}{Name of the column representing locations, default \code{"name"}.}
 
 \item{...}{Additional arguments (not used).}
 
@@ -39,4 +39,31 @@ ggplot diagnostic plot for \code{cecl_marg} object.
 }
 \description{
 Generate ggplot diagnostic plots for \code{cecl_marg} object.
+}
+\examples{
+# simulate some data
+set.seed(123)
+n_locs <- 5
+n <- 1000
+vars <- c("X1", "X2")
+df <- do.call(
+  rbind,
+  lapply(1:n_locs, function(i) {
+    data.frame(
+      X1 = rgpd(n, u = 0, sigma = 1, xi = 0.2),
+      X2 = rgpd(n, u = 0, sigma = 2, xi = -0.1),
+      name = paste0("loc_", i)
+    )
+  })
+)
+# fit marginal models with quantile thresholding and ISMEV GPD fits
+marg_fit <- cecl_marg(
+  df,
+  thresh_method = "quantile",
+  thresh_args = 0.9,
+  marg_method = "ismev",
+  ncores = 1
+)
+plot for a specific location and variable
+ggplot.cecl_marg(marg_fit, which = "qq", loc = "loc_1", var = "X1")
 }

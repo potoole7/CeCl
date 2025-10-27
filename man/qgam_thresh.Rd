@@ -28,3 +28,4 @@ Dataframe with \code{thresh} and \code{excess} columns, optionally thresholded.
 \description{
 Fit varying threshold using quantile regression via \code{qgam}.
 }
+\keyword{internal}

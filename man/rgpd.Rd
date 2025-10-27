@@ -2,25 +2,23 @@
 % Please edit documentation in R/util.R
 \name{rgpd}
 \alias{rgpd}
-\title{Generate Random Variates from the Generalized Pareto Distribution}
+\title{Generalized Pareto Distribution random generation}
 \usage{
 rgpd(n, u, sigma, xi)
 }
 \arguments{
-\item{n}{Integer. The number of random variates to generate.}
+\item{n}{Number of samples to generate.}
 
-\item{u}{Numeric. The threshold (location parameter) of the GPD.}
+\item{u}{Threshold parameter.}
 
-\item{sigma}{Numeric. The scale parameter of the GPD (must be positive).}
+\item{sigma}{Scale parameter.}
 
-\item{xi}{Numeric. The shape parameter of the GPD.}
+\item{xi}{Shape parameter.}
 }
 \value{
-A numeric vector of length \code{n} containing random variates from the
-GPD.
+Vector of random samples from GPD.
 }
 \description{
-Generates random variates from the Generalized Pareto Distribution (GPD)
-using the inverse transform sampling method.
+Generate random samples from Generalized Pareto Distribution
+(GPD).
 }
-\keyword{internal}
