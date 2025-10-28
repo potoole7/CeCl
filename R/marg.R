@@ -897,9 +897,11 @@ coef.cecl_marg <- \(object, ...) {
     inherits(object, "cecl_marg_ismev") || inherits(object, "cecl_marg_evgam")
   ) {
     coefs <- lapply(object$marginal, \(loc) {
-      do.call(rbind, lapply(loc, \(var) {
+      ret <- do.call(rbind, lapply(loc, \(var) {
         as.data.frame(var[names(var) != "fit"])
       }))
+      ret$var <- names(loc)
+      ret
     })
     coefs_df <- do.call(rbind, lapply(names(coefs), \(loc_name) {
       loc_df <- coefs[[loc_name]]
@@ -907,6 +909,7 @@ coef.cecl_marg <- \(object, ...) {
       loc_df
     }))
     rownames(coefs_df) <- NULL
+    coefs <- coefs[, c("name", "var", "thresh", "sigma", "xi")]
     return(coefs_df)
   }
 
@@ -1404,7 +1407,7 @@ ggplot.cecl_marg <- \(
 #' @return Object of class `cecl_marg`.
 #' @rdname as.cecl_marg
 #' @export
-# TODO Need original data? Or anything else?
+# TODO Need original data? Or anything else? Vars anyway!
 as_cecl_marg <- \(obj) {
   stopifnot(is.list(obj))
   stopifnot(all(vapply(obj, is.matrix, logical(1))))
