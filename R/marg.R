@@ -909,7 +909,7 @@ coef.cecl_marg <- \(object, ...) {
       loc_df
     }))
     rownames(coefs_df) <- NULL
-    coefs <- coefs[, c("name", "var", "thresh", "sigma", "xi")]
+    coefs_df <- coefs_df[, c("name", "var", "thresh", "sigma", "xi")]
     return(coefs_df)
   }
 
