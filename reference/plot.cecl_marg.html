@@ -93,15 +93,36 @@ return level plot.</p></dd>
 <dd><p>Additional arguments (not used)</p></dd>
 
 </dl></div>
-    <div id="value">
-    <h2>Value</h2>
-    <p>For QQ, PP, and histogram plots: invisible NULL after plotting.
-For return level plots: a <code>ggplot</code> object.</p>
-    </div>
 
     <div id="ref-examples">
     <h2>Examples</h2>
-
+    <div class="sourceCode"><pre class="sourceCode r"><code><span class="r-in"><span><span class="co"># simulate some data</span></span></span>
+<span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">123</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">n_locs</span> <span class="op">&lt;-</span> <span class="fl">5</span></span></span>
+<span class="r-in"><span><span class="va">n</span> <span class="op">&lt;-</span> <span class="fl">1000</span></span></span>
+<span class="r-in"><span><span class="va">vars</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"X1"</span>, <span class="st">"X2"</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="va">df</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/do.call.html" class="external-link">do.call</a></span><span class="op">(</span></span></span>
+<span class="r-in"><span>  <span class="va">rbind</span>,</span></span>
+<span class="r-in"><span>  <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">lapply</a></span><span class="op">(</span><span class="fl">1</span><span class="op">:</span><span class="va">n_locs</span>, <span class="kw">function</span><span class="op">(</span><span class="va">i</span><span class="op">)</span> <span class="op">{</span></span></span>
+<span class="r-in"><span>    <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span></span></span>
+<span class="r-in"><span>      X1 <span class="op">=</span> <span class="fu"><a href="rgpd.html">rgpd</a></span><span class="op">(</span><span class="va">n</span>, u <span class="op">=</span> <span class="fl">0</span>, sigma <span class="op">=</span> <span class="fl">1</span>, xi <span class="op">=</span> <span class="fl">0.2</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>      X2 <span class="op">=</span> <span class="fu"><a href="rgpd.html">rgpd</a></span><span class="op">(</span><span class="va">n</span>, u <span class="op">=</span> <span class="fl">0</span>, sigma <span class="op">=</span> <span class="fl">2</span>, xi <span class="op">=</span> <span class="op">-</span><span class="fl">0.1</span><span class="op">)</span>,</span></span>
+<span class="r-in"><span>      name <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="st">"loc_"</span>, <span class="va">i</span><span class="op">)</span></span></span>
+<span class="r-in"><span>    <span class="op">)</span></span></span>
+<span class="r-in"><span>  <span class="op">}</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="co"># fit marginal models with quantile thresholding and ISMEV GPD fits</span></span></span>
+<span class="r-in"><span><span class="va">marg_fit</span> <span class="op">&lt;-</span> <span class="fu"><a href="cecl_marg.html">cecl_marg</a></span><span class="op">(</span></span></span>
+<span class="r-in"><span>  <span class="va">df</span>,</span></span>
+<span class="r-in"><span>  thresh_method <span class="op">=</span> <span class="st">"quantile"</span>,</span></span>
+<span class="r-in"><span>  thresh_args <span class="op">=</span> <span class="fl">0.9</span>,</span></span>
+<span class="r-in"><span>  marg_method <span class="op">=</span> <span class="st">"ismev"</span>,</span></span>
+<span class="r-in"><span>  ncores <span class="op">=</span> <span class="fl">1</span></span></span>
+<span class="r-in"><span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="co"># plot for a specific location and variable</span></span></span>
+<span class="r-in"><span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">marg_fit</span>, which <span class="op">=</span> <span class="st">"qq"</span>, loc <span class="op">=</span> <span class="st">"loc_1"</span>, var <span class="op">=</span> <span class="st">"X1"</span><span class="op">)</span></span></span>
+<span class="r-plt img"><img src="plot.cecl_marg-1.png" alt="" width="700" height="433"></span>
+</code></pre></div>
     </div>
   </div>
   <div class="col-md-3 hidden-xs hidden-sm" id="pkgdown-sidebar">
