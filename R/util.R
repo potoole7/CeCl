@@ -73,11 +73,11 @@ dgpd <- \(x, u, sigma, xi) {
     dens <- (1 / sigma) * (1 + xi * (x - u) / sigma)^(-1 / xi - 1)
     dens[x < u] <- 0
     dens[(1 + xi * (x - u) / sigma) <= 0] <- 0
-    return(dens)
+    dens
   } else {
     dens <- (1 / sigma) * exp(-(x - u) / sigma)
     dens[x < u] <- 0
-    return(dens)
+    dens
   }
 }
 
@@ -95,11 +95,11 @@ pgpd <- \(q, u, sigma, xi) {
     cdf <- 1 - (1 + xi * (q - u) / sigma)^(-1 / xi)
     cdf[q < u] <- 0
     cdf[(1 + xi * (q - u) / sigma) <= 0] <- 1
-    return(cdf)
+    cdf
   } else {
     cdf <- 1 - exp(-(q - u) / sigma)
     cdf[q < u] <- 0
-    return(cdf)
+    cdf
   }
 }
 
@@ -114,9 +114,9 @@ pgpd <- \(q, u, sigma, xi) {
 #' @export
 qgpd <- \(p, u, sigma, xi) {
   if (abs(xi) > 1e-6) {
-    return(u + (sigma / xi) * ((1 - p)^(-xi) - 1))
+    u + (sigma / xi) * ((1 - p)^(-xi) - 1)
   } else {
-    return(u - sigma * log(1 - p))
+    u - sigma * log(1 - p)
   }
 }
 

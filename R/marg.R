@@ -398,7 +398,6 @@ marg_thresh <- \(
       print(paste0("thresholding ", x))
 
       # Change formula to include response in question
-      # spec_params <- thresh_args
       # add thresh_args and ret_obj
       spec_params <- c(thresh_args)
       spec_params$f <- lapply(thresh_args$f, \(f_spec) {
@@ -931,7 +930,6 @@ print.cecl_marg <- \(x, ...) {
   print(x$call)
   cat("\nNumber of locations:", length(x$marginal), "\n")
   cat("Variables:", paste(x$vars, collapse = ", "), "\n")
-  # cat("Marginal method:", class(x)[2], "\n")
   cat(
     "Marginal method:",
     sub("cecl_marg_", "", class(x)[2]),
@@ -1416,5 +1414,5 @@ as_cecl_marg <- \(obj) {
     "transformed" = obj
   )
   class(cecl_marg_obj) <- c("cecl_marg_ecdf", "cecl_marg")
-  return(cecl_marg_obj)
+  cecl_marg_obj
 }
