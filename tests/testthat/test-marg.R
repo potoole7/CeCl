@@ -72,7 +72,6 @@ test_that("cecl_marg fits different marginal methods", {
   m_evgam <- cecl_marg(df,
     thresh_method = "quantile", thresh_args = 0.9,
     marg_method = "evgam",
-    # marg_args = list(f = list("X1 ~ name", "~ name"))
     marg_args = list(f = list("excess ~ name", "~ name")),
   )
   expect_s3_class(m_evgam, "cecl_marg")
@@ -115,9 +114,17 @@ test_that("cecl_marg ggplot works", {
 
   # ggplot objects
   pdf(NULL)
-  expect_s3_class(ggplot(m_ismev, which = "qq", loc = "loc_1", var = "X1"), "gg")
-  expect_s3_class(ggplot(m_ismev, which = "pp", loc = "loc_1", var = "X1"), "gg")
-  expect_s3_class(ggplot(m_ismev, which = "hist", loc = "loc_1", var = "X1"), "gg")
-  expect_s3_class(ggplot(m_ismev, which = "return", loc = "loc_1", var = "X1"), "gg")
+  expect_s3_class(
+    ggplot(m_ismev, which = "qq", loc = "loc_1", var = "X1"), "gg"
+  )
+  expect_s3_class(
+    ggplot(m_ismev, which = "pp", loc = "loc_1", var = "X1"), "gg"
+  )
+  expect_s3_class(
+    ggplot(m_ismev, which = "hist", loc = "loc_1", var = "X1"), "gg"
+  )
+  expect_s3_class(
+    ggplot(m_ismev, which = "return", loc = "loc_1", var = "X1"), "gg"
+  )
   dev.off()
 })
