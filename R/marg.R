@@ -988,8 +988,6 @@ summary.cecl_marg <- \(object, n, ...) {
 #' @param mult_col Name of the column representing locations, default `"name"`.
 #' @param var Variable name to plot.
 #' @param ... Additional arguments (not used)
-#' @return For QQ, PP, and histogram plots: invisible NULL after plotting.
-#' For return level plots: a `ggplot` object.
 #' @method plot cecl_marg
 #' @rdname plot.cecl_marg
 #' @export
@@ -1017,8 +1015,8 @@ summary.cecl_marg <- \(object, n, ...) {
 #'   marg_method = "ismev",
 #'   ncores = 1
 #' )
-#' plot for a specific location and variable
-#' plot.cecl_marg(marg_fit, which = "qq", loc = "loc_1", var = "X1")
+#' # plot for a specific location and variable
+#' plot(marg_fit, which = "qq", loc = "loc_1", var = "X1")
 plot.cecl_marg <- \(
   x, which = c("qq", "pp", "hist", "return"), loc, mult_col = "name", var, ...
 ) {
@@ -1205,6 +1203,8 @@ cecl_theme <- \(legend.position = "bottom", nejm_pal = TRUE) {
 #' @export
 #' @importFrom ggplot2 ggplot
 #' @examples
+#' library(ggplot2)
+#'
 #' # simulate some data
 #' set.seed(123)
 #' n_locs <- 5
@@ -1228,8 +1228,8 @@ cecl_theme <- \(legend.position = "bottom", nejm_pal = TRUE) {
 #'   marg_method = "ismev",
 #'   ncores = 1
 #' )
-#' plot for a specific location and variable
-#' ggplot.cecl_marg(marg_fit, which = "qq", loc = "loc_1", var = "X1")
+#' # plot for a specific location and variable
+#' ggplot(marg_fit, which = "qq", loc = "loc_1", var = "X1")
 ggplot.cecl_marg <- \(
   data = NULL,
   mapping = ggplot2::aes(),
@@ -1401,8 +1401,8 @@ ggplot.cecl_marg <- \(
 
 #' @title `as.cecl_marg` method
 #' @description Convert an object to class `cecl_marg`.
-#' @param obj Object to convert. Must be a list (like `transformed` returned 
-#' by `cecl_marg`) of groups/locations, each containing a matrix of transformed 
+#' @param obj Object to convert. Must be a list (like `transformed` returned
+#' by `cecl_marg`) of groups/locations, each containing a matrix of transformed
 #' data.
 #' @return Object of class `cecl_marg`.
 #' @rdname as.cecl_marg
@@ -1417,5 +1417,4 @@ as_cecl_marg <- \(obj) {
   )
   class(cecl_marg_obj) <- c("cecl_marg_ecdf", "cecl_marg")
   return(cecl_marg_obj)
-  
 }

@@ -28,10 +28,6 @@ return level plot.}
 
 \item{...}{Additional arguments (not used)}
 }
-\value{
-For QQ, PP, and histogram plots: invisible NULL after plotting.
-For return level plots: a \code{ggplot} object.
-}
 \description{
 Generate diagnostic plots for a \code{cecl_marg} object, including
 QQ, PP, histogram, and return level plots.
@@ -60,6 +56,6 @@ marg_fit <- cecl_marg(
   marg_method = "ismev",
   ncores = 1
 )
-plot for a specific location and variable
-plot.cecl_marg(marg_fit, which = "qq", loc = "loc_1", var = "X1")
+# plot for a specific location and variable
+plot(marg_fit, which = "qq", loc = "loc_1", var = "X1")
 }

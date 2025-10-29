@@ -41,6 +41,8 @@ ggplot diagnostic plot for \code{cecl_marg} object.
 Generate ggplot diagnostic plots for \code{cecl_marg} object.
 }
 \examples{
+library(ggplot2)
+
 # simulate some data
 set.seed(123)
 n_locs <- 5
@@ -64,6 +66,6 @@ marg_fit <- cecl_marg(
   marg_method = "ismev",
   ncores = 1
 )
-plot for a specific location and variable
-ggplot.cecl_marg(marg_fit, which = "qq", loc = "loc_1", var = "X1")
+# plot for a specific location and variable
+ggplot(marg_fit, which = "qq", loc = "loc_1", var = "X1")
 }

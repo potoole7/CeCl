@@ -38,8 +38,7 @@ test_that("cecl_marg thresholds correctly", {
 
   # Regression threshold
   reg_thresh <- cecl_marg(df,
-    thresh_method = "regression",
-    # thresh_args = list(f = list("X1 ~ name", "~ name"),
+    thresh_method = "qgam",
     thresh_args = list(
       f = list("response ~ name", "~ name"),
       qu = 0.9,
