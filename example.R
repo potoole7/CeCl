@@ -13,7 +13,7 @@ library(dplyr)
 cor <- c(0.7)
 n_vars <- 2
 n_locs <- 10
-df <- 3
+df_t <- 3
 n <- 10000
 stopifnot(n %% n_locs == 0)
 
@@ -21,10 +21,17 @@ stopifnot(n %% n_locs == 0)
 
 # Generate t copula data with student-t marginals
 set.seed(123)
-cop_t <- copula::tCopula(cor, dim = n_vars, df = df, dispstr = "un")
-u <- copula::rCopula(n, cop_t)
-df <- data.frame(qt(u, df = df))
-df$name <- rep(paste0("loc_", 1:n_locs), each = n / n_locs)
+gen_dat <- function(cor, n_vars, df_t, n, n_locs) {
+  cop_t <- copula::tCopula(param = cor, dim = n_vars, df = df_t, dispstr = "ex")
+  u <- copula::rCopula(n, cop_t)
+  data <- data.frame(apply(u, 2, qt, df = df_t))
+  data$name <- rep(paste0("loc_", 1:n_locs), each = n / n_locs)
+  return(data)
+}
+
+df <- gen_dat(cor, n_vars, df_t, n, n_locs)
+df3 <- gen_dat(cor, 3, df_t, n, n_locs) # for testing with 3 variables
+
 
 #### Threshold ####
 
@@ -94,6 +101,18 @@ marg_ismev <- cecl_marg(
   # ret_obj = FALSE
   ret_obj = TRUE
 )
+# fit for 3 variables
+marg_ismev3 <- cecl_marg(
+  df3,
+  thresh_method = "quantile",
+  thresh_args = 0.9,
+  marg_method = "ismev",
+  ncores = 1,
+  # ret_obj = FALSE
+  ret_obj = TRUE
+)
+
+
 
 # 3: evgam
 marg_evgam <- cecl_marg(
@@ -119,6 +138,7 @@ tryCatch(
   error = function(e) message(e$message)
 )
 coef(marg_ismev)
+coef(marg_ismev3)
 coef(marg_evgam)
 
 # print method
@@ -153,3 +173,35 @@ ggplot(marg_ismev, which = "pp", loc = "loc_1", var = "X1")
 ggplot(marg_ismev, which = "qq", loc = "loc_1", var = "X1")
 ggplot(marg_ismev, which = "hist", loc = "loc_1", var = "X1")
 ggplot(marg_ismev, which = "return", loc = "loc_1", var = "X1")
+
+#### Dependence modelling ####
+
+# TODO Test with > 2 variables!
+
+devtools::load_all()
+devtools::document()
+
+dep <- cecl_dep(
+  obj = marg_ismev,
+  cond_prob = 0.9
+)
+dep3 <- cecl_dep(
+  obj = marg_ismev3,
+  cond_prob = 0.9
+)
+
+coef.cecl_dep(dep)
+coef.cecl_dep(dep3)
+
+print.cecl_dep(dep)
+print.cecl_dep(dep3)
+
+summary.cecl_dep(dep)
+summary.cecl_dep(dep3)
+
+# TODO Add uncertainty bounds to line here
+plot.cecl_dep(dep, which = "residual", var = "X1", cond_var = "X2", loc = "loc_1")
+plot.cecl_dep(dep, which = "quantile", var = "X1", cond_var = "X2", loc = "loc_1")
+
+ggplot.cecl_dep(dep, which = "residual", var = "X1", cond_var = "X2", loc = "loc_1")
+ggplot.cecl_dep(dep, which = "quantile", var = "X1", cond_var = "X2", loc = "loc_1")
