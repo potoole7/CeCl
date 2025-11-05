@@ -560,8 +560,86 @@ print.cecl_dep <- \(x, ...) {
 #' @method summary cecl_dep
 summary.cecl_dep <- \(object, ...) {
   stopifnot(inherits(object, "cecl_dep"))
-  dep_params <- coef.cecl_dep(object)
+  dep_params <- coef(object)
   dep_params
+}
+
+#' @title Plot scatter plot from `cecl_dep` object
+#' @description Plot scatter plot of dependence parameters from a fitted
+#' `cecl_dep` object.
+#' @param obj Object of class `cecl_dep`.
+#' @param var Conditioned variable name to plot.
+#' @param cond_var Conditioning variable name to plot against.
+#' @param labels List mapping variable names to plot labels, e.g.,
+#' `list("rain" = "Precipitation", "wind" = "Wind Speed")`, for use in axis
+#' labels. Default is `NULL`, which uses variable names as is.
+#' @param type Type of plot to return. Either `"ggplot"` (default) or `"plot"`.
+#' @param ... Additional arguments to pass to plotting functions.
+#' @return ggplot object of scatter plot.
+plot_scatter <- \(
+  obj, var, cond_var, labels = NULL, type = c("ggplot", "plot"), ...
+) {
+  stopifnot(inherits(obj, "cecl_dep"))
+  type <- match.arg(type)
+
+  # pull dependence parameters for all locations
+  dep_params <- coef(obj)
+  # pull for specific var/cond_var
+  dep_params_spec <- dep_params[
+    dep_params$var == var & dep_params$cond_var == cond_var,
+  ]
+
+  # For plotting, tidy up variable names
+  var_lab <- var
+  cond_var_lab <- cond_var
+  if (!is.null(labels)) {
+    var_lab <- labels[[var]]
+    cond_var_lab <- labels[[cond_var]]
+  }
+  dep_params_spec$facet_lab <- paste0(var_lab, " | ", cond_var_lab)
+
+  if (type == "ggplot") {
+    plot <- dep_params_spec |>
+      ggplot2::ggplot(ggplot2::aes(x = a, y = b)) +
+      ggplot2::geom_point(...) +
+      ggplot2::facet_wrap(~facet_lab) +
+      cecl_theme() +
+      ggplot2::labs(
+        x = expression(a),
+        y = expression(b),
+      )
+
+    # add labels if ggrepel is installed
+    if (requireNamespace("ggrepel", quietly = TRUE)) {
+      plot <- plot +
+        ggrepel::geom_text_repel(ggplot2::aes(label = name))
+    } else {
+      plot <- plot +
+        ggplot2::geom_text(ggplot2::aes(label = name), vjust = -0.5)
+    }
+
+    return(plot)
+  } else {
+    plot(
+      dep_params_spec$a,
+      dep_params_spec$b,
+      xlab = expression(alpha),
+      ylab = expression(beta),
+      main = paste0(var_lab, " | ", cond_var_lab),
+      pch = 16,
+      col = grDevices::rgb(0, 0, 0, 0.5),
+      xlim = c(-1, 1),
+      ylim = c(min(dep_params_spec$b) - 0.1, max(dep_params_spec$b) + 0.1),
+      ...
+    )
+
+    text(
+      dep_params_spec$a,
+      dep_params_spec$b,
+      labels = dep_params_spec$name,
+      pos = 3
+    )
+  }
 }
 
 #' @title Plot residuals from `cecl_dep` object
@@ -761,8 +839,8 @@ plot_quantile <- \(
 #' `cecl_dep` object.
 #' @param x Object of class `cecl_dep`.
 #' @param which Character string specifying which plot to produce.
-#' Either `"residual"` for residuals plot or `"quantile"` for conditional
-#' quantiles plot.
+#' Either `"residual"` for residuals plot, `"quantile"` for conditional
+#' quantiles plot, or `"scatter"` for dependence parameters scatter plot.
 #' @param loc Location name to plot for.
 #' @param var Conditioned variable name to plot for.
 #' @param cond_var Conditioning variable name to plot against.
@@ -779,7 +857,7 @@ plot_quantile <- \(
 #' @method plot cecl_dep
 plot.cecl_dep <- \(
   x,
-  which = c("residual", "quantile"),
+  which = c("residual", "quantile", "scatter"),
   loc,
   var,
   cond_var,
@@ -809,6 +887,14 @@ plot.cecl_dep <- \(
       labels    = labels,
       type      = "plot"
     )
+  } else if (which == "scatter") {
+    plot_scatter(
+      obj      = x,
+      var      = var,
+      cond_var = cond_var,
+      labels   = labels,
+      type     = "plot"
+    )
   }
 }
 
@@ -830,7 +916,7 @@ plot.cecl_dep <- \(
 ggplot.cecl_dep <- \(
   data = NULL,
   mapping = ggplot2::aes(),
-  which = c("residual", "quantile"),
+  which = c("residual", "quantile", "scatter"),
   loc,
   var,
   cond_var,
@@ -861,6 +947,15 @@ ggplot.cecl_dep <- \(
       quantiles = quantiles,
       labels    = labels,
       type      = "ggplot",
+      ...
+    )
+  } else if (which == "scatter") {
+    p <- plot_scatter(
+      obj      = data,
+      var      = var,
+      cond_var = cond_var,
+      labels   = labels,
+      type     = "ggplot",
       ...
     )
   }
