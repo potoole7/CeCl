@@ -1,3 +1,24 @@
+#' @title Calculate within cluster sum of distances
+#' @description Calculate within cluster sum of distances
+#' @param k Number of clusters
+#' @param distance_matrix Distance matrix
+#' @param fun Clustering function
+#' @return Total within-cluster sum of distances
+#' @keywords internal
+# compute the total within-cluster sum of distances
+# TODO: Create methods for the below functions to differ for PAM vs k-means
+within_cluster_sum <- function(k, distance_matrix, fun = cluster::pam, ...) {
+  clust_res <- fun(distance_matrix, k, ...)
+  if (inherits(clust_res, "kmeans")) {
+    return(clust_res$tot.withinss)
+  } else if (inherits(clust_res, "pam")) {
+    return(clust_res$objective[1])
+  } else {
+    stop("Clustering class not currently supported")
+  }
+}
+
+
 #' @title Convert to matrix
 #' @description Convert input to matrix if it is a vector.
 #' @param F_hat Input data.
