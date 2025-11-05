@@ -255,7 +255,7 @@ laplace_nll <- \(yex, ydep, a, b, m, s, constrain, v, aLow) {
 }
 
 # function to evaluate (negative) profile (log) likelihood and optimise over
-laplace_npll <- function(yex, ydep, a, b, constrain, v, aLow) {
+laplace_npll <- \(yex, ydep, a, b, constrain, v, aLow) {
   # first, estimate Z by rearranging the conditional extremes equation
   Z <- (ydep - yex * a) / (yex^b)
   stopifnot(
@@ -275,7 +275,7 @@ laplace_npll <- function(yex, ydep, a, b, constrain, v, aLow) {
 }
 
 # function to evaluate profile likelihood and optimise over
-Qpos <- function(param, yex, ydep, constrain, v, aLow) {
+Qpos <- \(param, yex, ydep, constrain, v, aLow) {
   a <- param[1]
   b <- param[2]
 
@@ -283,7 +283,7 @@ Qpos <- function(param, yex, ydep, constrain, v, aLow) {
   res$profLik
 }
 
-Qpos_fixed_b <- function(param, yex, ydep, constrain, v, aLow, b) {
+Qpos_fixed_b <- \(param, yex, ydep, constrain, v, aLow, b) {
   a <- param[1]
   res <- laplace_npll(yex, ydep, a, b, constrain, v, aLow)
   res$profLik
@@ -463,6 +463,7 @@ ce_optim <- \(
 #' conditioned variable.
 #' @rdname coef.cecl_dep
 #' @export
+#' @method coef cecl_dep
 coef.cecl_dep <- \(object, ...) {
   stopifnot(inherits(object, "cecl_dep"))
 
@@ -541,6 +542,9 @@ print.cecl_dep <- \(x, ...) {
   cat("Call:\n")
   print(x$call)
   cat("\nNumber of locations:", length(x$dependence), "\n")
+  cat(
+    "Variables:", paste(colnames(dep$transformed[[1]]), collapse = ", "), "\n"
+  )
 
   invisible(x)
 }
