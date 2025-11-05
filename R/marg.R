@@ -24,7 +24,6 @@
 #' `evgam::evgam`).
 #' @param marg_args Arguments to be passed to marginal fitting function.
 #' @param ret_obj If TRUE and `thresh_method` is "qgam" or
-#'
 #' `marg_method` is "ismev" or "evgam", return fitted
 #' marginal models. Default: TRUE.
 #' @param ncores Number of cores to use for parallel computation, Default: 1.
