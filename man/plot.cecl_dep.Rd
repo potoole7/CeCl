@@ -6,7 +6,7 @@
 \usage{
 \method{plot}{cecl_dep}(
   x,
-  which = c("residual", "quantile"),
+  which = c("residual", "quantile", "scatter"),
   loc,
   var,
   cond_var,
@@ -19,8 +19,8 @@
 \item{x}{Object of class \code{cecl_dep}.}
 
 \item{which}{Character string specifying which plot to produce.
-Either \code{"residual"} for residuals plot or \code{"quantile"} for conditional
-quantiles plot.}
+Either \code{"residual"} for residuals plot, \code{"quantile"} for conditional
+quantiles plot, or \code{"scatter"} for dependence parameters scatter plot.}
 
 \item{loc}{Location name to plot for.}
 

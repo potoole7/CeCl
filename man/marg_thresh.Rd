@@ -32,7 +32,6 @@ thresholding. For "qgam", a list of arguments to be passed to
 \code{qgam_thresh} (see documentation for details).}
 
 \item{ret_obj}{If TRUE and \code{thresh_method} is "qgam" or
-
 \code{marg_method} is "ismev" or "evgam", return fitted
 marginal models. Default: TRUE.}
 }

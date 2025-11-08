@@ -7,7 +7,7 @@
 \method{ggplot}{cecl_dep}(
   data = NULL,
   mapping = ggplot2::aes(),
-  which = c("residual", "quantile"),
+  which = c("residual", "quantile", "scatter"),
   loc,
   var,
   cond_var,

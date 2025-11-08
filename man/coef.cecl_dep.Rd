@@ -4,7 +4,7 @@
 \alias{coef.cecl_dep}
 \title{Extract dependence parameters from \code{cecl_dep} object}
 \usage{
-coef.cecl_dep(object, ...)
+\method{coef}{cecl_dep}(object, ...)
 }
 \arguments{
 \item{object}{Object of class \code{cecl_dep}.}

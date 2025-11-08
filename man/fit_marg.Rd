@@ -28,7 +28,6 @@ CDF), "ismev" (using \code{ismev::gpd.fit}) or "evgam" (using
 \item{marg_args}{Arguments to be passed to marginal fitting function.}
 
 \item{ret_obj}{If TRUE and \code{thresh_method} is "qgam" or
-
 \code{marg_method} is "ismev" or "evgam", return fitted
 marginal models. Default: TRUE.}
 }
