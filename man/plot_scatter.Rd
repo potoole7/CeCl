@@ -6,28 +6,14 @@
 \alias{plot_scatter.cecl_dep}
 \title{Plot scatter plot from \code{cecl_dep} object}
 \usage{
-\method{plot_scatter}{cecl_clust}(
-  clust_obj,
-  var,
-  cond_var,
-  labels = NULL,
-  type = c("ggplot", "plot"),
-  ...
-)
+\method{plot_scatter}{cecl_clust}(x, var, cond_var, labels = NULL, type = c("ggplot", "plot"), ...)
 
 plot_scatter(x, ...)
 
-\method{plot_scatter}{cecl_dep}(
-  obj,
-  var,
-  cond_var,
-  labels = NULL,
-  type = c("ggplot", "plot"),
-  ...
-)
+\method{plot_scatter}{cecl_dep}(x, var, cond_var, labels = NULL, type = c("ggplot", "plot"), ...)
 }
 \arguments{
-\item{clust_obj}{Object of class \code{cecl_clust}.}
+\item{x}{Object of class \code{cecl_dep}.}
 
 \item{var}{Conditioned variable name to plot.}
 
@@ -40,10 +26,6 @@ labels. Default is \code{NULL}, which uses variable names as is.}
 \item{type}{Type of plot to return. Either \code{"ggplot"} (default) or \code{"plot"}.}
 
 \item{...}{Additional arguments to pass to plotting functions.}
-
-\item{x}{Object to plot.}
-
-\item{obj}{Object of class \code{cecl_dep}.}
 }
 \value{
 ggplot object of scatter plot.

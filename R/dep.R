@@ -578,7 +578,7 @@ plot_scatter <- \(x, ...) {
 #' @title Plot scatter plot from `cecl_dep` object
 #' @description Plot scatter plot of dependence parameters from a fitted
 #' `cecl_dep` object.
-#' @param obj Object of class `cecl_dep`.
+#' @param x Object of class `cecl_dep`.
 #' @param var Conditioned variable name to plot.
 #' @param cond_var Conditioning variable name to plot against.
 #' @param labels List mapping variable names to plot labels, e.g.,
@@ -591,13 +591,13 @@ plot_scatter <- \(x, ...) {
 #' @export
 #' @method plot_scatter cecl_dep
 plot_scatter.cecl_dep <- \(
-  obj, var, cond_var, labels = NULL, type = c("ggplot", "plot"), ...
+  x, var, cond_var, labels = NULL, type = c("ggplot", "plot"), ...
 ) {
-  stopifnot(inherits(obj, "cecl_dep"))
+  stopifnot(inherits(x, "cecl_dep"))
   type <- match.arg(type)
 
   # pull dependence parameters for all locations
-  dep_params <- coef(obj)
+  dep_params <- coef(x)
   # pull for specific var/cond_var
   dep_params_spec <- dep_params[
     dep_params$var == var & dep_params$cond_var == cond_var,

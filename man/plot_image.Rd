@@ -8,7 +8,7 @@
 plot_image(x, ...)
 
 \method{plot_image}{cecl_clust}(
-  clust_obj,
+  x,
   type = c("ggplot", "plot"),
   order_by_cluster = TRUE,
   label_colours = NULL,
@@ -16,11 +16,9 @@ plot_image(x, ...)
 )
 }
 \arguments{
-\item{x}{Object to plot.}
+\item{x}{Object of class \code{cecl_clust}.}
 
 \item{...}{Additional arguments passed to plotting functions.}
-
-\item{clust_obj}{Object of class \code{cecl_clust}.}
 
 \item{type}{Character string specifying which plot to produce.
 Either \code{"ggplot"} for ggplot object, or \code{"plot"} for base R plot.

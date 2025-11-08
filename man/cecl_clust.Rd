@@ -9,7 +9,7 @@
 cecl_clust(x, ...)
 
 \method{cecl_clust}{cecl_dep}(
-  dep_obj,
+  x,
   marg_obj,
   k,
   var = NULL,
@@ -22,14 +22,12 @@ cecl_clust(x, ...)
   ...
 )
 
-\method{cecl_clust}{cecl_dist}(dist_obj, k, var = NULL, cluster_mem = NULL, ...)
+\method{cecl_clust}{cecl_dist}(x, k, var = NULL, cluster_mem = NULL, ...)
 }
 \arguments{
-\item{x}{Object to cluster.}
+\item{x}{Object of class \code{cecl_dist}.}
 
 \item{...}{Additional arguments passed to methods.}
-
-\item{dep_obj}{Object of class \code{cecl_dep}.}
 
 \item{marg_obj}{Object of class \code{cecl_marg}.}
 
@@ -40,8 +38,6 @@ on, if not all variables, Default: NULL.}
 
 \item{cluster_mem}{Optional vector of true cluster memberships
 to evaluate clustering solution, Default: NULL.}
-
-\item{dist_obj}{Object of class \code{cecl_dist}.}
 }
 \value{
 Clustering results.

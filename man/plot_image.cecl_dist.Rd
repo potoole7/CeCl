@@ -4,7 +4,7 @@
 \alias{plot_image.cecl_dist}
 \title{Image plot for \code{cecl_dist} object}
 \usage{
-\method{plot_image}{cecl_dist}(dist_obj, type = c("ggplot", "plot"), ...)
+\method{plot_image}{cecl_dist}(x, type = c("ggplot", "plot"), ...)
 }
 \arguments{
 \item{type}{Character string specifying which plot to produce.

@@ -23,15 +23,15 @@ cecl_clust <- \(x, ...) {
 #' `n_dat` equally spaced points.
 #' \code{cluster:pam} is used to cluster the Jensen-Shannon divergence distance
 #' matrix between all locations, summed across all variables.
+#' @param x Object of class `cecl_dep`.
 #' @param marg_obj Object of class `cecl_marg`.
-#' @param dep_obj Object of class `cecl_dep`.
 #' @return List containing the clustering results and, if `cluster_mem` is
 #' provided, the adjusted Rand index.
 #' @rdname cecl_clust
 #' @export
 #' @method cecl_clust cecl_dep
 cecl_clust.cecl_dep <- \(
-  dep_obj,
+  x,
   marg_obj,
   k,
   var = NULL,
@@ -43,12 +43,12 @@ cecl_clust.cecl_dep <- \(
   seed = NULL,
   ...
 ) {
-  stopifnot(inherits(dep_obj, "cecl_dep"))
+  stopifnot(inherits(x, "cecl_dep"))
   stopifnot(inherits(marg_obj, "cecl_marg"))
 
   # Calculate distance matrix
   dist_obj <- cecl_dist(
-    dep_obj     = dep_obj,
+    dep_obj     = x,
     marg_obj    = marg_obj,
     var         = var,
     laplace_cap = laplace_cap,
@@ -75,7 +75,7 @@ cecl_clust.cecl_dep <- \(
 #' @description Function to cluster on the skew-geometric
 #' Jensen-Shannon Divergence distance matrix for the conditional
 #' extremes model.
-#' @param dist_obj Object of class `cecl_dist`.
+#' @param x Object of class `cecl_dist`.
 #' @param k Number of clusters.
 #' @param var Optional conditioning variable name to cluster
 #' on, if not all variables, Default: NULL.
@@ -87,17 +87,17 @@ cecl_clust.cecl_dep <- \(
 #' @export
 #' @method cecl_clust cecl_dist
 cecl_clust.cecl_dist <- \(
-  dist_obj,
+  x,
   k,
   var = NULL,
   cluster_mem = NULL,
   ...
 ) {
-  stopifnot(inherits(dist_obj, "cecl_dist"))
+  stopifnot(inherits(x, "cecl_dist"))
 
-  dist_mat <- dist_obj$dist_mat
+  dist_mat <- x$dist_mat
   if (!is.null(var)) {
-    dist_mat <- dist_obj$dist_mats[[var]]
+    dist_mat <- x$dist_mats[[var]]
   }
 
   # fit clustering
@@ -108,7 +108,7 @@ cecl_clust.cecl_dist <- \(
   ret <- c(
     list("pam" = ret),
     list("dist_mat" = dist_mat),
-    list("dep_df" = dist_obj$dep_df) # output for plot methods
+    list("dep_df" = x$dep_df) # output for plot methods
   )
 
   # evaluate quality of clustering solution if true membership provided
@@ -460,7 +460,7 @@ ggplot.cecl_clust <- \(
 #' @title Plot scatter plot from `cecl_dep` object
 #' @description Plot scatter plot of dependence parameters from a fitted
 #' `cecl_dep` object.
-#' @param clust_obj Object of class `cecl_clust`.
+#' @param x Object of class `cecl_clust`.
 #' @param var Conditioned variable name to plot.
 #' @param cond_var Conditioning variable name to plot against.
 #' @param labels List mapping variable names to plot labels, e.g.,
@@ -473,20 +473,20 @@ ggplot.cecl_clust <- \(
 #' @export
 #' @method plot_scatter cecl_clust
 plot_scatter.cecl_clust <- \(
-  clust_obj, var, cond_var, labels = NULL, type = c("ggplot", "plot"), ...
+  x, var, cond_var, labels = NULL, type = c("ggplot", "plot"), ...
 ) {
-  stopifnot(inherits(clust_obj, "cecl_clust"))
+  stopifnot(inherits(x, "cecl_clust"))
   type <- match.arg(type)
-  stopifnot("dep_df" %in% names(clust_obj))
+  stopifnot("dep_df" %in% names(x))
 
   # pull dependence parameters for all locs for pecific var/cond_var
-  dep_params_spec <- clust_obj$dep_df |>
+  dep_params_spec <- x$dep_df |>
     filter(var == !!var, cond_var == !!cond_var) |>
     # add colour variable based on clustering
     dplyr::left_join(
       data.frame(
-        "clust" = factor(clust_obj$pam$clustering),
-        "name" = names(clust_obj$pam$clustering)
+        "clust" = factor(x$pam$clustering),
+        "name" = names(x$pam$clustering)
       ),
       by = "name"
     )
@@ -647,11 +647,11 @@ plot_image <- \(x, ...) {
 # #' @rdname plot_image
 # #' @method plot_image cecl_dist
 #' @export
-plot_image.cecl_dist <- \(dist_obj, type = c("ggplot", "plot"), ...) {
-  stopifnot(inherits(dist_obj, "cecl_dist"))
+plot_image.cecl_dist <- \(x, type = c("ggplot", "plot"), ...) {
+  stopifnot(inherits(x, "cecl_dist"))
   type <- match.arg(type)
 
-  dist_matrix <- as.matrix(dist_obj$dist_mat) # convert from dist to matrix
+  dist_matrix <- as.matrix(x$dist_mat) # convert from dist to matrix
   # dist_matrix <- as.matrix(dist_mat)
 
   if (type == "plot") {
@@ -701,7 +701,7 @@ plot_image.cecl_dist <- \(dist_obj, type = c("ggplot", "plot"), ...) {
 #' @title Image plot for `cecl_clust` object
 #' @description Create image/heatmap plot of distance matrix
 #' from a fitted `cecl_clust` object.
-#' @param clust_obj Object of class `cecl_clust`.
+#' @param x Object of class `cecl_clust`.
 #' @param type Character string specifying which plot to produce.
 #' Either `"ggplot"` for ggplot object, or `"plot"` for base R plot.
 #' Default is `"ggplot"`.
@@ -711,18 +711,18 @@ plot_image.cecl_dist <- \(dist_obj, type = c("ggplot", "plot"), ...) {
 #' @method plot_image cecl_clust
 #' @export
 plot_image.cecl_clust <- \(
-  clust_obj,
+  x,
   type = c("ggplot", "plot"),
   order_by_cluster = TRUE,
   label_colours = NULL,
   ...
 ) {
   type <- match.arg(type)
-  stopifnot(inherits(clust_obj, "cecl_clust"))
+  stopifnot(inherits(x, "cecl_clust"))
 
   #  extract distance matrix and PAM clustering
-  dist_matrix <- as.matrix(clust_obj$dist_mat)
-  clustering <- clust_obj$pam$clustering
+  dist_matrix <- as.matrix(x$dist_mat)
+  clustering <- x$pam$clustering
 
   # ensure clustering is named and matches matrix dimnames if possible
   if (is.null(names(clustering))) {
