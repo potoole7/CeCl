@@ -124,6 +124,31 @@ on, if not all variables, Default: NULL.</p></dd>
 <dd><p>Optional vector of true cluster memberships
 to evaluate clustering solution, Default: NULL.</p></dd>
 
+
+<dt id="arg-laplace-cap">laplace_cap<a class="anchor" aria-label="anchor" href="#arg-laplace-cap"></a></dt>
+<dd><p>Upper quantile to sample Laplace distribution
+truncation point from, Default: 0.99.</p></dd>
+
+
+<dt id="arg-n-mc">n_mc<a class="anchor" aria-label="anchor" href="#arg-n-mc"></a></dt>
+<dd><p>Number of Monte Carlo samples to use in distance
+calculation, Default: 500.</p></dd>
+
+
+<dt id="arg-ncores">ncores<a class="anchor" aria-label="anchor" href="#arg-ncores"></a></dt>
+<dd><p>Number of cores to use for parallel computation, Default: 1.</p></dd>
+
+
+<dt id="arg-par-dist">par_dist<a class="anchor" aria-label="anchor" href="#arg-par-dist"></a></dt>
+<dd><p>Logical, whether to parallelise the distance computation,
+rather than embarrassingly parallel over each variable, which is useful for a
+high number of locations, but has significant overheads, Default: FALSE.</p></dd>
+
+
+<dt id="arg-seed">seed<a class="anchor" aria-label="anchor" href="#arg-seed"></a></dt>
+<dd><p>Seed number for random number generation in Monte Carlo sampling,
+for reproducibility.</p></dd>
+
 </dl></div>
     <div id="value">
     <h2>Value</h2>
