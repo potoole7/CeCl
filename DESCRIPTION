@@ -22,8 +22,6 @@ Imports:
   mclust,
   cluster,
   proxy,
-  sf,
-  spdep,
   ggplot2,
   parallel,
   ggsci,
