@@ -25,6 +25,12 @@ cecl_clust <- \(x, ...) {
 #' matrix between all locations, summed across all variables.
 #' @param x Object of class `cecl_dep`.
 #' @param marg_obj Object of class `cecl_marg`.
+#' @param k Number of clusters.
+#' @param var Optional conditioning variable name to cluster
+#' on, if not all variables, Default: NULL.
+#' @param cluster_mem Optional vector of true cluster memberships
+#' to evaluate clustering solution, Default: NULL.
+#' @inheritParams cecl_dist
 #' @return List containing the clustering results and, if `cluster_mem` is
 #' provided, the adjusted Rand index.
 #' @rdname cecl_clust
@@ -76,11 +82,7 @@ cecl_clust.cecl_dep <- \(
 #' Jensen-Shannon Divergence distance matrix for the conditional
 #' extremes model.
 #' @param x Object of class `cecl_dist`.
-#' @param k Number of clusters.
-#' @param var Optional conditioning variable name to cluster
-#' on, if not all variables, Default: NULL.
-#' @param cluster_mem Optional vector of true cluster memberships
-#' to evaluate clustering solution, Default: NULL.
+#' @inheritParams cecl_clust.cecl_dep
 #' @return List containing the clustering results and, if `cluster_mem` is
 #' provided, the adjusted Rand index.
 #' @rdname cecl_clust
@@ -155,8 +157,9 @@ summary.cecl_clust <- \(object, ...) {
   summary(object$pam)
 }
 
-# TODO Add additional information on `laplace_cap`, change argument docs
 # TODO Do I want `...` to proxy::dist or jsg_div??
+# TODO Need details section here with extra info on laplace_cap and MC
+# sampling
 #' @title Calculate skew-geometric Jensen-Shannon divergence distance matrix
 #' for the conditional extremes model.
 #' @description Function to calculate the skew-geometric
@@ -174,6 +177,8 @@ summary.cecl_clust <- \(object, ...) {
 #' @param par_dist Logical, whether to parallelise the distance computation,
 #' rather than embarrassingly parallel over each variable, which is useful for a
 #' high number of locations, but has significant overheads, Default: FALSE.
+#' @param seed Seed number for random number generation in Monte Carlo sampling,
+#' for reproducibility.
 #' @param ... Additional arguments passed to `proxy::dist()`.
 #' @return List of distance matrices for each variable.
 #' @rdname cecl_dist
@@ -414,8 +419,6 @@ summary.cecl_dist <- \(object, var = NULL, ...) {
 #' Either `"image"` for distance matrix image/heatmap, or `"scatter"` for
 #' dependence parameters scatter plot, both with labels coloured by
 #' cluster membership.
-#' @param var Optional variable name to plot distance matrix for,
-#' if not overall distance matrix, Default: NULL.
 #' @param ... Additional arguments passed to plotting functions.
 #' @rdname plot.cecl_clust
 #' @export
@@ -644,7 +647,7 @@ plot_image <- \(x, ...) {
 #' @title Image plot for `cecl_dist` object
 #' @description Create image/heatmap plot of distance matrix
 #' from a fitted `cecl_dist` object.
-#' @param dist_mat Distance matrix of class `dist`.
+#' @param x Object of class `cecl_dist`.
 #' @param type Character string specifying which plot to produce.
 #' Either `"ggplot"` for ggplot object, or `"plot"` for base R plot.
 #' Default is `"ggplot"`.
