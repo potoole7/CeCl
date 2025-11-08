@@ -543,7 +543,7 @@ print.cecl_dep <- \(x, ...) {
   print(x$call)
   cat("\nNumber of locations:", length(x$dependence), "\n")
   cat(
-    "Variables:", paste(colnames(dep$transformed[[1]]), collapse = ", "), "\n"
+    "Variables:", paste(colnames(x$transformed[[1]]), collapse = ", "), "\n"
   )
 
   invisible(x)
@@ -560,7 +560,7 @@ print.cecl_dep <- \(x, ...) {
 #' @method summary cecl_dep
 summary.cecl_dep <- \(object, ...) {
   stopifnot(inherits(object, "cecl_dep"))
-  dep_params <- coef(object)
+  dep_params <- stats::coef(object)
   dep_params
 }
 
@@ -596,8 +596,10 @@ plot_scatter.cecl_dep <- \(
   stopifnot(inherits(x, "cecl_dep"))
   type <- match.arg(type)
 
+  a <- b <- name <- NULL
+
   # pull dependence parameters for all locations
-  dep_params <- coef(x)
+  dep_params <- stats::coef(x)
   # pull for specific var/cond_var
   dep_params_spec <- dep_params[
     dep_params$var == var & dep_params$cond_var == cond_var,
@@ -647,7 +649,7 @@ plot_scatter.cecl_dep <- \(
       ...
     )
 
-    text(
+    graphics::text(
       dep_params_spec$a,
       dep_params_spec$b,
       labels = dep_params_spec$name,

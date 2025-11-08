@@ -193,6 +193,8 @@ cecl_dist <- \(
   stopifnot(inherits(dep_obj, "cecl_dep"))
   stopifnot(inherits(marg_obj, "cecl_marg"))
 
+  n <- NULL
+
   # Only want a single variable, if provided
   stopifnot(is.null(var) || length(var == 1))
 
@@ -223,14 +225,14 @@ cecl_dist <- \(
   # TODO Move this to separate function anyway!
   rlaplace_trunc <- \(n, thresh_max, trans_x, upper_quant = 0.99) {
     # get maximum point
-    y_max <- quantile(trans_x, upper_quant, na.rm = TRUE)
+    y_max <- stats::quantile(trans_x, upper_quant, na.rm = TRUE)
     stopifnot(
       "y_max must be greater than thresh_max" = y_max > thresh_max
     )
     # get probability of being below this point from exponential CDF
     p_max <- 1 - exp(-(y_max - thresh_max))
     # sample from uniform distribution below this point
-    U <- runif(n, min = 0, max = p_max) # min=0 as we push up by thresh
+    U <- stats::runif(n, min = 0, max = p_max) # min=0 as we push up by thresh
     # inversion sampling from exponential distribution
     W <- -log(1 - U)
     # shift to the right by the threshold to get samples from truncated Laplace
@@ -364,7 +366,7 @@ cecl_dist <- \(
     "y"         = y,
     "y_max"     = y_max,
     "call"      = match.call(),
-    "dep_df"    = coef(dep) # include dependence coefficients for plot methods
+    "dep_df"    = stats::coef(dep_obj) # include dep params for plot methods
   )
 
   class(dist_ret) <- c("cecl_dist", class(dist_ret))
@@ -479,9 +481,11 @@ plot_scatter.cecl_clust <- \(
   type <- match.arg(type)
   stopifnot("dep_df" %in% names(x))
 
+  a <- b <- clust <- name <- NULL
+
   # pull dependence parameters for all locs for pecific var/cond_var
   dep_params_spec <- x$dep_df |>
-    filter(var == !!var, cond_var == !!cond_var) |>
+    dplyr::filter(var == !!var, cond_var == !!cond_var) |>
     # add colour variable based on clustering
     dplyr::left_join(
       data.frame(
@@ -537,7 +541,7 @@ plot_scatter.cecl_clust <- \(
     cols_alpha <- grDevices::adjustcolor(cols, alpha.f = 0.5)
 
     # map colours to each row by cluster
-    col_map <- setNames(cols_alpha, cl_levels)
+    col_map <- stats::setNames(cols_alpha, cl_levels)
     point_cols <- col_map[as.character(dep_params_spec$clust)]
 
     # plot points coloured by cluster
@@ -555,8 +559,10 @@ plot_scatter.cecl_clust <- \(
     )
 
     # add labels, using same colour as points (but slightly darker for contrast)
-    label_cols <- grDevices::adjustcolor(cols, alpha.f = 1)[as.integer(dep_params_spec$clust)]
-    text(
+    label_cols <- grDevices::adjustcolor(cols, alpha.f = 1)[
+      as.integer(dep_params_spec$clust)
+    ]
+    graphics::text(
       dep_params_spec$a,
       dep_params_spec$b,
       labels = dep_params_spec$name,
@@ -566,9 +572,7 @@ plot_scatter.cecl_clust <- \(
   }
 }
 
-
-
-# TODO Change to be S3 method
+# TODO Change to be S3 method like others?
 #' @title Scree plot for `cecl_dist` object
 #' @description Create scree plot of total within-group sum of squares
 #' for different k values from a fitted `cecl_dist` object.
@@ -586,6 +590,8 @@ plot_scatter.cecl_clust <- \(
 plot_scree <- \(dist_mat, scree_k = 1:5, type = c("ggplot", "plot"), ...) {
   # stopifnot(inherits(dist_obj, "cecl_dist"))
   type <- match.arg(type)
+
+  k <- twgss <- NULL
 
   # dist_mat <- dist_obj$dist_mat
 
@@ -651,6 +657,8 @@ plot_image.cecl_dist <- \(x, type = c("ggplot", "plot"), ...) {
   stopifnot(inherits(x, "cecl_dist"))
   type <- match.arg(type)
 
+  Var1 <- Var2 <- Freq <- NULL
+
   dist_matrix <- as.matrix(x$dist_mat) # convert from dist to matrix
   # dist_matrix <- as.matrix(dist_mat)
 
@@ -663,7 +671,7 @@ plot_image.cecl_dist <- \(x, type = c("ggplot", "plot"), ...) {
     dist_plt <- t(dist_matrix[x_names, y_names])
 
     # plot
-    image(
+    graphics::image(
       1:n, 1:n, dist_plt,
       axes = FALSE,
       zlim = c(0, max(dist_matrix)), # ensure 0 included
@@ -671,9 +679,9 @@ plot_image.cecl_dist <- \(x, type = c("ggplot", "plot"), ...) {
       ...
     )
 
-    axis(1, at = 1:n, labels = x_names, las = 2)
-    axis(2, at = 1:n, labels = y_names, las = 2)
-    box()
+    graphics::axis(1, at = 1:n, labels = x_names, las = 2)
+    graphics::axis(2, at = 1:n, labels = y_names, las = 2)
+    graphics::box()
   } else {
     # convert matrix to data frame
     df <- as.data.frame(as.table(dist_matrix)) |>
@@ -690,7 +698,7 @@ plot_image.cecl_dist <- \(x, type = c("ggplot", "plot"), ...) {
         y = "",
         fill = "Distance"
       ) +
-      # TODO Change this to one in paper?
+      # TODO Change colour scheme to one in paper?
       ggplot2::scale_fill_viridis_c()
     return(p)
   }
@@ -719,6 +727,8 @@ plot_image.cecl_clust <- \(
 ) {
   type <- match.arg(type)
   stopifnot(inherits(x, "cecl_clust"))
+
+  Var1 <- Var2 <- value <- Freq <- NULL
 
   #  extract distance matrix and PAM clustering
   dist_matrix <- as.matrix(x$dist_mat)
@@ -792,7 +802,7 @@ plot_image.cecl_clust <- \(
     palette_cols <- label_colours[seq_len(k)]
   }
   # map cluster id to colour
-  cluster_to_col <- setNames(palette_cols, clusters)
+  cluster_to_col <- stats::setNames(palette_cols, clusters)
 
   # plotting
   if (type == "plot") {
@@ -808,7 +818,7 @@ plot_image.cecl_clust <- \(
     zlim <- c(min(dist_matrix, na.rm = TRUE), max(dist_matrix, na.rm = TRUE))
 
     # draw image without axes
-    image(1:n, 1:n, dist_plt,
+    graphics::image(1:n, 1:n, dist_plt,
       axes = FALSE,
       zlim = zlim,
       xlab = "", ylab = "",
@@ -816,10 +826,10 @@ plot_image.cecl_clust <- \(
     )
     # TODO Convert these comments from Chat GPT
     # Draw axes first (so we keep tick marks and baseline label placement)
-    axis(1, at = 1:n, labels = FALSE, las = 2) # ticks only
-    axis(2, at = 1:n, labels = FALSE, las = 2) # ticks only
+    graphics::axis(1, at = 1:n, labels = FALSE, las = 2) # ticks only
+    graphics::axis(2, at = 1:n, labels = FALSE, las = 2)
 
-    usr <- par("usr")
+    usr <- graphics::par("usr")
     # offsets for label placement
     x_off <- 0.8
     y_off <- 0.3
@@ -831,7 +841,7 @@ plot_image.cecl_clust <- \(
     y_cols <- cluster_to_col[as.character(clustering[y_names])]
 
     # Draw x-axis labels (colored) — slightly below the ticks
-    text(
+    graphics::text(
       x = 1:n,
       y = usr[3] - x_off,
       labels = x_names,
@@ -839,21 +849,21 @@ plot_image.cecl_clust <- \(
       adj = 1,
       xpd = TRUE,
       col = x_cols,
-      cex = par("cex.axis")
+      cex = graphics::par("cex.axis")
     )
 
     # Draw y-axis labels (colored) — slightly left of ticks
-    text(
+    graphics::text(
       x = usr[1] - y_off,
       y = 1:n,
       labels = y_names,
       adj = 1,
       xpd = TRUE,
       col = y_cols,
-      cex = par("cex.axis")
+      cex = graphics::par("cex.axis")
     )
 
-    box()
+    graphics::box()
   } else {
     # preserve the ordering in the matrix: x_names in matrix row order
     x_names <- rownames(dist_matrix)
@@ -863,15 +873,14 @@ plot_image.cecl_clust <- \(
     df <- as.data.frame(as.table(dist_matrix)) |>
       # ensure factor order is the current matrix order
       dplyr::mutate(
-        # Var1 = factor(Var1, levels = rev(x_names)),
         Var1 = factor(Var1, levels = x_names),
         Var2 = factor(Var2, levels = rev(y_names))
       )
 
     # add clustering
-    clust_df <- as_tibble(clustering) |>
-      rename(cluster = value) |>
-      mutate(name = names(clustering))
+    clust_df <- dplyr::as_tibble(clustering) |>
+      dplyr::rename(cluster = value) |>
+      dplyr::mutate(name = names(clustering))
 
     # match colours to clustering for x and y axis labels
     plot_cols_x <- palette_cols[
@@ -883,8 +892,8 @@ plot_image.cecl_clust <- \(
 
     # Split into diagonal and off-diagonal dataframes
     # (want to have white for NAs without affecting fill legend)
-    diag_df <- filter(df, Var1 == Var2)
-    off_diag_df <- filter(df, Var1 != Var2)
+    diag_df <- dplyr::filter(df, Var1 == Var2)
+    off_diag_df <- dplyr::filter(df, Var1 != Var2)
 
     p <- off_diag_df |>
       # ggplot(aes(x = Var1, y = Var2, fill = Distance)) +
@@ -1050,7 +1059,7 @@ pull_thresh_trans <- \(dep) {
   # return quantile of transformed data (already calculated in texmex)
   # return(lapply(dep, \(x) x["dth", ]))
   # use setNames so even if x has 1 col, we still output a named vector
-  return(lapply(dep, \(x) setNames(x["dth", ], colnames(x))))
+  return(lapply(dep, \(x) stats::setNames(x["dth", ], colnames(x))))
 }
 
 # TODO Document arguments (and function itself more fully)
