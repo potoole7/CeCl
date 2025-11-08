@@ -55,7 +55,7 @@ cecl_dep object."><!-- mathjax --><script src="https://cdnjs.cloudflare.com/ajax
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="co"># S3 method for class 'cecl_dep'</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span></span>
 <span>  <span class="va">x</span>,</span>
-<span>  which <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"residual"</span>, <span class="st">"quantile"</span><span class="op">)</span>,</span>
+<span>  which <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"residual"</span>, <span class="st">"quantile"</span>, <span class="st">"scatter"</span><span class="op">)</span>,</span>
 <span>  <span class="va">loc</span>,</span>
 <span>  <span class="va">var</span>,</span>
 <span>  <span class="va">cond_var</span>,</span>
@@ -75,8 +75,8 @@ cecl_dep object."><!-- mathjax --><script src="https://cdnjs.cloudflare.com/ajax
 
 <dt id="arg-which">which<a class="anchor" aria-label="anchor" href="#arg-which"></a></dt>
 <dd><p>Character string specifying which plot to produce.
-Either <code>"residual"</code> for residuals plot or <code>"quantile"</code> for conditional
-quantiles plot.</p></dd>
+Either <code>"residual"</code> for residuals plot, <code>"quantile"</code> for conditional
+quantiles plot, or <code>"scatter"</code> for dependence parameters scatter plot.</p></dd>
 
 
 <dt id="arg-loc">loc<a class="anchor" aria-label="anchor" href="#arg-loc"></a></dt>
