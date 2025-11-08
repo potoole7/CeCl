@@ -78,7 +78,7 @@ extremes model.</p>
 <span></span>
 <span><span class="co"># S3 method for class 'cecl_dep'</span></span>
 <span><span class="fu">cecl_clust</span><span class="op">(</span></span>
-<span>  <span class="va">dep_obj</span>,</span>
+<span>  <span class="va">x</span>,</span>
 <span>  <span class="va">marg_obj</span>,</span>
 <span>  <span class="va">k</span>,</span>
 <span>  var <span class="op">=</span> <span class="cn">NULL</span>,</span>
@@ -92,7 +92,7 @@ extremes model.</p>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># S3 method for class 'cecl_dist'</span></span>
-<span><span class="fu">cecl_clust</span><span class="op">(</span><span class="va">dist_obj</span>, <span class="va">k</span>, var <span class="op">=</span> <span class="cn">NULL</span>, cluster_mem <span class="op">=</span> <span class="cn">NULL</span>, <span class="va">...</span><span class="op">)</span></span></code></pre></div>
+<span><span class="fu">cecl_clust</span><span class="op">(</span><span class="va">x</span>, <span class="va">k</span>, var <span class="op">=</span> <span class="cn">NULL</span>, cluster_mem <span class="op">=</span> <span class="cn">NULL</span>, <span class="va">...</span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div id="arguments">
@@ -100,15 +100,11 @@ extremes model.</p>
 
 
 <dl><dt id="arg-x">x<a class="anchor" aria-label="anchor" href="#arg-x"></a></dt>
-<dd><p>Object to cluster.</p></dd>
+<dd><p>Object of class <code>cecl_dist</code>.</p></dd>
 
 
 <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
 <dd><p>Additional arguments passed to methods.</p></dd>
-
-
-<dt id="arg-dep-obj">dep_obj<a class="anchor" aria-label="anchor" href="#arg-dep-obj"></a></dt>
-<dd><p>Object of class <code>cecl_dep</code>.</p></dd>
 
 
 <dt id="arg-marg-obj">marg_obj<a class="anchor" aria-label="anchor" href="#arg-marg-obj"></a></dt>
@@ -127,10 +123,6 @@ on, if not all variables, Default: NULL.</p></dd>
 <dt id="arg-cluster-mem">cluster_mem<a class="anchor" aria-label="anchor" href="#arg-cluster-mem"></a></dt>
 <dd><p>Optional vector of true cluster memberships
 to evaluate clustering solution, Default: NULL.</p></dd>
-
-
-<dt id="arg-dist-obj">dist_obj<a class="anchor" aria-label="anchor" href="#arg-dist-obj"></a></dt>
-<dd><p>Object of class <code>cecl_dist</code>.</p></dd>
 
 </dl></div>
     <div id="value">
