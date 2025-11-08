@@ -927,7 +927,7 @@ print.cecl_marg <- \(x, ...) {
 
   cat("Call:\n")
   print(x$call)
-  cat("\nNumber of locations:", length(x$marginal), "\n")
+  cat("\nNumber of locations:", length(x$transformed), "\n")
   cat("Variables:", paste(x$vars, collapse = ", "), "\n")
   cat(
     "Marginal method:",
