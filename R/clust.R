@@ -524,34 +524,13 @@ plot_scatter.cecl_clust <- \(
     return(plot)
     # base plot
   } else {
-    # plot(
-    #   dep_params_spec$a,
-    #   dep_params_spec$b,
-    #   xlab = expression(alpha),
-    #   ylab = expression(beta),
-    #   main = paste0(var_lab, " | ", cond_var_lab),
-    #   pch = 16,
-    #   col = grDevices::rgb(0, 0, 0, 0.5),
-    #   xlim = c(-1, 1),
-    #   ylim = c(min(dep_params_spec$b) - 0.1, max(dep_params_spec$b) + 0.1),
-    #   ...
-    # )
-    #
-    # text(
-    #   dep_params_spec$a,
-    #   dep_params_spec$b,
-    #   labels = dep_params_spec$name,
-    #   pos = 3
-    # )
-    # determine cluster colours (use RColorBrewer if installed, otherwise hcl.colors)
     cl_levels <- levels(dep_params_spec$clust)
     n_cl <- length(cl_levels)
-    if (requireNamespace("RColorBrewer", quietly = TRUE) && n_cl <= RColorBrewer::brewer.pal.info["Set1", "maxcolors"]) {
-      cols <- RColorBrewer::brewer.pal(max(3, n_cl), "Set1")[seq_len(n_cl)]
+    if (n_cl < 9) {
+      cols <- ggsci::pal_nejm()(n_cl)
+      # fallback if there are too many colours
     } else {
-      # fallback - nice HCL palette
-      cols <- grDevices::hcl.colors(n_cl, palette = "Dynamic")
-      if (length(cols) < n_cl) cols <- grDevices::rainbow(n_cl)
+      cols <- grDevices::rainbow(n_cl)
     }
 
     # add alpha/transparency to match ggplot semi-transparent points
