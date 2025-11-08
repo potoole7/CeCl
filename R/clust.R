@@ -48,8 +48,8 @@ cecl_clust.cecl_dep <- \(
 
   # Calculate distance matrix
   dist_obj <- cecl_dist(
-    marg_obj    = marg_obj,
     dep_obj     = dep_obj,
+    marg_obj    = marg_obj,
     var         = var,
     laplace_cap = laplace_cap,
     n_mc        = n_mc,
@@ -104,7 +104,12 @@ cecl_clust.cecl_dist <- \(
   ret <- cluster::pam(dist_mat, k = k)
 
   # add specific distance matrix used to output
-  ret <- c(list("pam" = ret), list("dist_mat" = dist_mat))
+  # TODO Need for three calls to list here?
+  ret <- c(
+    list("pam" = ret),
+    list("dist_mat" = dist_mat),
+    list("dep_df" = dist_obj$dep_df) # output for plot methods
+  )
 
   # evaluate quality of clustering solution if true membership provided
   if (!is.null(cluster_mem)) {
@@ -354,12 +359,12 @@ cecl_dist <- \(
 
   # list to output
   dist_ret <- list(
-    "dep"       = dep_obj,
     "dist_mat"  = dist_mat,
     "dist_mats" = dist_mats,
     "y"         = y,
     "y_max"     = y_max,
-    "call"      = match.call()
+    "call"      = match.call(),
+    "dep_df"    = coef(dep) # include dependence coefficients for plot methods
   )
 
   class(dist_ret) <- c("cecl_dist", class(dist_ret))
@@ -416,7 +421,6 @@ summary.cecl_dist <- \(object, var = NULL, ...) {
 plot.cecl_clust <- \(
   x,
   which = c("image", "scatter"),
-  var = NULL,
   ...
 ) {
   stopifnot(inherits(x, "cecl_clust"))
@@ -425,7 +429,7 @@ plot.cecl_clust <- \(
   if (which == "image") {
     plot_image(x, type = "plot", ...)
   } else if (which == "scatter") {
-    stop("Scatter plot method not yet implemented.")
+    plot_scatter(x, type = "plot", ...)
   }
 }
 
@@ -440,7 +444,6 @@ ggplot.cecl_clust <- \(
   data = NULL,
   mapping = ggplot2::aes(),
   which = c("image", "scatter"),
-  var = NULL,
   ...
 ) {
   stopifnot(inherits(data, "cecl_clust"))
@@ -449,10 +452,140 @@ ggplot.cecl_clust <- \(
   if (which == "image") {
     plot_image(data, type = "ggplot", ...)
   } else if (which == "scatter") {
-    stop("Scatter plot method not yet implemented.")
+    plot_scatter(data, type = "ggplot", ...)
   }
 }
 
+# TODO Keep dep_obj as arg here, or add to cecl_dist and cecl_clust objects?
+#' @title Plot scatter plot from `cecl_dep` object
+#' @description Plot scatter plot of dependence parameters from a fitted
+#' `cecl_dep` object.
+#' @param clust_obj Object of class `cecl_clust`.
+#' @param var Conditioned variable name to plot.
+#' @param cond_var Conditioning variable name to plot against.
+#' @param labels List mapping variable names to plot labels, e.g.,
+#' `list("rain" = "Precipitation", "wind" = "Wind Speed")`, for use in axis
+#' labels. Default is `NULL`, which uses variable names as is.
+#' @param type Type of plot to return. Either `"ggplot"` (default) or `"plot"`.
+#' @param ... Additional arguments to pass to plotting functions.
+#' @return ggplot object of scatter plot.
+#' @rdname plot_scatter
+#' @export
+#' @method plot_scatter cecl_clust
+plot_scatter.cecl_clust <- \(
+  clust_obj, var, cond_var, labels = NULL, type = c("ggplot", "plot"), ...
+) {
+  stopifnot(inherits(clust_obj, "cecl_clust"))
+  type <- match.arg(type)
+  stopifnot("dep_df" %in% names(clust_obj))
+
+  # pull dependence parameters for all locs for pecific var/cond_var
+  dep_params_spec <- clust_obj$dep_df |>
+    filter(var == !!var, cond_var == !!cond_var) |>
+    # add colour variable based on clustering
+    dplyr::left_join(
+      data.frame(
+        "clust" = factor(clust_obj$pam$clustering),
+        "name" = names(clust_obj$pam$clustering)
+      ),
+      by = "name"
+    )
+
+  # For plotting, tidy up variable names
+  var_lab <- var
+  cond_var_lab <- cond_var
+  if (!is.null(labels)) {
+    var_lab <- labels[[var]]
+    cond_var_lab <- labels[[cond_var]]
+  }
+  dep_params_spec$facet_lab <- paste0(var_lab, " | ", cond_var_lab)
+
+  if (type == "ggplot") {
+    plot <- dep_params_spec |>
+      ggplot2::ggplot(ggplot2::aes(x = a, y = b, colour = clust)) +
+      ggplot2::geom_point(...) +
+      ggplot2::facet_wrap(~facet_lab) +
+      cecl_theme() +
+      ggplot2::labs(
+        x = expression(a),
+        y = expression(b),
+      ) +
+      ggplot2::guides(colour = "none")
+
+    # add labels if ggrepel is installed
+    if (requireNamespace("ggrepel", quietly = TRUE)) {
+      plot <- plot +
+        ggrepel::geom_text_repel(ggplot2::aes(label = name))
+    } else {
+      plot <- plot +
+        ggplot2::geom_text(ggplot2::aes(label = name), vjust = -0.5)
+    }
+
+    return(plot)
+    # base plot
+  } else {
+    # plot(
+    #   dep_params_spec$a,
+    #   dep_params_spec$b,
+    #   xlab = expression(alpha),
+    #   ylab = expression(beta),
+    #   main = paste0(var_lab, " | ", cond_var_lab),
+    #   pch = 16,
+    #   col = grDevices::rgb(0, 0, 0, 0.5),
+    #   xlim = c(-1, 1),
+    #   ylim = c(min(dep_params_spec$b) - 0.1, max(dep_params_spec$b) + 0.1),
+    #   ...
+    # )
+    #
+    # text(
+    #   dep_params_spec$a,
+    #   dep_params_spec$b,
+    #   labels = dep_params_spec$name,
+    #   pos = 3
+    # )
+    # determine cluster colours (use RColorBrewer if installed, otherwise hcl.colors)
+    cl_levels <- levels(dep_params_spec$clust)
+    n_cl <- length(cl_levels)
+    if (requireNamespace("RColorBrewer", quietly = TRUE) && n_cl <= RColorBrewer::brewer.pal.info["Set1", "maxcolors"]) {
+      cols <- RColorBrewer::brewer.pal(max(3, n_cl), "Set1")[seq_len(n_cl)]
+    } else {
+      # fallback - nice HCL palette
+      cols <- grDevices::hcl.colors(n_cl, palette = "Dynamic")
+      if (length(cols) < n_cl) cols <- grDevices::rainbow(n_cl)
+    }
+
+    # add alpha/transparency to match ggplot semi-transparent points
+    cols_alpha <- grDevices::adjustcolor(cols, alpha.f = 0.5)
+
+    # map colours to each row by cluster
+    col_map <- setNames(cols_alpha, cl_levels)
+    point_cols <- col_map[as.character(dep_params_spec$clust)]
+
+    # plot points coloured by cluster
+    plot(
+      dep_params_spec$a,
+      dep_params_spec$b,
+      xlab = expression(alpha),
+      ylab = expression(beta),
+      main = paste0(var_lab, " | ", cond_var_lab),
+      pch = 16,
+      col = point_cols,
+      xlim = c(-1, 1),
+      ylim = c(min(dep_params_spec$b) - 0.1, max(dep_params_spec$b) + 0.1),
+      ...
+    )
+
+    # add labels, using same colour as points (but slightly darker for contrast)
+    label_cols <- grDevices::adjustcolor(cols, alpha.f = 1)[as.integer(dep_params_spec$clust)]
+    text(
+      dep_params_spec$a,
+      dep_params_spec$b,
+      labels = dep_params_spec$name,
+      pos = 3,
+      col = label_cols
+    )
+  }
+}
 
 
 
