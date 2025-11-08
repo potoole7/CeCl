@@ -564,6 +564,17 @@ summary.cecl_dep <- \(object, ...) {
   dep_params
 }
 
+#' @title Generic scatter plot function
+#' @description Generic scatter plot function for different object classes.
+#' @param x Object to plot.
+#' @param ... Additional arguments passed to methods.
+#' @return Plot of object.
+#' @rdname plot_scatter
+#' @keywords internal
+plot_scatter <- \(x, ...) {
+  UseMethod("plot_scatter")
+}
+
 #' @title Plot scatter plot from `cecl_dep` object
 #' @description Plot scatter plot of dependence parameters from a fitted
 #' `cecl_dep` object.
@@ -576,7 +587,10 @@ summary.cecl_dep <- \(object, ...) {
 #' @param type Type of plot to return. Either `"ggplot"` (default) or `"plot"`.
 #' @param ... Additional arguments to pass to plotting functions.
 #' @return ggplot object of scatter plot.
-plot_scatter <- \(
+#' @rdname plot_scatter
+#' @export
+#' @method plot_scatter cecl_dep
+plot_scatter.cecl_dep <- \(
   obj, var, cond_var, labels = NULL, type = c("ggplot", "plot"), ...
 ) {
   stopifnot(inherits(obj, "cecl_dep"))
