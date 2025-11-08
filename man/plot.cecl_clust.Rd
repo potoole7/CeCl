@@ -15,9 +15,6 @@ dependence parameters scatter plot, both with labels coloured by
 cluster membership.}
 
 \item{...}{Additional arguments passed to plotting functions.}
-
-\item{var}{Optional variable name to plot distance matrix for,
-if not overall distance matrix, Default: NULL.}
 }
 \description{
 Create plots from a fitted \code{cecl_clust} object.

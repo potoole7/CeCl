@@ -7,13 +7,13 @@
 \method{plot_image}{cecl_dist}(x, type = c("ggplot", "plot"), ...)
 }
 \arguments{
+\item{x}{Object of class \code{cecl_dist}.}
+
 \item{type}{Character string specifying which plot to produce.
 Either \code{"ggplot"} for ggplot object, or \code{"plot"} for base R plot.
 Default is \code{"ggplot"}.}
 
 \item{...}{Additional arguments passed to plotting functions.}
-
-\item{dist_mat}{Distance matrix of class \code{dist}.}
 }
 \value{
 ggplot object or base R plot of distance matrix image/heatmap.

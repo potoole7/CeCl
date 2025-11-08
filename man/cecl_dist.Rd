@@ -37,6 +37,9 @@ calculation, Default: 500.}
 rather than embarrassingly parallel over each variable, which is useful for a
 high number of locations, but has significant overheads, Default: FALSE.}
 
+\item{seed}{Seed number for random number generation in Monte Carlo sampling,
+for reproducibility.}
+
 \item{...}{Additional arguments passed to \code{proxy::dist()}.}
 }
 \value{

@@ -38,6 +38,21 @@ on, if not all variables, Default: NULL.}
 
 \item{cluster_mem}{Optional vector of true cluster memberships
 to evaluate clustering solution, Default: NULL.}
+
+\item{laplace_cap}{Upper quantile to sample Laplace distribution
+truncation point from, Default: 0.99.}
+
+\item{n_mc}{Number of Monte Carlo samples to use in distance
+calculation, Default: 500.}
+
+\item{ncores}{Number of cores to use for parallel computation, Default: 1.}
+
+\item{par_dist}{Logical, whether to parallelise the distance computation,
+rather than embarrassingly parallel over each variable, which is useful for a
+high number of locations, but has significant overheads, Default: FALSE.}
+
+\item{seed}{Seed number for random number generation in Monte Carlo sampling,
+for reproducibility.}
 }
 \value{
 Clustering results.
