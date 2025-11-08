@@ -157,8 +157,8 @@ summary.cecl_clust <- \(object, ...) {
 #' @description Function to calculate the skew-geometric
 #' Jensen-Shannon Divergence distance matrix for the conditional
 #' extremes model.
-#' @param marg_obj Object of class `cecl_marg`.
 #' @param dep_obj Object of class `cecl_dep`.
+#' @param marg_obj Object of class `cecl_marg`.
 #' @param var Optional conditioning variable name to calculate distance matrix
 #' for, if not all variables, Default: NULL.
 #' @param laplace_cap Upper quantile to sample Laplace distribution
@@ -175,8 +175,8 @@ summary.cecl_clust <- \(object, ...) {
 #' @export
 # TODO Add lambda parameter for weights in distance calculation
 cecl_dist <- \(
-  marg_obj,
   dep_obj,
+  marg_obj,
   var = NULL,
   laplace_cap = 0.99,
   n_mc = 500,
@@ -185,8 +185,8 @@ cecl_dist <- \(
   seed = NULL,
   ...
 ) {
-  stopifnot(inherits(marg_obj, "cecl_marg"))
   stopifnot(inherits(dep_obj, "cecl_dep"))
+  stopifnot(inherits(marg_obj, "cecl_marg"))
 
   # Only want a single variable, if provided
   stopifnot(is.null(var) || length(var == 1))
@@ -354,6 +354,7 @@ cecl_dist <- \(
 
   # list to output
   dist_ret <- list(
+    "dep"       = dep_obj,
     "dist_mat"  = dist_mat,
     "dist_mats" = dist_mats,
     "y"         = y,
