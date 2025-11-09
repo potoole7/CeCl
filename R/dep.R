@@ -542,8 +542,13 @@ print.cecl_dep <- \(x, ...) {
   cat("Call:\n")
   print(x$call)
   cat("\nNumber of locations:", length(x$dependence), "\n")
+  n_vars <- colnames(x$transformed[[1]])
+  # fail safe for user-specified dependence object with no trans data
+  if (is.null(n_vars)) {
+    n_vars <- names(x$dependence[[1]])
+  }
   cat(
-    "Variables:", paste(colnames(x$transformed[[1]]), collapse = ", "), "\n"
+    "Variables:", paste(n_vars, collapse = ", "), "\n"
   )
 
   invisible(x)
@@ -976,4 +981,117 @@ ggplot.cecl_dep <- \(
     )
   }
   return(p)
+}
+
+# TODO Be more detailed with description, make it clear that the user can
+# supply their own method as long as it has a, b, m, s and dth values
+#' @title Generic function to convert to `cecl_dep` object
+#' @description Generic function to convert an object to class `cecl_dep`.
+#' @param x Object to convert.
+#' @param ... Additional arguments passed to methods.
+#' @return Object of class `cecl_dep`.
+#' @rdname as_cecl_dep
+#' @export
+as_cecl_dep <- \(x, ...) {
+  UseMethod("as_cecl_dep")
+}
+
+#' @title Convert data.frame to `cecl_dep` object
+#' @description Convert a data.frame of dependence parameters to class
+#' `cecl_dep`.
+#' @param x Data frame of dependence parameters.
+#' @param name_col Name of column in `x` containing location names.
+#' Default is `"name"`.
+#' @param add_obj Additional named list object to add to returned
+#' `cecl_dep` object. Default is `NULL`.
+#' @return Object of class `cecl_dep`.
+#' @rdname as_cecl_dep
+#' @export
+#' @method as_cecl_dep data.frame
+as_cecl_dep.data.frame <- \(
+  x,
+  name_col = "name",
+  add_obj = NULL
+) {
+  stopifnot(inherits(x, "data.frame"))
+  stopifnot(
+    "name_col, var and cond_var columns must be present in data.frame" =
+      all(c(name_col, "var", "cond_var") %in% colnames(x))
+  )
+  stopifnot(
+    all(c("a", "b", "m", "s", "dth") %in% colnames(x))
+  )
+
+  # first split into a list with one element per group/location
+  x_lst <- x |>
+    dplyr::mutate(dplyr::across(
+      dplyr::all_of(name_col), \(y) factor(y, levels = unique(x[[name_col]]))
+    )) |>
+    dplyr::group_split(.data[[name_col]], .keep = FALSE)
+
+  # next, convert each to a matrix of parameters
+  vars <- unique(x$var)
+  ret <- lapply(x_lst, \(y) {
+    # create list objects for each variable
+    params_list <- lapply(vars, \(v) {
+      y_var <- y[y$var == v, ]
+      # add dummy ll if not in data
+      if (!"ll" %in% colnames(y_var)) {
+        y_var$ll <- NA
+      }
+      params_mat <- t(as.matrix(
+        y_var[, c("a", "b", "m", "s", "ll", "dth")]
+      ))
+      colnames(params_mat) <- y_var$cond_var
+      params_mat
+    })
+    names(params_list) <- vars
+    params_list
+  })
+  names(ret) <- unique(x[[name_col]])
+  ret <- list("dependence" = ret)
+  if (!is.null(add_obj)) {
+    ret <- c(ret, add_obj)
+  }
+  class(ret) <- "cecl_dep"
+  ret
+}
+
+
+#' @title Convert list to `cecl_dep` object
+#' @description Convert a list of data.frames of dependence parameters to class
+#' `cecl_dep`.
+#' @param x List of data frames of dependence parameters.
+#' @param name_col Name of column in each data.frame in `x` containing
+#' location names. Default is `"name"`.
+#' @param add_obj Additional named list object to add to returned
+#' `cecl_dep` object. Default is `NULL`.
+#' @return Object of class `cecl_dep`.
+#' @rdname as_cecl_dep
+#' @export
+as_cecl_dep.list <- \(
+  x,
+  name_col = "name",
+  add_obj = NULL
+) {
+  stopifnot(inherits(x, "list"))
+  stopifnot(
+    all(sapply(x, \(y) {
+      inherits(y, "data.frame")
+    }))
+  )
+
+  # if x is unnamed, assume name column is present in each data.frame
+  if (is.null(names(x))) {
+    x_df <- dplyr::bind_rows(x)
+  } else {
+    x_df <- dplyr::bind_rows(x, .id = name_col)
+  }
+
+  # call data.frame method
+  as_cecl_dep.data.frame(
+    x = x_df,
+    name_col = name_col,
+    add_obj = add_obj
+  )
 }
