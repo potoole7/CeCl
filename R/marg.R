@@ -1427,20 +1427,22 @@ as_cecl_marg.data.frame <- \(x, name_col = "name") {
     "name_col must be in column names of x" = name_col %in% colnames(x)
   )
 
-  ret <- x |>
+  x_fact <- x |>
     dplyr::mutate(dplyr::across(
-      dplyr::all_of(name_col),
-      as.factor
-    )) |>
+      dplyr::all_of(name_col), \(y) factor(y, levels = unique(x$name))
+    ))
+
+  ret <- x_fact |>
     dplyr::group_split(.data[[name_col]], .keep = FALSE) |>
     lapply(as.matrix)
 
-  names(ret) <- levels(as.factor(x[[name_col]]))
+  names(ret) <- levels(x_fact[[name_col]])
   ret <- list("transformed" = ret)
   class(ret) <- c("cecl_marg", "cecl_marg_user")
   ret
 }
 
+# TODO Could this just call data.frame method?
 #' @title `as_cecl_marg` method for lists
 #' @description Convert a list of matrices or dataframes/tibbles to class
 #' `cecl_marg`.
