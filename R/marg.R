@@ -1429,7 +1429,7 @@ as_cecl_marg.data.frame <- \(x, name_col = "name") {
 
   x_fact <- x |>
     dplyr::mutate(dplyr::across(
-      dplyr::all_of(name_col), \(y) factor(y, levels = unique(x$name))
+      dplyr::all_of(name_col), \(y) factor(y, levels = unique(x[[name_col]]))
     ))
 
   ret <- x_fact |>
