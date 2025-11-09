@@ -1448,9 +1448,7 @@ as_cecl_marg.list <- \(x) {
 
   # for a list of matrices
   if (all(vapply(x, is.matrix, logical(1)))) {
-    cecl_marg_obj <- list(
-      "transformed" = obj
-    )
+    cecl_marg_obj <- list("transformed" = x)
     # for dataframes or tibbles, convert to matrices
   } else if (all(vapply(x, \(y) {
     inherits(y, c("data.frame", "tbl_df"))
