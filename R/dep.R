@@ -905,7 +905,7 @@ plot.cecl_dep <- \(
     )
   } else if (which == "scatter") {
     plot_scatter(
-      obj      = x,
+      x        = x,
       var      = var,
       cond_var = cond_var,
       labels   = labels,
@@ -967,7 +967,7 @@ ggplot.cecl_dep <- \(
     )
   } else if (which == "scatter") {
     p <- plot_scatter(
-      obj      = data,
+      x        = data,
       var      = var,
       cond_var = cond_var,
       labels   = labels,

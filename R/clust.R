@@ -4,7 +4,7 @@
 #' @param ... Additional arguments passed to methods.
 #' @return Clustering results.
 #' @rdname cecl_clust
-# TODO export??
+#' @export
 cecl_clust <- \(x, ...) {
   UseMethod("cecl_clust")
 }
@@ -66,8 +66,8 @@ cecl_clust.cecl_dep <- \(
   )
 
   # Cluster based on distance matrix
-  ret <- cecl_clust(
-    dist_obj = dist_obj,
+  ret <- cecl_clust.cecl_dist(
+    x = dist_obj,
     k = k,
     cluster_mem = cluster_mem,
     ...
