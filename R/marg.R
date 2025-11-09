@@ -1397,7 +1397,9 @@ ggplot.cecl_marg <- \(
 }
 
 #' @title `as_cecl_marg` method
-#' @description Convert an object to class `cecl_marg`.
+#' @description Convert an object to class `cecl_marg`. The user must ensure
+#' that the data provided has already been transformed to Laplace margins,
+#' using whatever method is appropriate.
 #' @param x Object to be transformed. Can either be a list of matrices (where
 #' each matrix contains the transformed data for a group/location),
 #'
@@ -1418,9 +1420,12 @@ as_cecl_marg <- \(x, ...) {
 #' @return Object of class `cecl_marg` and `cecl_marg_misc`.
 #' @rdname as_cecl_marg.data.frame
 #' @method as_cecl_marg data.frame
-as_cecl_marg.default <- \(x, name_col = "name") {
-  stopifnot(inherits(x, "data.frame") || inherits(x, "tbl_df"))
-  stopifnot(name_col %in% colnames(x))
+#' @export
+as_cecl_marg.data.frame <- \(x, name_col = "name") {
+  stopifnot(inherits(x, "data.frame"))
+  stopifnot(
+    "name_col must be in column names of x" = name_col %in% colnames(x)
+  )
 
   ret <- x |>
     dplyr::mutate(dplyr::across(
@@ -1431,9 +1436,10 @@ as_cecl_marg.default <- \(x, name_col = "name") {
     lapply(as.matrix)
 
   names(ret) <- levels(as.factor(x[[name_col]]))
-  class(ret) <- c("cecl_marg_misc", "cecl_marg")
+  ret <- list("transformed" = ret)
+  class(ret) <- c("cecl_marg", "cecl_marg_user")
+  ret
 }
-
 
 #' @title `as_cecl_marg` method for lists
 #' @description Convert a list of matrices or dataframes/tibbles to class
@@ -1465,5 +1471,6 @@ as_cecl_marg.list <- \(x) {
     stop("Input list must contain only matrices or dataframes/tibbles.")
   }
 
-  class(cecl_marg_obj) <- c("cecl_marg_misc", "cecl_marg")
+  class(cecl_marg_obj) <- c("cecl_marg", "cecl_marg_user")
+  cecl_marg_obj
 }

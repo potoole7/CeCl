@@ -153,6 +153,17 @@ marg_evgam <- cecl_marg(
   ret_obj = TRUE
 )
 
+# 4: Supply transformed data already
+dat <- marg_ismev$transformed
+marg_misc_lst <- as_cecl_marg(dat) # list
+# for dataframes
+marg_misc_df <- as_cecl_marg(
+  bind_rows(lapply(seq_along(dat), \(i) {
+    as.data.frame(dat[[i]]) |>
+      mutate(name = names(dat)[i])
+  }))
+)
+
 
 #### Marginal methods ####
 

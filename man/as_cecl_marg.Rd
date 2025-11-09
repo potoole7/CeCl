@@ -17,5 +17,7 @@ data.}
 Object of class \code{cecl_marg}.
 }
 \description{
-Convert an object to class \code{cecl_marg}.
+Convert an object to class \code{cecl_marg}. The user must ensure
+that the data provided has already been transformed to Laplace margins,
+using whatever method is appropriate.
 }
