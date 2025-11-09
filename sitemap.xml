@@ -4,7 +4,9 @@
 <url><loc>/News.html</loc></url>
 <url><loc>/authors.html</loc></url>
 <url><loc>/index.html</loc></url>
-<url><loc>/reference/as.cecl_marg.html</loc></url>
+<url><loc>/reference/as_cecl_marg.data.frame.html</loc></url>
+<url><loc>/reference/as_cecl_marg.html</loc></url>
+<url><loc>/reference/as_cecl_marg.list.html</loc></url>
 <url><loc>/reference/cecl_clust.html</loc></url>
 <url><loc>/reference/cecl_dep.html</loc></url>
 <url><loc>/reference/cecl_dist.html</loc></url>
