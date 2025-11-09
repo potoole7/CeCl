@@ -2,22 +2,38 @@
 % Please edit documentation in R/marg.R
 \name{as_cecl_marg}
 \alias{as_cecl_marg}
+\alias{as_cecl_marg.data.frame}
+\alias{as_cecl_marg.list}
 \title{\code{as_cecl_marg} method}
 \usage{
 as_cecl_marg(x, ...)
+
+\method{as_cecl_marg}{data.frame}(x, name_col = "name", ...)
+
+\method{as_cecl_marg}{list}(x, ...)
 }
 \arguments{
-\item{x}{Object to be transformed. Can either be a list of matrices (where
-each matrix contains the transformed data for a group/location),
+\item{x}{List of matrices or dataframes/tibbles to be transformed.}
 
-by \code{cecl_marg}) of groups/locations, each containing a matrix of transformed
-data.}
+\item{...}{Additional arguments (not used).}
+
+\item{name_col}{Name of column representing groups/locations, default
+"name".}
 }
 \value{
 Object of class \code{cecl_marg}.
+
+Object of class \code{cecl_marg} and \code{cecl_marg_misc}.
+
+Object of class \code{cecl_marg} and \code{cecl_marg_misc}.
 }
 \description{
 Convert an object to class \code{cecl_marg}. The user must ensure
 that the data provided has already been transformed to Laplace margins,
 using whatever method is appropriate.
+
+Convert a data.frame or tibble to class \code{cecl_marg}.
+
+Convert a list of matrices or dataframes/tibbles to class
+\code{cecl_marg}.
 }

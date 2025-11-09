@@ -1405,6 +1405,7 @@ ggplot.cecl_marg <- \(
 #'
 #' by `cecl_marg`) of groups/locations, each containing a matrix of transformed
 #' data.
+#' @param ... Additional arguments passed to methods.
 #' @return Object of class `cecl_marg`.
 #' @rdname as_cecl_marg
 #' @export
@@ -1417,11 +1418,12 @@ as_cecl_marg <- \(x, ...) {
 #' @param x Data.frame to be transformed.
 #' @param name_col Name of column representing groups/locations, default
 #' "name".
+#' @param ... Additional arguments (not used).
 #' @return Object of class `cecl_marg` and `cecl_marg_misc`.
-#' @rdname as_cecl_marg.data.frame
+#' @rdname as_cecl_marg
 #' @method as_cecl_marg data.frame
 #' @export
-as_cecl_marg.data.frame <- \(x, name_col = "name") {
+as_cecl_marg.data.frame <- \(x, name_col = "name", ...) {
   stopifnot(inherits(x, "data.frame"))
   stopifnot(
     "name_col must be in column names of x" = name_col %in% colnames(x)
@@ -1447,11 +1449,12 @@ as_cecl_marg.data.frame <- \(x, name_col = "name") {
 #' @description Convert a list of matrices or dataframes/tibbles to class
 #' `cecl_marg`.
 #' @param x List of matrices or dataframes/tibbles to be transformed.
+#' @param ... Additional arguments (not used).
 #' @return Object of class `cecl_marg` and `cecl_marg_misc`.
-#' @rdname as_cecl_marg.list
+#' @rdname as_cecl_marg
 #' @method as_cecl_marg list
 #' @export
-as_cecl_marg.list <- \(x) {
+as_cecl_marg.list <- \(x, ...) {
   stopifnot(inherits(x, "list"))
 
   # for a list of matrices

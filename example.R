@@ -1,5 +1,7 @@
 #### Testing of CeCl functions ####
 
+# TODO Add more formal tests !!!
+
 # TODO Need to add functions for choosing thresholds (i.e. helping choice)
 # TODO For thresholding, must allow either threshold for either variable, or
 # a list for each variable of thresholds for each location
@@ -164,6 +166,9 @@ marg_misc_df <- as_cecl_marg(
   }))
 )
 
+# check they're the same!
+stopifnot(all.equal(marg_misc_lst, marg_misc_df))
+
 
 #### Marginal methods ####
 
@@ -193,6 +198,9 @@ summary(marg_ismev, n = 10)
 summary(marg_evgam)
 
 # plot method
+# TODO Add plot of transformed data!! With optional thresholds
+# (only supported for two dimensions)
+
 # TODO Should return levels be on log scale? See ismev::gpd.diag
 # TODO Should also provide global plots across all locations?
 tryCatch(
@@ -230,6 +238,22 @@ dep3 <- cecl_dep(
   cond_prob = 0.9
 )
 
+# convert from user specified data
+dep_df <- coef(dep)
+dep_misc_df <- as_cecl_dep(dep_df) # TODO Fix print method to pickup variables
+# debugonce(as_cecl_dep.data.frame)
+debugonce(as_cecl_dep.list)
+dep_misc_lst <- as_cecl_dep(
+  dep_df |>
+    mutate(name = factor(name, levels = unique(dep_df$name))) |>
+    group_split(name, .keep = TRUE) |>
+    setNames(unique(dep_df$name)) |>
+    as.list()
+)
+
+# check they're the same
+stopifnot(all.equal(dep_misc_lst, dep_misc_df))
+
 coef(dep)
 coef(dep3)
 
@@ -238,8 +262,6 @@ print(dep3)
 
 summary(dep)
 summary(dep3)
-summary.cecl_dep(dep)
-summary.cecl_dep(dep3)
 
 # TODO Add argument checks for loc, var, cond_var
 plot(dep, which = "residual", var = "X1", cond_var = "X2", loc = "loc_1")

@@ -1004,6 +1004,7 @@ as_cecl_dep <- \(x, ...) {
 #' Default is `"name"`.
 #' @param add_obj Additional named list object to add to returned
 #' `cecl_dep` object. Default is `NULL`.
+#' @param ... Additional arguments (not used).
 #' @return Object of class `cecl_dep`.
 #' @rdname as_cecl_dep
 #' @export
@@ -1011,7 +1012,8 @@ as_cecl_dep <- \(x, ...) {
 as_cecl_dep.data.frame <- \(
   x,
   name_col = "name",
-  add_obj = NULL
+  add_obj = NULL,
+  ...
 ) {
   stopifnot(inherits(x, "data.frame"))
   stopifnot(
@@ -1066,13 +1068,16 @@ as_cecl_dep.data.frame <- \(
 #' location names. Default is `"name"`.
 #' @param add_obj Additional named list object to add to returned
 #' `cecl_dep` object. Default is `NULL`.
+#' @param ... Additional arguments (not used).
 #' @return Object of class `cecl_dep`.
 #' @rdname as_cecl_dep
 #' @export
+#' @method as_cecl_dep list
 as_cecl_dep.list <- \(
   x,
   name_col = "name",
-  add_obj = NULL
+  add_obj = NULL,
+  ...
 ) {
   stopifnot(inherits(x, "list"))
   stopifnot(
