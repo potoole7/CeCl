@@ -2,12 +2,14 @@
 % Please edit documentation in R/marg.R
 \name{as_cecl_marg}
 \alias{as_cecl_marg}
-\title{\code{as.cecl_marg} method}
+\title{\code{as_cecl_marg} method}
 \usage{
-as_cecl_marg(obj)
+as_cecl_marg(x, ...)
 }
 \arguments{
-\item{obj}{Object to convert. Must be a list (like \code{transformed} returned
+\item{x}{Object to be transformed. Can either be a list of matrices (where
+each matrix contains the transformed data for a group/location),
+
 by \code{cecl_marg}) of groups/locations, each containing a matrix of transformed
 data.}
 }

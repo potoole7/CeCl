@@ -1396,22 +1396,76 @@ ggplot.cecl_marg <- \(
   }
 }
 
-#' @title `as.cecl_marg` method
+#' @title `as_cecl_marg` method
 #' @description Convert an object to class `cecl_marg`.
-#' @param obj Object to convert. Must be a list (like `transformed` returned
+#' @param x Object to be transformed. Can either be a list of matrices (where
+#' each matrix contains the transformed data for a group/location),
+#'
 #' by `cecl_marg`) of groups/locations, each containing a matrix of transformed
 #' data.
 #' @return Object of class `cecl_marg`.
-#' @rdname as.cecl_marg
+#' @rdname as_cecl_marg
 #' @export
-# TODO Need original data? Or anything else? Vars anyway!
-as_cecl_marg <- \(obj) {
-  stopifnot(is.list(obj))
-  stopifnot(all(vapply(obj, is.matrix, logical(1))))
+as_cecl_marg <- \(x, ...) {
+  UseMethod("as_cecl_marg")
+}
 
-  cecl_marg_obj <- list(
-    "transformed" = obj
-  )
-  class(cecl_marg_obj) <- c("cecl_marg_ecdf", "cecl_marg")
-  cecl_marg_obj
+#' @title `as_cecl_marg` method for data.frames and tibbles
+#' @description Convert a data.frame or tibble to class `cecl_marg`.
+#' @param x Data.frame to be transformed.
+#' @param name_col Name of column representing groups/locations, default
+#' "name".
+#' @return Object of class `cecl_marg` and `cecl_marg_misc`.
+#' @rdname as_cecl_marg.data.frame
+#' @method as_cecl_marg data.frame
+as_cecl_marg.default <- \(x, name_col = "name") {
+  stopifnot(inherits(x, "data.frame") || inherits(x, "tbl_df"))
+  stopifnot(name_col %in% colnames(x))
+
+  ret <- x |>
+    dplyr::mutate(dplyr::across(
+      dplyr::all_of(name_col),
+      as.factor
+    )) |>
+    dplyr::group_split(.data[[name_col]], .keep = FALSE) |>
+    lapply(as.matrix)
+
+  names(ret) <- levels(as.factor(x[[name_col]]))
+  class(ret) <- c("cecl_marg_misc", "cecl_marg")
+}
+
+
+#' @title `as_cecl_marg` method for lists
+#' @description Convert a list of matrices or dataframes/tibbles to class
+#' `cecl_marg`.
+#' @param x List of matrices or dataframes/tibbles to be transformed.
+#' @return Object of class `cecl_marg` and `cecl_marg_misc`.
+#' @rdname as_cecl_marg.list
+#' @method as_cecl_marg list
+#' @export
+as_cecl_marg.list <- \(x) {
+  stopifnot(inherits(x, "list"))
+
+  # for a list of matrices
+  if (all(vapply(x, is.matrix, logical(1)))) {
+    cecl_marg_obj <- list(
+      "transformed" = obj
+    )
+    # for dataframes or tibbles, convert to matrices
+  } else if (all(vapply(x, \(y) {
+    inherits(y, c("data.frame", "tbl_df"))
+  }, logical(1)))) {
+    # check that all columns for each are numeric
+    stopifnot("All columns must be numeric" = all(vapply(x, \(y) {
+      all(vapply(y, is.numeric, logical(1)))
+    }, logical(1))))
+
+    cecl_marg_obj <- list(
+      "transformed" = lapply(x, as.matrix)
+    )
+  } else {
+    stop("Input list must contain only matrices or dataframes/tibbles.")
+  }
+
+  class(cecl_marg_obj) <- c("cecl_marg_misc", "cecl_marg")
 }
