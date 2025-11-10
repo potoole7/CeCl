@@ -135,11 +135,6 @@ fitted conditional extremes models.
 #> Adjusted Rand index: 1
 ```
 
-    #> Clustering results of class 'cecl_clust'
-    #> Number of locations: 10 
-    #> Number of clusters: 2 
-    #> Adjusted Rand index: 1
-
 We can visualise the dissimilarity matrix used for clustering as
 follows:
 

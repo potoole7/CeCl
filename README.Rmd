@@ -116,9 +116,6 @@ Finally, we can cluster the locations into two clusters based on the fitted cond
   seed = 123
 ))
 ```
-```{r print_clust, echo=FALSE}
-clust
-```
 
 We can visualise the dissimilarity matrix used for clustering as follows:
 ```{r plot_clust, message=FALSE, warning=FALSE}
