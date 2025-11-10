@@ -1,3 +1,6 @@
+# CeCl 0.1.1
+- Add README.Rmd file to provide an overview and instructions for the package.
+
 # CeCl 0.1.0
 
 - Add a `News.md` file to track changes to the package. 

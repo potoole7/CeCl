@@ -1,6 +1,6 @@
 Package: CeCl
 Title: Conditional extremes Clustering
-Version: 0.1.0
+Version: 0.1.1
 Authors@R: c(person("Patrick", "O'Toole", role = c("aut", "cre"),
                     email = "pot23@bath.ac.uk"))
 Description: Implements conditional extremes clustering methods for multivariate data, including marginal and dependence model fitting and diagnostic plotting.
