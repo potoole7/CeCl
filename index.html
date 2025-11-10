@@ -33,7 +33,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="index.html">CeCl</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.1.0</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.1.1</span>
       </span>
     </div>
 
@@ -154,12 +154,8 @@
 <span><span class="co">#&gt; Number of locations: 10 </span></span>
 <span><span class="co">#&gt; Number of clusters: 2 </span></span>
 <span><span class="co">#&gt; Adjusted Rand index: 1</span></span></code></pre></div>
-<div class="sourceCode" id="cb6"><pre class="sourceCode R"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" tabindex="-1"></a><span class="co">#&gt; Clustering results of class 'cecl_clust'</span></span>
-<span id="cb6-2"><a href="#cb6-2" tabindex="-1"></a><span class="co">#&gt; Number of locations: 10 </span></span>
-<span id="cb6-3"><a href="#cb6-3" tabindex="-1"></a><span class="co">#&gt; Number of clusters: 2 </span></span>
-<span id="cb6-4"><a href="#cb6-4" tabindex="-1"></a><span class="co">#&gt; Adjusted Rand index: 1</span></span></code></pre></div>
 <p>We can visualise the dissimilarity matrix used for clustering as follows:</p>
-<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="va">clust</span>, which <span class="op">=</span> <span class="st">"image"</span><span class="op">)</span></span></code></pre></div>
 <p><img src="reference/figures/README-plot_clust-1.png" width="100%"><img src="reference/figures/README-plot_clust-2.png" width="100%"> We can confirm from the Adjusted Rand Index from the printed <code>cecl_clust</code> object that the clustering has perfectly recovered the true clusters of locations based on their tail dependence structures. Our dissimilarity matrix plot also clearly shows two distinct clusters of locations.</p>
 </div>
