@@ -701,19 +701,18 @@ plot_image.cecl_dist <- \(x, type = c("ggplot", "plot"), ...) {
         Var2 = factor(Var2, levels = rev(colnames(dist_matrix)))
       )
     p <- ggplot2::ggplot(df, ggplot2::aes(Var1, Var2, fill = Freq)) +
-        ggplot2::geom_tile() +
-        cecl_theme(nejm_pal = FALSE) +
-        ggplot2::labs(
-          x = "",
-          y = "",
-          fill = "Distance"
-        ) +
-        # TODO Change colour scheme to one in paper?
-        ggplot2::scale_fill_viridis_c() +
-        ggplot2::theme(
-          axis.text.x = ggplot2::element_text(angle = 45, hjust = 1)
-        )
-    ))
+      ggplot2::geom_tile() +
+      cecl_theme(nejm_pal = FALSE) +
+      ggplot2::labs(
+        x = "",
+        y = "",
+        fill = "Distance"
+      ) +
+      # TODO Change colour scheme to one in paper?
+      ggplot2::scale_fill_viridis_c() +
+      ggplot2::theme(
+        axis.text.x = ggplot2::element_text(angle = 45, hjust = 1)
+      )
     return(p)
   }
 }
