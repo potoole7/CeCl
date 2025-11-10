@@ -94,8 +94,8 @@ data |>
 
 <img src="man/figures/README-example-1.png" width="100%" />
 
-The two “true” clusters of locations are clearly visible in our plot
-will have different tail dependence structures.
+The two “true” clusters of locations clearly visible in our plot will
+have different tail dependence structures.
 
 Now, we can use `CeCl` to try and recover these clusters based on their
 tail dependence structure. First, we perform an empirical transformation
