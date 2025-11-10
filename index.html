@@ -125,7 +125,7 @@
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_density_2d.html" class="external-link">geom_density_2d</a></span><span class="op">(</span>show.legend <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span> <span class="op">+</span> </span>
 <span>  <span class="fu"><a href="reference/cecl_theme.html">cecl_theme</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 <p><img src="reference/figures/README-example-1.png" width="100%"></p>
-<p>The two “true” clusters of locations clearly visible in our plot will have different tail dependence structures.</p>
+<p>The two “true” clusters of locations are clearly visible in our plot will have different tail dependence structures.</p>
 <p>Now, we can use <code>CeCl</code> to try and recover these clusters based on their tail dependence structure. First, we perform an empirical transformation of the marginal data to standard Laplace margins, and then fit the conditional extremes model to each location.</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># use ECDF to perform marginal transformation, thresholding at 90th percentile</span></span>
@@ -163,6 +163,10 @@
 <h2 id="license">License<a class="anchor" aria-label="anchor" href="#license"></a>
 </h2>
 <p>This project is licensed under the MIT License - see the <a href="LICENSE">LICENSE</a> file for details.</p>
+</div>
+<div class="section level2">
+<h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a>
+</h2>
 <div id="refs" class="references csl-bib-body hanging-indent" line-spacing="2">
 <div id="ref-Heffernan2004" class="csl-entry">
 Heffernan, J. E., &amp; Tawn, J. A. (2004). A conditional approach for multivariate extreme values (with discussion). <em>Journal of the Royal Statistical Society Series B: Statistical Methodology</em>, <em>66</em>(3), 497–546.
