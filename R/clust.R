@@ -693,19 +693,21 @@ plot_image.cecl_dist <- \(x, type = c("ggplot", "plot"), ...) {
         Var1 = factor(Var1, levels = rownames(dist_matrix)),
         Var2 = factor(Var2, levels = rev(colnames(dist_matrix)))
       )
-    p <- ggplot2::ggplot(df, ggplot2::aes(Var1, Var2, fill = Freq)) +
-      ggplot2::geom_tile() +
-      cecl_theme(nejm_pal = FALSE) +
-      ggplot2::labs(
-        x = "",
-        y = "",
-        fill = "Distance"
-      ) +
-      # TODO Change colour scheme to one in paper?
-      ggplot2::scale_fill_viridis_c() +
-      ggplot2::theme(
-        axis.text.x = ggplot2::element_text(angle = 45, hjust = 1)
-      )
+    p <- suppressWarnings(print(
+      ggplot2::ggplot(df, ggplot2::aes(Var1, Var2, fill = Freq)) +
+        ggplot2::geom_tile() +
+        cecl_theme(nejm_pal = FALSE) +
+        ggplot2::labs(
+          x = "",
+          y = "",
+          fill = "Distance"
+        ) +
+        # TODO Change colour scheme to one in paper?
+        ggplot2::scale_fill_viridis_c() +
+        ggplot2::theme(
+          axis.text.x = ggplot2::element_text(angle = 45, hjust = 1)
+        )
+    ))
     return(p)
   }
 }
@@ -901,49 +903,51 @@ plot_image.cecl_clust <- \(
     diag_df <- dplyr::filter(df, Var1 == Var2)
     off_diag_df <- dplyr::filter(df, Var1 != Var2)
 
-    p <- off_diag_df |>
-      # ggplot(aes(x = Var1, y = Var2, fill = Distance)) +
-      # TODO optionally bin here
-      ggplot2::ggplot(ggplot2::aes(x = Var1, y = Var2, fill = Freq)) +
-      ggplot2::geom_tile() +
-      ggplot2::geom_tile(
-        data = diag_df,
-        # aes(x = Column, y = Row),
-        ggplot2::aes(x = Var1, y = Var2),
-        fill = "white",
-        show.legend = FALSE
-      ) +
-      # ggplot2::scale_fill_viridis_d(
-      #   option = "A",
-      #   direction = -1
-      # ) +
-      ggplot2::coord_fixed() + # keep squares square
-      ggplot2::labs(
-        x = "", y = "",
-        fill = "Dissimilarity"
-      ) +
-      ggplot2::theme(
-        # remove x-axis labels, as they are repeats
-        # axis.text.x      = ggplot2::element_blank(),
-        # axis.ticks.x     = ggplot2::element_blank(),
-        # Colour by cluster
-        axis.text.x = ggplot2::element_text(
-          colour = plot_cols_x,
-          size = 11.5,
-          angle = 45,
-          hjust = 1
-        ),
-        axis.text.y = ggplot2::element_text(
-          colour = plot_cols_y,
-          size = 11.5
-        ),
-        panel.background = ggplot2::element_blank(),
-        panel.grid.major = ggplot2::element_blank(),
-        panel.border = ggplot2::element_blank(),
-        legend.title = ggplot2::element_text(size = 15),
-        legend.text = ggplot2::element_text(size = 14)
-      ) +
-      NULL
+    p <- suppressWarnings(print(
+      off_diag_df |>
+        # ggplot(aes(x = Var1, y = Var2, fill = Distance)) +
+        # TODO optionally bin here
+        ggplot2::ggplot(ggplot2::aes(x = Var1, y = Var2, fill = Freq)) +
+        ggplot2::geom_tile() +
+        ggplot2::geom_tile(
+          data = diag_df,
+          # aes(x = Column, y = Row),
+          ggplot2::aes(x = Var1, y = Var2),
+          fill = "white",
+          show.legend = FALSE
+        ) +
+        # ggplot2::scale_fill_viridis_d(
+        #   option = "A",
+        #   direction = -1
+        # ) +
+        ggplot2::coord_fixed() + # keep squares square
+        ggplot2::labs(
+          x = "", y = "",
+          fill = "Dissimilarity"
+        ) +
+        ggplot2::theme(
+          # remove x-axis labels, as they are repeats
+          # axis.text.x      = ggplot2::element_blank(),
+          # axis.ticks.x     = ggplot2::element_blank(),
+          # Colour by cluster
+          axis.text.x = ggplot2::element_text(
+            colour = plot_cols_x,
+            size = 11.5,
+            angle = 45,
+            hjust = 1
+          ),
+          axis.text.y = ggplot2::element_text(
+            colour = plot_cols_y,
+            size = 11.5
+          ),
+          panel.background = ggplot2::element_blank(),
+          panel.grid.major = ggplot2::element_blank(),
+          panel.border = ggplot2::element_blank(),
+          legend.title = ggplot2::element_text(size = 15),
+          legend.text = ggplot2::element_text(size = 14)
+        ) +
+        NULL
+    ))
 
     # colour based on if colours are binned or not
     p <- p +
