@@ -2,6 +2,8 @@
 
 # TODO Add more formal tests !!!
 
+# TODO Return entire dissimilarity object for clustering method for dependence
+
 # TODO fixed_b doesn't work, need to add test for it!
 
 # TODO Look into coef method for dependence, is it right? alpha values

@@ -26,7 +26,7 @@ knitr::opts_chunk$set(
 <!-- badges: end -->
 
 `CeCl` (Conditional extremes Clustering, pronounced 'Cecil') is an R package which implements the method described in [O'Toole et al., 2025](https://arxiv.org/abs/2510.20424) [@otoole2025] for clustering multivariate extreme events based on their tail dependence structures using the conditional extremes model of Heffernan and Tawn [@Heffernan2004].
-For more details of the methodology and usage of the package, please see it's vignette by running `vignette("CeCl")` after installation.
+For more details of the methodology and usage of the package, please see its vignette by running `vignette("CeCl")` after installation.
 
 ## Installation
 
@@ -37,6 +37,17 @@ You can install the development version of `CeCl` from [GitHub](https://github.c
 pak::pak("potoole7/CeCl")
 ```
 
+## Quick usage
+
+Once installed, you can apply the main `CeCl` workflow in three steps:
+```{r, quick_usage, eval=FALSE}
+marg <- cecl_marg(data)   # performs marginal transformation
+dep  <- cecl_dep(marg)    # fits conditional extremes models
+clust <- cecl_clust(dep)  # clusters based on tail dependence
+```
+This fits the conditional extremes models to each group/location and clusters them based on their tail dependence structure.
+For detailed options, see the function help pages (`?cecl_marg, ?cecl_dep, ?cecl_clust`) or the vignette (`vignette("CeCl")`).
+
 ## Example
 
 Here's a basic example of how to use `CeCl` to cluster locations based on their tail dependence structures.
@@ -44,7 +55,7 @@ Note that although we use spatial terminology here, the method is applicable to 
 
 First, let's generate some example data and visualise it.
 In this example, we want to generate data for 10 "locations" (clustered into 2 groups of 5 sites each) from a bivariate t-copula with different correlation parameters for different clusters.
-```{r example}
+```{r example, message=FALSE, warning=FALSE}
 library(CeCl)
 library(copula)
 library(dplyr)
@@ -95,7 +106,7 @@ dep <- cecl_dep(obj = marg,cond_prob = 0.9)
 ```
 
 Finally, we can cluster the locations into two clusters based on the fitted conditional extremes models.
-```{r cluster_cecl}
+```{r cluster_cecl, message=FALSE, warning=FALSE}
 # Cluster the fitted dependence models into 2 clusters
 (clust <- cecl_clust(
   dep,
@@ -105,9 +116,12 @@ Finally, we can cluster the locations into two clusters based on the fitted cond
   seed = 123
 ))
 
-# Visualise clustering result with dissimalrity matrix labelled by cluster
+# Visualise clustering result with dissimilarity matrix labelled by cluster
 ggplot(clust, which = "image")
 ```
 We can confirm from the Adjusted Rand Index from the printed `cecl_clust` object that the clustering has perfectly recovered the true clusters of locations based on their tail dependence structures.
 Our dissimilarity matrix plot also clearly shows two distinct clusters of locations.
 
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

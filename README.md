@@ -21,7 +21,7 @@ package which implements the method described in [O’Toole et al.,
 clustering multivariate extreme events based on their tail dependence
 structures using the conditional extremes model of Heffernan and Tawn
 (Heffernan & Tawn, 2004). For more details of the methodology and usage
-of the package, please see it’s vignette by running `vignette("CeCl")`
+of the package, please see its vignette by running `vignette("CeCl")`
 after installation.
 
 ## Installation
@@ -33,6 +33,22 @@ You can install the development version of `CeCl` from
 # install.packages("pak")
 pak::pak("potoole7/CeCl")
 ```
+
+## Quick usage
+
+Once installed, you can apply the main `CeCl` workflow in three steps:
+
+``` r
+marg <- cecl_marg(data)   # performs marginal transformation
+dep  <- cecl_dep(marg)    # fits conditional extremes models
+clust <- cecl_clust(dep)  # clusters based on tail dependence
+```
+
+This fits the conditional extremes models to each group/location and
+clusters them based on their tail dependence structure. For detailed
+options, see the function help pages
+(`?cecl_marg, ?cecl_dep, ?cecl_clust`) or the vignette
+(`vignette("CeCl")`).
 
 ## Example
 
@@ -49,14 +65,6 @@ correlation parameters for different clusters.
 library(CeCl)
 library(copula)
 library(dplyr)
-#> 
-#> Attaching package: 'dplyr'
-#> The following objects are masked from 'package:stats':
-#> 
-#>     filter, lag
-#> The following objects are masked from 'package:base':
-#> 
-#>     intersect, setdiff, setequal, union
 library(ggplot2)
 
 # function to generate multivariate t data with specified correlation
@@ -126,19 +134,21 @@ fitted conditional extremes models.
 #> Number of clusters: 2 
 #> Adjusted Rand index: 1
 
-# Visualise clustering result with dissimalrity matrix labelled by cluster
+# Visualise clustering result with dissimilarity matrix labelled by cluster
 ggplot(clust, which = "image")
-#> Warning: Vectorized input to `element_text()` is not officially supported.
-#> ℹ Results may be unexpected or may change in future versions of ggplot2.
-#> Vectorized input to `element_text()` is not officially supported.
-#> ℹ Results may be unexpected or may change in future versions of ggplot2.
 ```
 
-<img src="man/figures/README-cluster_cecl-1.png" width="100%" /> We can
-confirm from the Adjusted Rand Index from the printed `cecl_clust`
-object that the clustering has perfectly recovered the true clusters of
-locations based on their tail dependence structures. Our dissimilarity
-matrix plot also clearly shows two distinct clusters of locations.
+<img src="man/figures/README-cluster_cecl-1.png" width="100%" /><img src="man/figures/README-cluster_cecl-2.png" width="100%" />
+We can confirm from the Adjusted Rand Index from the printed
+`cecl_clust` object that the clustering has perfectly recovered the true
+clusters of locations based on their tail dependence structures. Our
+dissimilarity matrix plot also clearly shows two distinct clusters of
+locations.
+
+## License
+
+This project is licensed under the MIT License - see the
+[LICENSE](LICENSE) file for details.
 
 <div id="refs" class="references csl-bib-body hanging-indent"
 line-spacing="2">
