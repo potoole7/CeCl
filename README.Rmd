@@ -86,7 +86,7 @@ data |>
   cecl_theme()
 ```
 
-The two "true" clusters of locations clearly visible in our plot will have different tail dependence structures.
+The two "true" clusters of locations are clearly visible in our plot will have different tail dependence structures.
 
 Now, we can use `CeCl` to try and recover these clusters based on their tail dependence structure.
 First, we perform an empirical transformation of the marginal data to standard Laplace margins, and then fit the conditional extremes model to each location.
