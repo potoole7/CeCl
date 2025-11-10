@@ -73,6 +73,12 @@ cecl_clust.cecl_dep <- \(
     ...
   )
 
+  # for cecl_dep method, also return dist obj as user may want to inspect
+  ret <- c(
+    ret,
+    list("dist_obj" = dist_obj)
+  )
+
   return(ret)
 }
 
