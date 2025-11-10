@@ -153,6 +153,8 @@ matrix plot also clearly shows two distinct clusters of locations.
 This project is licensed under the MIT License - see the
 [LICENSE](LICENSE) file for details.
 
+## References
+
 <div id="refs" class="references csl-bib-body hanging-indent"
 line-spacing="2">
 
