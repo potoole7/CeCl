@@ -45,6 +45,10 @@ at start value.}
 \item{fit_no_keef}{Logical indicating whether to fit the model without
 Keef et al. (2012) constraints.}
 }
+\value{
+Object of class \code{cecl_dep} containing fitted dependence parameters
+and residuals.
+}
 \description{
 Fit the conditional extremes dependence model of Heffernan
 and Tawn (2004) to data transformed to Laplace scale.

@@ -18,6 +18,9 @@
 #' at start value.
 #' @param fit_no_keef Logical indicating whether to fit the model without
 #' Keef et al. (2012) constraints.
+#' @return Object of class `cecl_dep` containing fitted dependence parameters
+#' and residuals.
+#' @export
 cecl_dep <- \(
   obj,
   cond_prob,
