@@ -79,6 +79,7 @@ cecl_clust.cecl_dep <- \(
     list("dist_obj" = dist_obj)
   )
 
+  class(ret) <- c("cecl_clust", class(ret))
   return(ret)
 }
 
