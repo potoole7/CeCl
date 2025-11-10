@@ -40,6 +40,9 @@
     <div id="navbar" class="navbar-collapse collapse">
       <ul class="nav navbar-nav">
 <li>
+  <a href="articles/CeCl.html">Get started</a>
+</li>
+<li>
   <a href="reference/index.html">Reference</a>
 </li>
       </ul>
@@ -65,19 +68,106 @@
 <div class="section level1">
 <div class="page-header"><h1 id="cecl">CeCl<a class="anchor" aria-label="anchor" href="#cecl"></a>
 </h1></div>
+<!-- use `devtools::build_readme()` or `rmarkdown::render()` to update README.md -->
 <!-- badges: start -->
 
+<p><code>CeCl</code> (Conditional extremes Clustering, pronounced ‘Cecil’) is an R package which implements the method described in <a href="https://arxiv.org/abs/2510.20424" class="external-link">O’Toole et al., 2025</a> (O’Toole et al., 2025) for clustering multivariate extreme events based on their tail dependence structures using the conditional extremes model of Heffernan and Tawn (Heffernan &amp; Tawn, 2004). For more details of the methodology and usage of the package, please see it’s vignette by running <code><a href="articles/CeCl.html">vignette("CeCl")</a></code> after installation.</p>
 <div class="section level2">
 <h2 id="installation">Installation<a class="anchor" aria-label="anchor" href="#installation"></a>
 </h2>
-<p>To install <code>CeCl</code>:</p>
+<p>You can install the development version of <code>CeCl</code> from <a href="https://github.com/" class="external-link">GitHub</a> with:</p>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="fu">remotes</span><span class="fu">::</span><span class="fu">install_github</span><span class="op">(</span><span class="st">"mrc-ide/CeCl"</span>, upgrade <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span></span></code></pre></div>
+<code class="sourceCode R"><span><span class="co"># install.packages("pak")</span></span>
+<span><span class="fu">pak</span><span class="fu">::</span><span class="fu"><a href="https://pak.r-lib.org/reference/pak.html" class="external-link">pak</a></span><span class="op">(</span><span class="st">"potoole7/CeCl"</span><span class="op">)</span></span></code></pre></div>
 </div>
 <div class="section level2">
-<h2 id="license">License<a class="anchor" aria-label="anchor" href="#license"></a>
+<h2 id="example">Example<a class="anchor" aria-label="anchor" href="#example"></a>
 </h2>
-<p>MIT © Imperial College of Science, Technology and Medicine</p>
+<p>Here’s a basic example of how to use <code>CeCl</code> to cluster locations based on their tail dependence structures. Note that although we use spatial terminology here, the method is applicable to any multivariate data.</p>
+<p>First, let’s generate some example data and visualise it. In this example, we want to generate data for 10 “locations” (clustered into 2 groups of 5 sites each) from a bivariate t-copula with different correlation parameters for different clusters.</p>
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/mrc-ide/CeCl" class="external-link">CeCl</a></span><span class="op">)</span></span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://copula.r-forge.r-project.org/" class="external-link">copula</a></span><span class="op">)</span></span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://dplyr.tidyverse.org" class="external-link">dplyr</a></span><span class="op">)</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Attaching package: 'dplyr'</span></span>
+<span><span class="co">#&gt; The following objects are masked from 'package:stats':</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt;     filter, lag</span></span>
+<span><span class="co">#&gt; The following objects are masked from 'package:base':</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt;     intersect, setdiff, setequal, union</span></span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://ggplot2.tidyverse.org" class="external-link">ggplot2</a></span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># function to generate multivariate t data with specified correlation</span></span>
+<span><span class="va">gen_t</span> <span class="op">&lt;-</span> \<span class="op">(</span><span class="va">cor_t</span>, <span class="va">n_vars</span> <span class="op">=</span> <span class="fl">2</span>, <span class="va">n</span> <span class="op">=</span> <span class="fl">10000</span>, <span class="va">n_locs</span> <span class="op">=</span> <span class="fl">5</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="co"># generate data</span></span>
+<span>  <span class="va">cop_t</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/pkg/copula/man/ellipCopula.html" class="external-link">tCopula</a></span><span class="op">(</span>param <span class="op">=</span> <span class="va">cor_t</span>, dim <span class="op">=</span> <span class="va">n_vars</span>, df <span class="op">=</span> <span class="fl">3</span>, dispstr <span class="op">=</span> <span class="st">"ex"</span><span class="op">)</span></span>
+<span>  <span class="va">u</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/pkg/copula/man/Copula.html" class="external-link">rCopula</a></span><span class="op">(</span><span class="va">n</span>, <span class="va">cop_t</span><span class="op">)</span></span>
+<span>  <span class="va">data</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/apply.html" class="external-link">apply</a></span><span class="op">(</span><span class="va">u</span>, <span class="fl">2</span>, <span class="va">qt</span>, df <span class="op">=</span> <span class="fl">3</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="op">}</span></span>
+<span></span>
+<span><span class="co"># generate data for two different correlation settings</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="fl">123</span><span class="op">)</span></span>
+<span><span class="va">data</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/cbind.html" class="external-link">rbind</a></span><span class="op">(</span></span>
+<span>  <span class="fu">gen_t</span><span class="op">(</span>cor_t <span class="op">=</span> <span class="fl">0.2</span><span class="op">)</span>, <span class="co"># first 5 locations have low correlation</span></span>
+<span>  <span class="fu">gen_t</span><span class="op">(</span>cor_t <span class="op">=</span> <span class="fl">0.8</span><span class="op">)</span>  <span class="co"># last 5 locations have high correlation</span></span>
+<span><span class="op">)</span></span>
+<span><span class="co"># Add dummy location names</span></span>
+<span><span class="va">data</span><span class="op">$</span><span class="va">name</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="st">"loc_"</span>, <span class="fl">1</span><span class="op">:</span><span class="fl">10</span><span class="op">)</span>, each <span class="op">=</span> <span class="fl">2000</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># visualise</span></span>
+<span><span class="va">data</span> <span class="op">|&gt;</span> </span>
+<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/mutate.html" class="external-link">mutate</a></span><span class="op">(</span>cluster <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/ifelse.html" class="external-link">ifelse</a></span><span class="op">(</span><span class="va">name</span> <span class="op"><a href="https://rdrr.io/r/base/match.html" class="external-link">%in%</a></span> <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="st">"loc_"</span>, <span class="fl">1</span><span class="op">:</span><span class="fl">5</span><span class="op">)</span>, <span class="st">"A"</span>, <span class="st">"B"</span><span class="op">)</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">X1</span>, y <span class="op">=</span> <span class="va">X2</span>, color <span class="op">=</span> <span class="va">cluster</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_density_2d.html" class="external-link">geom_density_2d</a></span><span class="op">(</span>show.legend <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span> <span class="op">+</span> </span>
+<span>  <span class="fu"><a href="reference/cecl_theme.html">cecl_theme</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
+<p><img src="reference/figures/README-example-1.png" width="100%"></p>
+<p>The two “true” clusters of locations clearly visible in our plot will have different tail dependence structures.</p>
+<p>Now, we can use <code>CeCl</code> to try and recover these clusters based on their tail dependence structure. First, we perform an empirical transformation of the marginal data to standard Laplace margins, and then fit the conditional extremes model to each location.</p>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># use ECDF to perform marginal transformation, thresholding at 90th percentile</span></span>
+<span><span class="va">marg</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/cecl_marg.html">cecl_marg</a></span><span class="op">(</span></span>
+<span>  <span class="va">data</span>,</span>
+<span>  thresh_method <span class="op">=</span> <span class="st">"quantile"</span>,</span>
+<span>  thresh_args <span class="op">=</span> <span class="fl">0.9</span>,</span>
+<span>  marg_method <span class="op">=</span> <span class="st">"ecdf"</span></span>
+<span><span class="op">)</span></span>
+<span><span class="co"># see `help(cecl_marg)` for details on arguments and available methods</span></span>
+<span></span>
+<span><span class="co"># fit conditional extremes model to each location at 90th dependence quantile</span></span>
+<span><span class="va">dep</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/cecl_dep.html">cecl_dep</a></span><span class="op">(</span>obj <span class="op">=</span> <span class="va">marg</span>,cond_prob <span class="op">=</span> <span class="fl">0.9</span><span class="op">)</span></span>
+<span><span class="co"># again, see `help(cecl_dep)` for details on arguments and available methods</span></span></code></pre></div>
+<p>Finally, we can cluster the locations into two clusters based on the fitted conditional extremes models.</p>
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># Cluster the fitted dependence models into 2 clusters</span></span>
+<span><span class="op">(</span><span class="va">clust</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/cecl_clust.html">cecl_clust</a></span><span class="op">(</span></span>
+<span>  <span class="va">dep</span>,</span>
+<span>  marg_obj <span class="op">=</span> <span class="va">marg</span>,</span>
+<span>  k <span class="op">=</span> <span class="fl">2</span>,</span>
+<span>  cluster_mem <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/sort.html" class="external-link">sort</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">2</span><span class="op">)</span>, times <span class="op">=</span> <span class="fl">5</span><span class="op">)</span><span class="op">)</span>, <span class="co"># known cluster membership</span></span>
+<span>  seed <span class="op">=</span> <span class="fl">123</span></span>
+<span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt; Clustering results of class 'cecl_clust'</span></span>
+<span><span class="co">#&gt; Number of locations: 10 </span></span>
+<span><span class="co">#&gt; Number of clusters: 2 </span></span>
+<span><span class="co">#&gt; Adjusted Rand index: 1</span></span>
+<span></span>
+<span><span class="co"># Visualise clustering result with dissimalrity matrix labelled by cluster</span></span>
+<span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="va">clust</span>, which <span class="op">=</span> <span class="st">"image"</span><span class="op">)</span></span>
+<span><span class="co">#&gt; Warning: Vectorized input to `element_text()` is not officially supported.</span></span>
+<span><span class="co">#&gt; ℹ Results may be unexpected or may change in future versions of ggplot2.</span></span>
+<span><span class="co">#&gt; Vectorized input to `element_text()` is not officially supported.</span></span>
+<span><span class="co">#&gt; ℹ Results may be unexpected or may change in future versions of ggplot2.</span></span></code></pre></div>
+<p><img src="reference/figures/README-cluster_cecl-1.png" width="100%"> We can confirm from the Adjusted Rand Index from the printed <code>cecl_clust</code> object that the clustering has perfectly recovered the true clusters of locations based on their tail dependence structures. Our dissimilarity matrix plot also clearly shows two distinct clusters of locations.</p>
+<div id="refs" class="references csl-bib-body hanging-indent" line-spacing="2">
+<div id="ref-Heffernan2004" class="csl-entry">
+Heffernan, J. E., &amp; Tawn, J. A. (2004). A conditional approach for multivariate extreme values (with discussion). <em>Journal of the Royal Statistical Society Series B: Statistical Methodology</em>, <em>66</em>(3), 497–546.
+</div>
+<div id="ref-otoole2025" class="csl-entry">
+O’Toole, P., Rohrbeck, C., &amp; Richards, J. (2025). <em>Clustering of multivariate tail dependence using conditional methods</em>. <a href="https://arxiv.org/abs/2510.20424" class="external-link uri">https://arxiv.org/abs/2510.20424</a>
+</div>
+</div>
 </div>
 </div>
   </div>
@@ -120,7 +210,6 @@
 <ul class="list-unstyled">
 <li><a href="https://www.repostatus.org/#concept" class="external-link"><img src="https://www.repostatus.org/badges/latest/concept.svg" alt="Project Status: Concept – Minimal or no implementation has been done yet, or the repository is only intended to be a limited example, demo, or proof-of-concept."></a></li>
 <li><a href="https://github.com/mrc-ide/CeCl/actions/workflows/R-CMD-check.yaml" class="external-link"><img src="https://github.com/mrc-ide/CeCl/workflows/R-CMD-check/badge.svg" alt="R build status"></a></li>
-<li><a href="https://codecov.io/github/mrc-ide/CeCl?branch=main" class="external-link"><img src="https://codecov.io/github/mrc-ide/CeCl/coverage.svg?branch=main" alt="codecov.io"></a></li>
 </ul>
 </div>
 
