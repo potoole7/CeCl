@@ -702,7 +702,10 @@ plot_image.cecl_dist <- \(x, type = c("ggplot", "plot"), ...) {
         fill = "Distance"
       ) +
       # TODO Change colour scheme to one in paper?
-      ggplot2::scale_fill_viridis_c()
+      ggplot2::scale_fill_viridis_c() +
+      ggplot2::theme(
+        axis.text.x = ggplot2::element_text(angle = 45, hjust = 1)
+      )
     return(p)
   }
 }
@@ -926,7 +929,9 @@ plot_image.cecl_clust <- \(
         # Colour by cluster
         axis.text.x = ggplot2::element_text(
           colour = plot_cols_x,
-          size = 11.5
+          size = 11.5,
+          angle = 45,
+          hjust = 1
         ),
         axis.text.y = ggplot2::element_text(
           colour = plot_cols_y,
