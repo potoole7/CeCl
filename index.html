@@ -125,7 +125,7 @@
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_density_2d.html" class="external-link">geom_density_2d</a></span><span class="op">(</span>show.legend <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span> <span class="op">+</span> </span>
 <span>  <span class="fu"><a href="reference/cecl_theme.html">cecl_theme</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
 <p><img src="reference/figures/README-example-1.png" width="100%"></p>
-<p>The two “true” clusters of locations are clearly visible in our plot will have different tail dependence structures.</p>
+<p>The two “true” clusters of locations clearly visible in our plot will have different tail dependence structures.</p>
 <p>Now, we can use <code>CeCl</code> to try and recover these clusters based on their tail dependence structure. First, we perform an empirical transformation of the marginal data to standard Laplace margins, and then fit the conditional extremes model to each location.</p>
 <div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># use ECDF to perform marginal transformation, thresholding at 90th percentile</span></span>
