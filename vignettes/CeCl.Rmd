@@ -1,0 +1,21 @@
+---
+title: "Clustering multivariate tail dependence with CeCl"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{my-vignette}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+This vignette is currently in development, please return at a later date for the completed version.
+
+```{r setup}
+library(CeCl)
+```
