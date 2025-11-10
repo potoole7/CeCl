@@ -115,8 +115,13 @@ Finally, we can cluster the locations into two clusters based on the fitted cond
   cluster_mem = sort(rep(c(1, 2), times = 5)), # known cluster membership
   seed = 123
 ))
+```
+```{r print_clust, echo=FALSE}
+clust
+```
 
-# Visualise clustering result with dissimilarity matrix labelled by cluster
+We can visualise the dissimilarity matrix used for clustering as follows:
+```{r plot_clust, message=FALSE, warning=FALSE}
 ggplot(clust, which = "image")
 ```
 We can confirm from the Adjusted Rand Index from the printed `cecl_clust` object that the clustering has perfectly recovered the true clusters of locations based on their tail dependence structures.

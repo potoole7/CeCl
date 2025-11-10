@@ -133,12 +133,21 @@ fitted conditional extremes models.
 #> Number of locations: 10 
 #> Number of clusters: 2 
 #> Adjusted Rand index: 1
+```
 
-# Visualise clustering result with dissimilarity matrix labelled by cluster
+    #> Clustering results of class 'cecl_clust'
+    #> Number of locations: 10 
+    #> Number of clusters: 2 
+    #> Adjusted Rand index: 1
+
+We can visualise the dissimilarity matrix used for clustering as
+follows:
+
+``` r
 ggplot(clust, which = "image")
 ```
 
-<img src="man/figures/README-cluster_cecl-1.png" width="100%" /><img src="man/figures/README-cluster_cecl-2.png" width="100%" />
+<img src="man/figures/README-plot_clust-1.png" width="100%" /><img src="man/figures/README-plot_clust-2.png" width="100%" />
 We can confirm from the Adjusted Rand Index from the printed
 `cecl_clust` object that the clustering has perfectly recovered the true
 clusters of locations based on their tail dependence structures. Our
