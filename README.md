@@ -142,12 +142,11 @@ follows:
 ggplot(clust, which = "image")
 ```
 
-<img src="man/figures/README-plot_clust-1.png" width="100%" /><img src="man/figures/README-plot_clust-2.png" width="100%" />
-We can confirm from the Adjusted Rand Index from the printed
-`cecl_clust` object that the clustering has perfectly recovered the true
-clusters of locations based on their tail dependence structures. Our
-dissimilarity matrix plot also clearly shows two distinct clusters of
-locations.
+<img src="man/figures/README-plot_clust-1.png" width="100%" /> We can
+confirm from the Adjusted Rand Index from the printed `cecl_clust`
+object that the clustering has perfectly recovered the true clusters of
+locations based on their tail dependence structures. Our dissimilarity
+matrix plot also clearly shows two distinct clusters of locations.
 
 ## License
 

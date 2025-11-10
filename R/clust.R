@@ -953,11 +953,11 @@ plot_image.cecl_clust <- \(
       NULL
 
     # colour based on if colours are binned or not
-    p <- p
-    ggplot2::scale_fill_viridis_c(
-      option = "A",
-      direction = -1
-    )
+    p <- p +
+      ggplot2::scale_fill_viridis_c(
+        option = "A",
+        direction = -1
+      )
 
     return(p)
   }
