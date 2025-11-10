@@ -2,6 +2,11 @@
 
 # TODO Add more formal tests !!!
 
+# TODO fixed_b doesn't work, need to add test for it!
+
+# TODO Look into coef method for dependence, is it right? alpha values
+# seem very low even with very high correlation!
+
 # TODO Need to add functions for choosing thresholds (i.e. helping choice)
 # TODO For thresholding, must allow either threshold for either variable, or
 # a list for each variable of thresholds for each location
@@ -31,7 +36,7 @@ clust_mem <- rep(1:3, each = n_t3 / 3 / (n_t3 / n_locs_t3))
 
 # Generate t copula data with student-t marginals
 set.seed(123)
-gen_dat <- function(cor, n_vars, df_t, n, n_locs, start_loc_n = 1) {
+gen_dat <- \(cor, n_vars, df_t, n, n_locs, start_loc_n = 1) {
   cop_t <- copula::tCopula(param = cor, dim = n_vars, df = df_t, dispstr = "ex")
   u <- copula::rCopula(n, cop_t)
   data <- data.frame(apply(u, 2, qt, df = df_t))
@@ -270,6 +275,7 @@ plot(dep, which = "scatter", var = "X1", cond_var = "X2")
 
 ggplot(dep, which = "residual", var = "X1", cond_var = "X2", loc = "loc_1")
 ggplot(dep, which = "quantile", var = "X1", cond_var = "X2", loc = "loc_1")
+# TODO Investigate whether locations are labelled incorrectly here??
 ggplot(dep, which = "scatter", var = "X1", cond_var = "X2")
 
 
