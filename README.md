@@ -22,7 +22,9 @@ clustering multivariate extreme events based on their tail dependence
 structures using the conditional extremes model of Heffernan and Tawn
 (Heffernan & Tawn, 2004). For more details of the methodology and usage
 of the package, please see its vignette by running `vignette("CeCl")`
-after installation.
+after installation. This package is in the early stages of development;
+please report any issues or suggestions on the [GitHub issues
+page](https:/github.com/potoole7/CeCl/issues).
 
 ## Installation
 
@@ -68,7 +70,7 @@ library(dplyr)
 library(ggplot2)
 
 # function to generate multivariate t data with specified correlation
-gen_t <- \(cor_t, n_vars = 2, n = 10000, n_locs = 5) {
+gen_t <- \(cor_t, n_vars = 2, n = 1000, n_locs = 5) {
   # generate data
   cop_t <- tCopula(param = cor_t, dim = n_vars, df = 3, dispstr = "ex")
   u <- rCopula(n, cop_t)
@@ -82,7 +84,7 @@ data <- rbind(
   gen_t(cor_t = 0.8)  # last 5 locations have high correlation
 )
 # Add dummy location names
-data$name <- rep(paste0("loc_", 1:10), each = 2000)
+data$name <- rep(paste0("loc_", 1:10), each = 200)
 
 # visualise
 data |> 
