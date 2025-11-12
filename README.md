@@ -16,14 +16,14 @@ status](https://github.com/mrc-ide/CeCl/workflows/R-CMD-check/badge.svg)](https:
 <!-- badges: end -->
 
 `CeCl` (Conditional extremes Clustering, pronounced ‘Cecil’) is an R
-package which implements the method described in [O’Toole et al.,
-2025](https://arxiv.org/abs/2510.20424) (O’Toole et al., 2025) for
-clustering multivariate extreme events based on their tail dependence
-structures using the conditional extremes model of Heffernan and Tawn
-(Heffernan & Tawn, 2004). For more details of the methodology and usage
-of the package, please see its vignette by running `vignette("CeCl")`
-after installation. This package is in the early stages of development;
-please report any issues or suggestions on the [GitHub issues
+package which implements the method described in [O’Toole et
+al.](https://arxiv.org/abs/2510.20424) (2025) for clustering
+multivariate extreme events based on their tail dependence structures
+using the conditional extremes model of Heffernan and Tawn (2004). For
+more details of the methodology and usage of the package, please see its
+vignette by running `vignette("CeCl")` after installation. This package
+is in the early stages of development; please report any issues or
+suggestions on the [GitHub issues
 page](https:/github.com/potoole7/CeCl/issues).
 
 ## Installation
