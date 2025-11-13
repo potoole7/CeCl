@@ -14,7 +14,7 @@ knitr::opts_chunk$set(
 )
 ```
 
-TODO: 
+TODO (marginal)
 - Explain that currently only supported for single predictor (location, individual, etc) (also add to package!!)
 - Fix plotting methods for evgam fits! Only working for ismev
 - Is the `quantile` thresholding method calculated per location or overall for a single variable?
@@ -22,14 +22,27 @@ TODO:
 - Add plotting functions for transformed marginal data
 - For user inputted marginals, fix printing variables
 - Add `as_cecl_marg` method that also takes in GPD parameters and performs transformation
+- For marginal diagnostic plots, standardise x-axis/y-axis limits
+  - Also add uncertainty bounds for PP/QQ plots, and allow log scale for return level plots
+  
+TODO (dependence)
+- Implement bootstrap
+- Allow different starting values for each location
+- Only return n rows of coefs for summary of fits
+- Allow back transformation from standard Laplace to original scale for quantile plots
+- `plot_scatter` for ggplot should have alpha and beta, not a and b as axis labels
+
+TODO (distance)
+
+TODO (clustering)
 
 This vignette shows how to use the `CeCl` package to perform clustering for 
-multivariate extremes based on the conditional extremes model of Heffernan and Tawn (2004) [-@Heffernan2004]. 
+multivariate extremes based on the conditional extremes (CE) model of Heffernan and Tawn (2004) [-@Heffernan2004]. 
 We begin with performing the marginal transformation using the 
 `cecl_marg` function, which has several in-built options for marginal fitting.
 Optionally, the user can also provide their own transformed data using `as_cecl_marg`. 
-Next, we fit the conditional extremes dependence model using the `cecl_dep` function. 
-Similarly, the user can also provide their own conditional extremes parameter estimates
+Next, we fit the CE model using the `cecl_dep` function. 
+Similarly, the user can also provide their own CE parameter estimates
 using `as_cecl_dep`.
 <!-- This function borrows much of it's functionality from the `texmex` package [@texmex]. -->
 Finally, we perform clustering of the dependence structures using the `cecl_cluster` function.
@@ -100,7 +113,7 @@ be found in [@otoole2025].
 
 ## Marginal Transformation
 
-Generally, the Conditional Extremes model is fitted to data transformed to standard Laplace margins.
+Generally, the CE model is fitted to data transformed to standard Laplace margins.
 To perform this transformation, the marginal distributions are first estimated. 
 Generally, this is done by fitting a Generalized Pareto Distribution (GPD) to the upper tail of each variable, and using the empirical CDF for the bulk of the data.
 
@@ -217,7 +230,7 @@ These plots are also available through `ggplot`:
      ggplot(marg_ismev, which = "hist", loc = "loc_1", var = "X1"))
 ```
 
-Unsurprisingly, since we specified GP margins when simulating the data, the GPD fits appear to be very good.
+Unsurprisingly, since we specified GP margins when simulating the data, the GPD fits appear to be very good, even with just 10 observations in the tail (10% of 1000 observations per location).
 Future versions of the package will also include methods for visualising the standard Laplace transformed data.
 
 However, We also recognise that marginal fitting in extremes can be a complex task, and users may wish to use their own preferred methods for marginal fitting.
@@ -234,6 +247,60 @@ Future versions of the package may also allow users to provide their own fitted 
 
 
 ## Dependence Fits
+
+Next, we fit the CE dependence model to each location using the `cecl_dep` function.
+```{r, dependence_fit}
+dep <- cecl_dep(obj = marg_ismev, cond_prob = 0.9)
+```
+
+Simple as that!
+Choosing the conditioning probability is an important step in fitting the CE model, as it determines the threshold above which the model is fitted.
+In [@otoole2025], following from the `texmexMultivariate` vignette for [@texmex], bootstrapped estimates of $\alpha$ and $\beta$ across a range of conditioning quantiles were used to identify a suitable conditioning level, as the highest quantile at which the estimates stabilised.
+Future versions of the package will include a bootstrapping procedure to assist with this task.
+
+The `cecl_dep` function contains several arguments to control the fitting procedure, including:
+- `start`: a list of starting values for the CE parameters $\alpha$ and $\beta$. In the future, we will allow different starting values for each location.
+- `nruns`: the number of optimisation runs to perform for each location.
+- `aLow`: lower bound for $\alpha$ parameters. For instance, we may wish to restrict $\alpha$ to be non-negative as we expect positive tail dependence. 
+- `fixed_b`: a logical indicating whether to fix $\beta$ parameters to it's starting value, which can be useful for interpretation by estimating only the $\alpha$ parameters.
+- `fit_no_keef`: a logical indicating whether to fit the model without the Keef et al. (2013) constraints [-@Keef2013], which can sometimes be too restrictive and cause optimisation issues.
+Furthermore, for Linux and Mac users with multiple cores available, the fitting can be parallelised using the `ncores` argument.
+
+The `cecl_dep` function returns an object of class `cecl_dep`, which has several methods available:
+```{r, dependence_methods}
+dep
+head(summary(dep))
+```
+
+We also have access to several diagnostic plots for the fitted CE models.
+`residual` plots the residuals $Z$ against large values of the conditioning variable,
+`quantile` plots quantiles of the fitted CE model against the conditioning variable (on the standard Laplace scale),
+`scatter` plots the $alpha$ and $beta$ parameters against each other for a given variable and conditioning variable.
+```{r}
+par(mfrow = c(1, 3))
+plot(dep, which = "residual", var = "X1", cond_var = "X2", loc = "loc_1")
+plot(dep, which = "quantile", var = "X1", cond_var = "X2", loc = "loc_1")
+plot(dep, which = "scatter", var = "X1", cond_var = "X2")
+```
+
+The residual plot should roughly show no obvious patterns (as indicated by the horizontal trend), and the quantile plot should look sensible and have no lines crossing each other.
+Again, these plots are also available through `ggplot`:
+```{r, dependence_ggplot}
+ggplot(dep, which = "residual", var = "X1", cond_var = "X2", loc = "loc_1") + 
+  ggplot(dep, which = "quantile", var = "X1", cond_var = "X2", loc = "loc_1") +
+  ggplot(dep, which = "scatter", var = "X1", cond_var = "X2")
+```
+
+It is a good idea to print these diagnostic plots for all locations and variable combinations to ensure that the fits are sensible before proceeding to clustering.
+For example, to print all residual and quantile plots to a PDF, you could run something like:
+```r
+pdf("cecl_dep_diagnostics.pdf", width = 8, height = 6)
+for (loc in unique(data$name)) {
+  ggplot(dep, which = "residual", var = "X1", cond_var = "X2", loc = loc) + 
+  ggplot(dep, which = "quantile", var = "X1", cond_var = "X2", loc = loc)
+}
+dev.off()
+```
 
 ## Clustering
 
