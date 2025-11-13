@@ -478,6 +478,11 @@ marg_thresh <- \(
   if (thresh_method == "qgam" && ret_obj) {
     ret$qgam_fit <- qgam_fit
   }
+  class(ret) <- c(
+    "cecl_marg_thresh",
+    paste0("cecl_marg_thresh_", thresh_method),
+    class(ret)
+  )
   return(ret)
 }
 
