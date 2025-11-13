@@ -1074,7 +1074,6 @@ plot.cecl_marg <- \(
     stats::qqplot(
       stats::qexp(stats::ppoints(length(residuals))),
       residuals,
-      main = paste("QQ Plot for", var, "at", loc),
       xlab = "Theoretical Quantiles",
       ylab = "Sample Quantiles"
     )
@@ -1083,7 +1082,6 @@ plot.cecl_marg <- \(
     plot(
       stats::ppoints(length(residuals)),
       stats::pexp(sort(residuals)),
-      main = paste("PP Plot for", var, "at", loc),
       xlab = "Theoretical Probabilities",
       ylab = "Sample Probabilities"
     )
@@ -1092,7 +1090,6 @@ plot.cecl_marg <- \(
     graphics::hist(
       residuals,
       breaks = 20,
-      main = paste("Histogram of Residuals for", var, "at", loc),
       xlab = "Residuals"
     )
   } else if (which == "return") {
@@ -1118,7 +1115,6 @@ plot.cecl_marg <- \(
     plot(
       T_vals, z_T,
       type = "b", pch = 19,
-      main = paste("Return Level Plot for", var, "at", loc),
       xlab = "Return Period",
       ylab = "Return Level"
     )
@@ -1300,11 +1296,7 @@ ggplot.cecl_marg <- \(
     )) +
       ggplot2::stat_qq() +
       ggplot2::stat_qq_line(col = "red") +
-      ggplot2::labs(
-        title = paste("QQ Plot for", var, "at", loc),
-        x = "Theoretical Quantiles",
-        y = "Sample Quantiles"
-      ) +
+      ggplot2::labs(x = "Theoretical Quantiles", y = "Sample Quantiles") +
       cecl_theme()
   } else if (which == "pp") {
     ggplot2::ggplot(res_df, ggplot2::aes(
@@ -1314,7 +1306,6 @@ ggplot.cecl_marg <- \(
       ggplot2::geom_point() +
       ggplot2::geom_abline(slope = 1, intercept = 0, col = "red") +
       ggplot2::labs(
-        title = paste("PP Plot for", var, "at", loc),
         x = "Theoretical Probabilities",
         y = "Sample Probabilities"
       ) +
@@ -1326,10 +1317,7 @@ ggplot.cecl_marg <- \(
         fill = ggsci::pal_nejm()(1)[1],
         color = "black"
       ) +
-      ggplot2::labs(
-        title = paste("Histogram of Residuals for", var, "at", loc),
-        x = "Residuals"
-      ) +
+      ggplot2::labs(x = "Residuals") +
       cecl_theme()
   } else if (which == "return") {
     # Extract parameters
@@ -1386,11 +1374,7 @@ ggplot.cecl_marg <- \(
     p <- ggplot2::ggplot(df, ggplot2::aes(x = T_vals, y = z_T)) +
       ggplot2::geom_line() +
       ggplot2::geom_point() +
-      ggplot2::labs(
-        title = paste("Return Level Plot for", var, "at", loc),
-        x = "Return Period",
-        y = "Return Level"
-      ) +
+      ggplot2::labs(x = "Return Period", y = "Return Level") +
       cecl_theme()
 
     # Add CI ribbon if available
