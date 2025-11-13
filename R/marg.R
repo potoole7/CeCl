@@ -119,6 +119,10 @@ cecl_marg <- \(
   } else if (thresh_method == "qgam") {
     stopifnot(is.list(thresh_args))
     stopifnot("f" %in% names(thresh_args))
+    stopifnot(
+      "Currently only support the same `qgam` formula for all variables." =
+        length(thresh_args$f) >= 1
+    )
   }
 
   # marginal method
@@ -396,12 +400,12 @@ marg_thresh <- \(
     data_thresh <- lapply(vars, \(x) {
       print(paste0("thresholding ", x))
 
-      # Change formula to include response in question
       # add thresh_args and ret_obj
       spec_params <- c(thresh_args)
-      spec_params$f <- lapply(thresh_args$f, \(f_spec) {
-        stats::formula(stringr::str_replace_all(f_spec, "response", x))
-      })
+      # Change formula to include response in question
+      spec_params$f <- stats::formula(
+        stringr::str_replace_all(spec_params$f, "response", x)
+      )
       # allow different thresholds for each variable
       if (length(spec_params$qu) > 1) {
         spec_params$qu <- spec_params$qu[vars == x]
