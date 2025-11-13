@@ -1449,7 +1449,10 @@ as_cecl_marg.data.frame <- \(x, name_col = "name", ...) {
     lapply(as.matrix)
 
   names(ret) <- levels(x_fact[[name_col]])
-  ret <- list("transformed" = ret)
+  ret <- list(
+    "transformed" = ret,
+    "vars"        = names(ret)[names(ret) != name_col]
+  )
   class(ret) <- c("cecl_marg", "cecl_marg_user")
   ret
 }
@@ -1469,7 +1472,10 @@ as_cecl_marg.list <- \(x, ...) {
 
   # for a list of matrices
   if (all(vapply(x, is.matrix, logical(1)))) {
-    cecl_marg_obj <- list("transformed" = x)
+    cecl_marg_obj <- list(
+      "transformed" = x,
+      "vars"        = colnames(x[[1]]) # NOTE: Assumes no name_col
+    )
     # for dataframes or tibbles, convert to matrices
   } else if (all(vapply(x, \(y) {
     inherits(y, c("data.frame", "tbl_df"))
@@ -1480,7 +1486,8 @@ as_cecl_marg.list <- \(x, ...) {
     }, logical(1))))
 
     cecl_marg_obj <- list(
-      "transformed" = lapply(x, as.matrix)
+      "transformed" = lapply(x, as.matrix), # TODO: Add optional var names
+      "vars"        = names(x)
     )
   } else {
     stop("Input list must contain only matrices or dataframes/tibbles.")
