@@ -9,10 +9,19 @@ vignette: >
 
 ```{r, include = FALSE}
 knitr::opts_chunk$set(
-  collapse = TRUE,
-  comment = "#>"
+  collapse   = TRUE,
+  comment    = "#>",
+  # figure options
+  fig.width  = 7,
+  fig.height = 5,
+  fig.align  = "center",
+  out.width  = "100%",
+  dpi        = 120
 )
 ```
+
+TODO (doc)
+- Use Oxford commas throughout
 
 TODO (marginal)
 - Explain that currently only supported for single predictor (location, individual, etc) (also add to package!!)
@@ -218,10 +227,11 @@ marg_ismev
 summary(marg_ismev, n = 5) # show GPD parameters for the first 5 locations
 ```
 
+`summary` (from `coef`) prints the fitted GPD parameters (`thresh`, `sigma`, and `xi`) for each variable at each location.
 Since `summary` shows the fitted GPD parameters for each location, it will return an error for the ECDF method, since no GPD is fitted in that case.
 
 We also have access to all of the usual GPD diagnostic plots, which we plot here for `loc_1` and variable `X1`:
-```{r marginal_plots, fig.width=10, fig.height=8}
+```{r marginal_plots}
 par(mfrow = c(2, 2), mar = c(4, 4, 2, 1))
 plot(marg_ismev, which = "pp", loc = "loc_1", var = "X1")
 plot(marg_ismev, which = "qq", loc = "loc_1", var = "X1")
