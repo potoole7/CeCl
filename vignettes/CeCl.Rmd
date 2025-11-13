@@ -14,8 +14,227 @@ knitr::opts_chunk$set(
 )
 ```
 
-This vignette is currently in development, please return at a later date for the completed version.
+TODO: 
+- Explain that currently only supported for single predictor (location, individual, etc) (also add to package!!)
+- Fix plotting methods for evgam fits! Only working for ismev
+- Is the `quantile` thresholding method calculated per location or overall for a single variable?
+- Remove titles for marginal plots
+- Add plotting functions for transformed marginal data
+- For user inputted marginals, fix printing variables
+- Add `as_cecl_marg` method that also takes in GPD parameters and performs transformation
+
+This vignette shows how to use the `CeCl` package to perform clustering for 
+multivariate extremes based on the conditional extremes model of Heffernan and Tawn (2004) [-@Heffernan2004]. 
+We begin with performing the marginal transformation using the 
+`cecl_marg` function, which has several in-built options for marginal fitting.
+Optionally, the user can also provide their own transformed data using `as_cecl_marg`. 
+Next, we fit the conditional extremes dependence model using the `cecl_dep` function. 
+Similarly, the user can also provide their own conditional extremes parameter estimates
+using `as_cecl_dep`.
+<!-- This function borrows much of it's functionality from the `texmex` package [@texmex]. -->
+Finally, we perform clustering of the dependence structures using the `cecl_cluster` function.
+
+Note that this package is still in the early stages of development, and may 
+have some bugs or incomplete features and undergo significant changes in the future;
+please report any issues or suggestions on the [GitHub issues page](https:/github.com/potoole7/CeCl/issues).
+
+## Setup
 
 ```{r setup}
-library(CeCl)
+library(CeCl) # main package
+library(copula) # for generating data
+library(ggplot2) 
+library(patchwork) # for combining ggplots
+library(dplyr)
 ```
+
+## Simulate Data 
+
+To mimic a real live scenario, we simulate some data consisting of three variables observed for 12 "locations", clustered into 3 groups of 4 sites each.
+Note that although we use spatial terminology here, the method is applicable to any multivariate data, for example, financial assets, or experimental units in a clinical trial.
+
+We simulate multivariate data using t-copulas with different correlation parameters, for generalised Pareto (GP) marginals.
+The correlation parameter for each group/cluster is set to be different, so that we can see if our clustering method is able to recover these groups based on their tail dependence structures.
+```{r, simulate_data}
+# metadata
+n_vars <- 3 # number of variables
+n_locs <- 12 # number of locations
+n_clust <- 3 # number of clusters
+n <- 1000 * (12 / 3) # total number of observations per group
+df_t <- 3 # degrees of freedom for t-copula
+cor_t_vec <- c(0.1, 0.5, 0.9) # correlation parameters for each group
+
+# Function to generate multivariate t data with specified correlation
+gen_t <- \(cor_t) {
+  # generate data
+  cop_t <- tCopula(param = cor_t, dim = n_vars, df = df_t, dispstr = "ex")
+  u <- rCopula(n, cop_t)
+  data.frame(apply(u, 2, qgpd, xi = -0.05, sigma = 1, u = 0))
+}
+
+# Generate data for two different correlation settings
+set.seed(123)
+data <- do.call(rbind, lapply(cor_t_vec, gen_t))
+# Add dummy location names
+# data$name <- rep(paste0("loc_", 1:10), each = 200)
+data$name <- rep(paste0("loc_", 1:12), each = nrow(data) / n_locs)
+
+# Visualise the data
+data |>
+  mutate(clust = case_when(
+    name %in% paste0("loc_", 1:4) ~ "A",
+    name %in% paste0("loc_", 5:8) ~ "B",
+    TRUE ~ "C"
+  )) |>
+  ggplot(aes(x = X1, y = X2, colour = clust)) +
+  facet_wrap(~ clust) +
+  geom_density_2d(show.legend = FALSE) +
+  cecl_theme()
+```
+
+Visualising the data, we can see that the three groups have different dependence structures, with group A having weak dependence, group B having moderate dependence, and group C having strong dependence.
+
+...
+More complex simulation examples using mixtures of Gaussian and t-copulas can
+be found in [@otoole2025].
+
+## Marginal Transformation
+
+Generally, the Conditional Extremes model is fitted to data transformed to standard Laplace margins.
+To perform this transformation, the marginal distributions are first estimated. 
+Generally, this is done by fitting a Generalized Pareto Distribution (GPD) to the upper tail of each variable, and using the empirical CDF for the bulk of the data.
+
+Another important aspect of marginal fitting is threshold selection for the GPD fit.
+This is a crucial and difficult step in any extreme value analysis, and we do not attempt to provide a comprehensive solution here.
+We recommend starting with the functions in `ismev` or `texmex` for graphical threshold selection, using mean residual life plots and threshold stability plots.
+turning to the wealth of other more advanced methods available in the literature. 
+Once a suitable threshold quantile or value has been selected, this can be passed to the `cecl_marg` function using the `thresh_method` and `thresh_args` arguments, which supports:
+- Value thresholding (`"value"`), where the user specifies a fixed threshold value for each variable,
+- Quantile thresholding (`"quantile"`), where the user specifies a fixed quantile for each variable,
+- Regression thresholding using quantile GAMs (`"qgam"`), where the user specifies a formula and quantile for fitting a quantile GAM using the `qgam` package [-@qgam]. Note that this method allows for non-stationary thresholds that vary with covariates. 
+
+Here, we demonstrate how to use each of these thresholding methods with the `cecl_marg` function:
+```{r, marginal_thresh}
+# 1: Specific value
+thresh_val <- cecl_marg(
+  data,
+  thresh_method = "value",
+  thresh_args = apply(data[, c("X1", "X2", "X3")], 2, quantile, probs = 0.9),
+  thresh_only = TRUE
+)
+
+# 2. quantile
+thresh_q <- cecl_marg(
+  data,
+  thresh_method = "quantile",
+  thresh_args = 0.9, 
+  thresh_only = TRUE
+)
+
+# 3. Regression
+thresh_reg <- cecl_marg(
+  data,
+  thresh_method = "qgam",
+  thresh_args = list(
+    f      = "response ~ name", 
+    qu     = .9
+  ),
+  thresh_only = TRUE,
+  ret_obj = TRUE # return `qgam` object
+)
+
+class(thresh_reg)
+```
+
+By specifying `thresh_only = TRUE`, the `cecl_marg` function will only perform thresholding and return an object of class `cecl_thresh`, which contains the threshold values and the thresholded data, and, in the case of regression thresholding, the fitted `qgam` objects.
+See `?cecl_marg` for more details on the outputs and available argument options.
+Currently, no methods are implemented for the `cecl_thresh` class, but this may be added in future versions.
+
+Next, we can fit the marginal models and perform our transformation to standard Laplace margins.
+The `cecl_marg` function provides several in-built options for marginal fitting, specified using the `marg_method` argument, including:
+- Empirical CDF (`"ecdf"`), which uses the empirical CDF (ECDF) for the entire distribution,
+- stationary GPD (`"ismev"`), which fits a GPD to the upper tail of each variable at each location using the `ismev` package [-@ismev],
+- non-stationary GPD (`"evgam"`), which fits a GPD to the upper tail of each variable at each location using the `evgam` package [-@evgam], allowing for covariate effects through generalized additive models (GAMs).
+Here, we demonstrate how to use each of these marginal fitting methods with the `cecl_marg` function (with the `quantile` thresholding method):
+```{r, marginal_fit}
+# 1: ECDF
+marg_ecdf <- cecl_marg(
+  data,
+  thresh_method = "quantile",
+  thresh_args = 0.9,
+  marg_method = "ecdf",
+  ncores = 1
+)
+
+# 2: ismev
+marg_ismev <- cecl_marg(
+  data,
+  thresh_method = "quantile",
+  thresh_args = 0.9,
+  marg_method = "ismev",
+  ncores = 1,
+  # ret_obj = FALSE
+  ret_obj = TRUE
+)
+
+# 3: evgam
+marg_evgam <- cecl_marg(
+  data,
+  thresh_method = "quantile",
+  thresh_args = 0.9,
+  marg_method = "evgam",
+  # model formulae for GPD scale and shape parameters
+  marg_args = list(f = list("excess ~ name", "~ name")),
+  ncores = 1,
+  ret_obj = TRUE
+)
+
+
+```
+
+Several methods are available for the `cecl_marg` class, including `print` and `summary`:
+```{r, marginal_methods}
+marg_ismev
+summary(marg_ismev, n = 5) # show GPD parameters for the first 5 locations
+```
+
+Since `summary` shows the fitted GPD parameters for each location, it will return an error for the ECDF method, since no GPD is fitted in that case.
+
+We also have access to all of the usual GPD diagnostic plots, which we plot here for `loc_1` and variable `X1`:
+```{r, marginal_plots}
+par(mfrow = c(2, 2))
+plot(marg_ismev, which = "pp", loc = "loc_1", var = "X1")
+plot(marg_ismev, which = "qq", loc = "loc_1", var = "X1")
+plot(marg_ismev, which = "return", loc = "loc_1", var = "X1")
+plot(marg_ismev, which = "hist", loc = "loc_1", var = "X1")
+```
+
+These plots are also available through `ggplot`:
+```{r, marginal_ggplot}
+(ggplot(marg_ismev, which = "pp", loc = "loc_1", var = "X1") + 
+   ggplot(marg_ismev, which = "qq", loc = "loc_1", var = "X1")) / 
+  (ggplot(marg_ismev, which = "return", loc = "loc_1", var = "X1") + 
+     ggplot(marg_ismev, which = "hist", loc = "loc_1", var = "X1"))
+```
+
+Unsurprisingly, since we specified GP margins when simulating the data, the GPD fits appear to be very good.
+Future versions of the package will also include methods for visualising the standard Laplace transformed data.
+
+However, We also recognise that marginal fitting in extremes can be a complex task, and users may wish to use their own preferred methods for marginal fitting.
+Therefore, the `CeCl` package also provides the `to_cecl_marg` function to allow users to provide their own marginally transformed data in standard Laplace margins.
+To illustrate the use of this function, we can provide the transformed data from `ismev` and have `to_cecl_marg` return an object of class `cecl_marg`. 
+```{r, to_cecl_marg}
+data_trans <- marg_ismev$transformed # list, but can be data.frame/tibble
+marg_custom <- as_cecl_marg(data_trans)
+marg_custom
+```
+
+User-specified marginal transformations work the same as those fitted using `cecl_marg` using the ECDF method, in that no GPD parameters are stored, so plotting methods are not available.
+Future versions of the package may also allow users to provide their own fitted GPD parameters for each location and variable, with `as_cecl_marg` performing the necessary transformations.
+
+
+## Dependence Fits
+
+## Clustering
+
+## References
