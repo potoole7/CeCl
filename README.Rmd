@@ -10,6 +10,10 @@ csl: apa.csl
 knitr::opts_chunk$set(
   collapse = TRUE,
   comment = "#>",
+  fig.width  = 7,
+  fig.height = 5,
+  fig.align  = "center",
+  out.width  = "100%",
   fig.path = "man/figures/README-",
   out.width = "100%"
 )
@@ -104,7 +108,7 @@ marg <- cecl_marg(
 # see `help(cecl_marg)` for details on arguments and available methods
 
 # fit conditional extremes model to each location at 90th dependence quantile
-dep <- cecl_dep(obj = marg,cond_prob = 0.9)
+dep <- cecl_dep(obj = marg, cond_prob = 0.9)
 # again, see `help(cecl_dep)` for details on arguments and available methods
 ```
 
