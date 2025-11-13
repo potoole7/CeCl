@@ -711,6 +711,7 @@ fit_marg <- \(
 #' "name".
 #' @param vars Names of variable columns.
 #' @return List of matrices transformed to Laplace margins for each location.
+#' @export
 trans_marg <- \(
   marginal,
   data_df,
