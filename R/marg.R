@@ -994,7 +994,7 @@ summary.cecl_marg <- \(object, n, ...) {
 #' @param loc Location name to plot.
 #' @param mult_col Name of the column representing locations, default `"name"`.
 #' @param var Variable name to plot.
-#' @param ... Additional arguments (not used)
+#' @param ... Additional arguments to pass to plotting.
 #' @method plot cecl_marg
 #' @rdname plot.cecl_marg
 #' @export
@@ -1075,7 +1075,8 @@ plot.cecl_marg <- \(
       stats::qexp(stats::ppoints(length(residuals))),
       residuals,
       xlab = "Theoretical Quantiles",
-      ylab = "Sample Quantiles"
+      ylab = "Sample Quantiles",
+      ...
     )
     graphics::abline(0, 1, col = "red")
   } else if (which == "pp") {
@@ -1083,15 +1084,28 @@ plot.cecl_marg <- \(
       stats::ppoints(length(residuals)),
       stats::pexp(sort(residuals)),
       xlab = "Theoretical Probabilities",
-      ylab = "Sample Probabilities"
+      ylab = "Sample Probabilities",
+      ...
     )
     graphics::abline(0, 1, col = "red")
   } else if (which == "hist") {
-    graphics::hist(
-      residuals,
+    # graphics::hist(
+    #   residuals,
+    #   breaks = 20,
+    #   xlab = "Residuals"
+    # )
+
+    # if main not specified, set to NULL (hist automatically adds title)
+    plot_args <- list(
+      x      = residuals,
       breaks = 20,
-      xlab = "Residuals"
+      xlab   = "Residuals",
+      ...
     )
+    if (!"main" %in% names(plot_args)) {
+      plot_args[["main"]] <- list(NULL)
+    }
+    do.call(graphics::hist, plot_args)
   } else if (which == "return") {
     #  Extract fitted parameters
     gpd_params <- x$marginal[[loc]][[var]]
@@ -1116,7 +1130,8 @@ plot.cecl_marg <- \(
       T_vals, z_T,
       type = "b", pch = 19,
       xlab = "Return Period",
-      ylab = "Return Level"
+      ylab = "Return Level",
+      ...
     )
 
     nboot <- 500
