@@ -26,7 +26,7 @@ return level plot.}
 
 \item{var}{Variable name to plot.}
 
-\item{...}{Additional arguments (not used)}
+\item{...}{Additional arguments to pass to plotting.}
 }
 \description{
 Generate diagnostic plots for a \code{cecl_marg} object, including
