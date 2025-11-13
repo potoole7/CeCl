@@ -94,7 +94,7 @@
 <h2 id="example">Example<a class="anchor" aria-label="anchor" href="#example"></a>
 </h2>
 <p>Here’s a basic example of how to use <code>CeCl</code> to cluster locations based on their tail dependence structures. Note that although we use spatial terminology here, the method is applicable to any multivariate data.</p>
-<p>First, let’s generate some example data and visualise it. In this example, we want to generate data for 10 “locations” (clustered into 2 groups of 5 sites each) from a bivariate t-copula with different correlation parameters for different clusters.</p>
+<p>First, let’s generate some example data and visualise it. In this example, we want to generate data for 10 “locations” (clustered into 2 groups of 5 sites each) from a bivariate t-copula with Generalised Pareto marginals, with different correlation parameters for different clusters.</p>
 <div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/mrc-ide/CeCl" class="external-link">CeCl</a></span><span class="op">)</span></span>
 <span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://copula.r-forge.r-project.org/" class="external-link">copula</a></span><span class="op">)</span></span>
@@ -106,7 +106,8 @@
 <span>  <span class="co"># generate data</span></span>
 <span>  <span class="va">cop_t</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/pkg/copula/man/ellipCopula.html" class="external-link">tCopula</a></span><span class="op">(</span>param <span class="op">=</span> <span class="va">cor_t</span>, dim <span class="op">=</span> <span class="va">n_vars</span>, df <span class="op">=</span> <span class="fl">3</span>, dispstr <span class="op">=</span> <span class="st">"ex"</span><span class="op">)</span></span>
 <span>  <span class="va">u</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/pkg/copula/man/Copula.html" class="external-link">rCopula</a></span><span class="op">(</span><span class="va">n</span>, <span class="va">cop_t</span><span class="op">)</span></span>
-<span>  <span class="va">data</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/apply.html" class="external-link">apply</a></span><span class="op">(</span><span class="va">u</span>, <span class="fl">2</span>, <span class="va">qt</span>, df <span class="op">=</span> <span class="fl">3</span><span class="op">)</span><span class="op">)</span></span>
+<span>  <span class="co"># data &lt;- data.frame(apply(u, 2, qt, df = 3))</span></span>
+<span>  <span class="va">data</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/apply.html" class="external-link">apply</a></span><span class="op">(</span><span class="va">u</span>, <span class="fl">2</span>, <span class="va">qgpd</span>, xi <span class="op">=</span> <span class="op">-</span><span class="fl">0.05</span>, sigma <span class="op">=</span> <span class="fl">1</span>, u <span class="op">=</span> <span class="fl">0</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="op">}</span></span>
 <span></span>
 <span><span class="co"># generate data for two different correlation settings</span></span>
