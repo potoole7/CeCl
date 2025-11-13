@@ -668,7 +668,8 @@ fit_marg <- \(
               .data[[mult_col]],
               signif(thresh, 6),
               .keep_all = TRUE
-            )
+            ),
+          by = mult_col # TODO Should this also include predictor columns?
         ) |>
         dplyr::select(-dplyr::matches("signif"))
 
