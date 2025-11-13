@@ -17,10 +17,11 @@ knitr::opts_chunk$set(
 TODO (marginal)
 - Explain that currently only supported for single predictor (location, individual, etc) (also add to package!!)
 - Fix plotting methods for evgam fits! Only working for ismev
+- Allow different `qgam` and `evgam` formulae for each variable
 - Is the `quantile` thresholding method calculated per location or overall for a single variable?
 - Remove titles for marginal plots
 - Add plotting functions for transformed marginal data
-- For user inputted marginals, fix printing variables
+- For user-inputted marginals, fix printing variables
 - Add `as_cecl_marg` method that also takes in GPD parameters and performs transformation
 - For marginal diagnostic plots, standardise x-axis/y-axis limits
   - Also add uncertainty bounds for PP/QQ plots, and allow log scale for return level plots
@@ -31,10 +32,15 @@ TODO (dependence)
 - Only return n rows of coefs for summary of fits
 - Allow back transformation from standard Laplace to original scale for quantile plots
 - `plot_scatter` for ggplot should have alpha and beta, not a and b as axis labels
+- Add a `predict` method
 
 TODO (distance)
+- For image plot, add option to suppress axis labels (x and y separately)
+- For ggplot image, have same colour scale as clustering method uses
+- Add `lambda` parameter to weigh variables differently in distance calculation
 
 TODO (clustering)
+- For image plot, coloured image plot has y-axis labels too close
 
 This vignette shows how to use the `CeCl` package to perform clustering for 
 multivariate extremes based on the conditional extremes (CE) model of Heffernan and Tawn (2004) [-@Heffernan2004]. 
@@ -53,7 +59,7 @@ please report any issues or suggestions on the [GitHub issues page](https:/githu
 
 ## Setup
 
-```{r setup}
+```{r setup, message=FALSE, warning=FALSE}
 library(CeCl) # main package
 library(copula) # for generating data
 library(ggplot2) 
@@ -145,18 +151,19 @@ thresh_q <- cecl_marg(
 )
 
 # 3. Regression
-thresh_reg <- cecl_marg(
-  data,
-  thresh_method = "qgam",
-  thresh_args = list(
-    f      = "response ~ name", 
-    qu     = .9
-  ),
-  thresh_only = TRUE,
-  ret_obj = TRUE # return `qgam` object
-)
+# TODO Fix!
+# thresh_reg <- cecl_marg(
+#   data,
+#   thresh_method = "qgam",
+#   thresh_args = list(
+#     f      = "response ~ name", 
+#     qu     = .9
+#   ),
+#   thresh_only = TRUE,
+#   ret_obj = TRUE # return `qgam` object
+# )
 
-class(thresh_reg)
+class(thresh_q)
 ```
 
 By specifying `thresh_only = TRUE`, the `cecl_marg` function will only perform thresholding and return an object of class `cecl_thresh`, which contains the threshold values and the thresholded data, and, in the case of regression thresholding, the fitted `qgam` objects.
@@ -214,8 +221,8 @@ summary(marg_ismev, n = 5) # show GPD parameters for the first 5 locations
 Since `summary` shows the fitted GPD parameters for each location, it will return an error for the ECDF method, since no GPD is fitted in that case.
 
 We also have access to all of the usual GPD diagnostic plots, which we plot here for `loc_1` and variable `X1`:
-```{r, marginal_plots}
-par(mfrow = c(2, 2))
+```{r marginal_plots, fig.width=10, fig.height=8}
+par(mfrow = c(2, 2), mar = c(4, 4, 2, 1))
 plot(marg_ismev, which = "pp", loc = "loc_1", var = "X1")
 plot(marg_ismev, which = "qq", loc = "loc_1", var = "X1")
 plot(marg_ismev, which = "return", loc = "loc_1", var = "X1")
@@ -264,13 +271,15 @@ The `cecl_dep` function contains several arguments to control the fitting proced
 - `aLow`: lower bound for $\alpha$ parameters. For instance, we may wish to restrict $\alpha$ to be non-negative as we expect positive tail dependence. 
 - `fixed_b`: a logical indicating whether to fix $\beta$ parameters to it's starting value, which can be useful for interpretation by estimating only the $\alpha$ parameters.
 - `fit_no_keef`: a logical indicating whether to fit the model without the Keef et al. (2013) constraints [-@Keef2013], which can sometimes be too restrictive and cause optimisation issues.
-Furthermore, for Linux and Mac users with multiple cores available, the fitting can be parallelised using the `ncores` argument.
+Furthermore, for Linux and Mac users with multiple cores available, the fitting can be parallelised using the `ncores` argument. This is also true of all functions including an `ncores` argument, including `cecl_marg`. 
 
 The `cecl_dep` function returns an object of class `cecl_dep`, which has several methods available:
 ```{r, dependence_methods}
 dep
 head(summary(dep))
 ```
+
+Future versions of the package will also include a `predict` method for generating conditional simulations from the fitted CE models, as found in the `texmex` package [@texmex].
 
 We also have access to several diagnostic plots for the fitted CE models.
 `residual` plots the residuals $Z$ against large values of the conditioning variable,
@@ -303,5 +312,95 @@ dev.off()
 ```
 
 ## Clustering
+
+Finally, we can cluster the fitted CE models using the skew-geometric Jensen-Shannon based dissimilarity measure proposed in [@otoole2025].
+First, to calculate the dissimilarity matrix, we can use the `cecl_dist` function:
+```{r, distance_matrix}
+dist <- cecl_dist(dep, marg_ismev, seed = 123)
+```
+
+`cecl_dist` also has several arguments to control the distance calculation, including:
+- `laplace_cap`: The divergence is estimating using Monte Carlo integration, simulating values of the conditioning variable from a standard Laplace distribution.
+To avoid issues with extremely large values on the standard Laplace scale, we cap the maximum quantile used for simulation at `laplace_cap` (default 0.99).
+- `n_mc`: The number of Monte Carlo samples to use for estimating the divergence.
+- `par_dist`: An optional argument to parallelise the distance calculation itself, rather than parallelising across conditioning variables. Useful when the number of locations is large.
+
+The `cecl_dist` function returns an object of class `cecl_dist`, which has several methods available:
+```{r}
+dist
+summary(dist)
+```
+
+We can produce a scree plot of the total within-group sum of squares (TWGSS) for different numbers of clusters `k`, as well as a heatmap/image of the dissimilarity matrix:
+```{r}
+par(mfrow = c(1, 2))
+invisible(plot(dist, which = "scree")) # normally prints TWGSS for each k
+plot(dist, which = "image")
+```
+
+And also in `ggplot`:
+```{r}
+ggplot(dist, which = "scree")$plot + 
+  ggplot(dist, which = "image")
+```
+
+Unsurprisingly, the scree plot should show a clear "elbow" at the true number of clusters (3 in this case), and the dissimilarity matrix should show three distinct blocks along the diagonal.
+
+Finally, we can perform clustering using the `cecl_clust` function:
+```{r, clustering}
+clust <- cecl_clust(
+  dist, 
+  k = 3, 
+  cluster_mem = sort(rep(1:3, each = 4)), # known cluster membership
+  seed = 123
+)
+```
+
+Optionally, we can also run `cecl_clust` on the `cecl_dep` and `cecl_marg` objects directly, without needing to calculate the distance matrix first:
+```{r}
+clust_dep <- cecl_clust(
+  dep,
+  marg_ismev,
+  k = 3,
+  cluster_mem = sort(rep(1:3, each = 4)), # known cluster membership
+  seed = 123
+)
+
+all.equal(unclass(clust), unclass(clust_dep[names(clust_dep) != "dist_obj"]))
+```
+
+`clust_dep$dist_obj` will be identical to the output of `cecl_dist` calculated previously, in case the user wishes to inspect it.
+
+The `cecl_clust` function returns an object of class `cecl_clust`, which has several methods available:
+```{r}
+clust
+summary(clust)
+```
+
+We can see that the clustering has perfectly recovered the true clusters based on the Adjusted Rand Index (ARI) of 1.
+The `summary` method is that of `pam`. 
+However, since silhouette widths are not applicable for our dissimilarity measure, please ignore this part of the output (we may remove this in future versions).
+
+We can also produce the `scatter` and `image` plots from previous sections, but this time with the locations ordered and coloured by their assigned cluster:
+```{r}
+par(mfrow = c(1, 2))
+plot(clust, which = "scatter", var = "X1", cond_var = "X2")
+plot(clust, which = "image")
+```
+
+And also in `ggplot`:
+```{r, ggplot_clust}
+ggplot(clust, which = "scatter", var = "X1", cond_var = "X2") + 
+  (ggplot(clust, which = "image") + 
+     theme(
+      axis.text.x = element_text(size = 10, angle = 45, hjust = 1),
+      axis.text.y = element_text(size = 10),
+      legend.title = element_text(size = 12)
+     ))
+```
+
+In conclusion, we have successfully used the `CeCl` package to cluster multivariate data based on their tail dependence structures using the conditional extremes model.
+Please refer to the package documentation for more details on the available functions and methods, 
+or contact the author for any questions or suggestions.
 
 ## References
