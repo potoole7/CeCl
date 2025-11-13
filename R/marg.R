@@ -715,7 +715,7 @@ fit_marg <- \(
 trans_marg <- \(
   marginal,
   data_df,
-  mult_col = NULL,
+  mult_col = "name",
   vars
 ) {
   # Calculate dependence from marginals (default output object)
