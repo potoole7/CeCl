@@ -1381,7 +1381,7 @@ ggplot.cecl_marg <- \(
 
   # Generate specified ggplot
   if (which == "qq") {
-    gpd_pars <- c(list("u" = 0), setNames(
+    gpd_pars <- c(list("u" = 0), stats::setNames(
       gpd_params[c("sigma", "xi")],
       c("sigma", "xi")
     ))
