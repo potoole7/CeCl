@@ -32,7 +32,7 @@
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">CeCl</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.1.1</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.1.2</span>
       </span>
     </div>
 
@@ -76,10 +76,666 @@ CeCl</h1>
 
     
     
-<p>This vignette is currently in development, please return at a later
-date for the completed version.</p>
+<!--
+
+TODO (text):
+- Read very very carefully!!
+
+TODO (marginal)
+- Marginal plotting methods don't calculate residuals properly
+  - ggplot:
+    - Fix residual calculation (done)
+    - Fix QQ, PP, hist, return level plots (done)
+    - Add density plot
+    - Add uncertainty to PP and QQ plots!
+    - Fix for evgam output as well (vector of parameter estimates)
+  - plot:
+    - Fix residual calculation (done)
+    - Fix QQ, PP, hist, return level plots
+    - add density plot
+    - Add uncertainty to PP and QQ plots!
+    - fix for evgam output as well
+- Explain that currently only supported for single predictor (location, individual, etc) (also add to package!!)
+- Fix plotting methods for evgam fits! Only working for ismev
+- Allow different `qgam` and `evgam` formulae for each variable
+- Is the `quantile` thresholding method calculated per location or overall for a single variable?
+- Remove titles for marginal plots
+- for scatter plot (`ggplot`), ensure alpha plotted between -1 and 1
+  - Or else, if min value is > 0, 0 to 1 (for plot and ggplot)
+- Add plotting functions for transformed marginal data
+- For user-inputted marginals, fix printing variables
+- Add `as_cecl_marg` method that also takes in GPD parameters and performs transformation
+- For marginal diagnostic plots, standardise x-axis/y-axis limits
+  - Also add uncertainty bounds for PP/QQ plots, and allow log scale for return level plots
+- Don't let var == cond_var in plotting functions
+  
+TODO (dependence)
+- Implement bootstrap
+- Allow different starting values for each location
+- Only return n rows of coefs for summary of fits
+- Allow back transformation from standard Laplace to original scale for quantile plots
+- `plot_scatter` for ggplot should have alpha and beta, not a and b as axis labels
+- Add a `predict` method
+- Add tests that results from texmex and CeCl match for CE fits (for simulated data)
+
+TODO (distance)
+- For image plot, add option to suppress axis labels (x and y separately)
+- For ggplot image, have same colour scale as clustering method uses
+- Add `lambda` parameter to weigh variables differently in distance calculation
+
+TODO (clustering)
+- For image plot, coloured image plot has y-axis labels too close
+
+-->
+<p>This vignette shows how to use the <code>CeCl</code> package to
+perform clustering for multivariate extremes based on the conditional
+extremes (CE) model of Heffernan and Tawn (2004) <span class="citation">[-@Heffernan2004]</span>. We begin with performing the
+marginal transformation using the <code>cecl_marg</code> function, which
+has several in-built options for marginal fitting. Optionally, the user
+can also provide their own transformed data using
+<code>as_cecl_marg</code>. Next, we fit the CE model using the
+<code>cecl_dep</code> function. Similarly, the user can also provide
+their own CE parameter estimates using <code>as_cecl_dep</code>.
+<!-- This function borrows much of it's functionality from the `texmex` package [@texmex]. -->
+Finally, we perform clustering of the dependence structures using the
+<code>cecl_cluster</code> function.</p>
+<p>Note that this package is still in the early stages of development,
+and may have some bugs or incomplete features and undergo significant
+changes in the future; please report any issues or suggestions on the <a href="https:/github.com/potoole7/CeCl/issues">GitHub issues
+page</a>.</p>
+<div class="section level2">
+<h2 id="setup">Setup<a class="anchor" aria-label="anchor" href="#setup"></a>
+</h2>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
-<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/mrc-ide/CeCl" class="external-link">CeCl</a></span><span class="op">)</span></span></code></pre></div>
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/mrc-ide/CeCl" class="external-link">CeCl</a></span><span class="op">)</span> <span class="co"># main package</span></span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://copula.r-forge.r-project.org/" class="external-link">copula</a></span><span class="op">)</span> <span class="co"># for generating data</span></span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://ggplot2.tidyverse.org" class="external-link">ggplot2</a></span><span class="op">)</span> </span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://patchwork.data-imaginist.com" class="external-link">patchwork</a></span><span class="op">)</span> <span class="co"># for combining ggplots</span></span>
+<span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://dplyr.tidyverse.org" class="external-link">dplyr</a></span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level2">
+<h2 id="simulate-data">Simulate Data<a class="anchor" aria-label="anchor" href="#simulate-data"></a>
+</h2>
+<p>To mimic a real live scenario, we simulate some data consisting of
+three variables observed for 12 “locations”, clustered into 3 groups of
+4 sites each. Note that although we use spatial terminology here, the
+method is applicable to any multivariate data, for example, financial
+assets, or experimental units in a clinical trial.</p>
+<p>We simulate multivariate data using t-copulas with different
+correlation parameters, for generalised Pareto (GP) marginals. The
+correlation parameter for each group/cluster is set to be different, so
+that we can see if our clustering method is able to recover these groups
+based on their tail dependence structures.</p>
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># metadata</span></span>
+<span><span class="va">seed</span> <span class="op">&lt;-</span> <span class="fl">123</span></span>
+<span><span class="va">n_vars</span> <span class="op">&lt;-</span> <span class="fl">3</span> <span class="co"># number of variables</span></span>
+<span><span class="va">n_locs</span> <span class="op">&lt;-</span> <span class="fl">12</span> <span class="co"># number of locations</span></span>
+<span><span class="va">n_clust</span> <span class="op">&lt;-</span> <span class="fl">3</span> <span class="co"># number of clusters</span></span>
+<span><span class="co"># n &lt;- 1000 * (12 / 3) # total number of observations per group</span></span>
+<span><span class="va">n_per_loc</span> <span class="op">&lt;-</span> <span class="fl">1000</span> <span class="co"># total obs per location times # locs per group</span></span>
+<span><span class="va">n</span> <span class="op">&lt;-</span> <span class="va">n_per_loc</span> <span class="op">*</span> <span class="op">(</span><span class="fl">12</span> <span class="op">/</span> <span class="fl">3</span><span class="op">)</span> <span class="co"># total obs per location times # locs per group</span></span>
+<span><span class="va">df_t</span> <span class="op">&lt;-</span> <span class="fl">3</span> <span class="co"># degrees of freedom for t-copula</span></span>
+<span><span class="va">cor_t_vec</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0.1</span>, <span class="fl">0.5</span>, <span class="fl">0.9</span><span class="op">)</span> <span class="co"># correlation parameters for each group</span></span>
+<span></span>
+<span><span class="co"># Function to generate multivariate t data with specified correlation</span></span>
+<span><span class="va">gen_t</span> <span class="op">&lt;-</span> \<span class="op">(</span><span class="va">cor_t</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="co"># generate data</span></span>
+<span>  <span class="va">cop_t</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/pkg/copula/man/ellipCopula.html" class="external-link">tCopula</a></span><span class="op">(</span>param <span class="op">=</span> <span class="va">cor_t</span>, dim <span class="op">=</span> <span class="va">n_vars</span>, df <span class="op">=</span> <span class="va">df_t</span>, dispstr <span class="op">=</span> <span class="st">"ex"</span><span class="op">)</span></span>
+<span>  <span class="va">u</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/pkg/copula/man/Copula.html" class="external-link">rCopula</a></span><span class="op">(</span><span class="va">n</span>, <span class="va">cop_t</span><span class="op">)</span></span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/apply.html" class="external-link">apply</a></span><span class="op">(</span><span class="va">u</span>, <span class="fl">2</span>, <span class="va">qgpd</span>, xi <span class="op">=</span> <span class="op">-</span><span class="fl">0.05</span>, sigma <span class="op">=</span> <span class="fl">1</span>, u <span class="op">=</span> <span class="fl">0</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="op">}</span></span>
+<span></span>
+<span><span class="co"># Generate data for two different correlation settings</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/Random.html" class="external-link">set.seed</a></span><span class="op">(</span><span class="va">seed</span><span class="op">)</span></span>
+<span><span class="va">data</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/do.call.html" class="external-link">do.call</a></span><span class="op">(</span><span class="va">rbind</span>, <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">lapply</a></span><span class="op">(</span><span class="va">cor_t_vec</span>, <span class="va">gen_t</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co"># Add dummy location names</span></span>
+<span><span class="co"># data$name &lt;- rep(paste0("loc_", 1:10), each = 200)</span></span>
+<span><span class="va">data</span><span class="op">$</span><span class="va">name</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="st">"loc_"</span>, <span class="fl">1</span><span class="op">:</span><span class="fl">12</span><span class="op">)</span>, each <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/nrow.html" class="external-link">nrow</a></span><span class="op">(</span><span class="va">data</span><span class="op">)</span> <span class="op">/</span> <span class="va">n_locs</span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># Visualise the data</span></span>
+<span><span class="va">data</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/mutate.html" class="external-link">mutate</a></span><span class="op">(</span>clust <span class="op">=</span> <span class="fu"><a href="https://dplyr.tidyverse.org/reference/case_when.html" class="external-link">case_when</a></span><span class="op">(</span></span>
+<span>    <span class="va">name</span> <span class="op"><a href="https://rdrr.io/r/base/match.html" class="external-link">%in%</a></span> <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="st">"loc_"</span>, <span class="fl">1</span><span class="op">:</span><span class="fl">4</span><span class="op">)</span> <span class="op">~</span> <span class="st">"A"</span>,</span>
+<span>    <span class="va">name</span> <span class="op"><a href="https://rdrr.io/r/base/match.html" class="external-link">%in%</a></span> <span class="fu"><a href="https://rdrr.io/r/base/paste.html" class="external-link">paste0</a></span><span class="op">(</span><span class="st">"loc_"</span>, <span class="fl">5</span><span class="op">:</span><span class="fl">8</span><span class="op">)</span> <span class="op">~</span> <span class="st">"B"</span>,</span>
+<span>    <span class="cn">TRUE</span> <span class="op">~</span> <span class="st">"C"</span></span>
+<span>  <span class="op">)</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/aes.html" class="external-link">aes</a></span><span class="op">(</span>x <span class="op">=</span> <span class="va">X1</span>, y <span class="op">=</span> <span class="va">X2</span>, colour <span class="op">=</span> <span class="va">clust</span><span class="op">)</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/facet_wrap.html" class="external-link">facet_wrap</a></span><span class="op">(</span><span class="op">~</span> <span class="va">clust</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/geom_density_2d.html" class="external-link">geom_density_2d</a></span><span class="op">(</span>show.legend <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="fu"><a href="../reference/cecl_theme.html">cecl_theme</a></span><span class="op">(</span><span class="op">)</span> <span class="co"># custom CeCl theme</span></span></code></pre></div>
+<p><img src="CeCl_files/figure-html/simulate_data-1.png" class="r-plt" width="100%" style="display: block; margin: auto;"></p>
+<p>Visualising the data, we can see that the three groups have different
+dependence structures, with group A having weak dependence, group B
+having moderate dependence, and group C having strong dependence. More
+complex simulation examples using mixtures of Gaussian and t-copulas can
+be found in <span class="citation">[@otoole2025]</span>.</p>
+</div>
+<div class="section level2">
+<h2 id="marginal-transformation">Marginal Transformation<a class="anchor" aria-label="anchor" href="#marginal-transformation"></a>
+</h2>
+<p>Generally, the CE model is fitted to data transformed to standard
+Laplace margins. To perform this transformation, the marginal
+distributions are first estimated. Generally, this is done by fitting a
+Generalized Pareto Distribution (GPD) to the upper tail of each
+variable, and using the empirical CDF for the bulk of the data.</p>
+<p>Another important aspect of marginal fitting is threshold selection
+for the GPD fit. This is a crucial and difficult step in any extreme
+value analysis, and we do not attempt to provide a comprehensive
+solution here. We recommend starting with the functions in
+<code>ismev</code> or <code>texmex</code> for graphical threshold
+selection, using mean residual life plots and threshold stability plots.
+turning to the wealth of other more advanced methods available in the
+literature. Once a suitable threshold quantile or value has been
+selected, this can be passed to the <code>cecl_marg</code> function
+using the <code>thresh_method</code> and <code>thresh_args</code>
+arguments, which supports: - Value thresholding (<code>"value"</code>),
+where the user specifies a fixed threshold value for each variable, -
+Quantile thresholding (<code>"quantile"</code>), where the user
+specifies a fixed quantile for each variable, - Regression thresholding
+using quantile GAMs (<code>"qgam"</code>), where the user specifies a
+formula and quantile for fitting a quantile GAM using the
+<code>qgam</code> package <span class="citation">[-@qgam]</span>. Note
+that this method allows for non-stationary thresholds that vary with
+covariates.</p>
+<p>As we know our data was simulated with GP margins, thresholding is
+not strictly necessary here, but we include it for demonstration
+purposes (and since changing the threshold will only change the scale
+parameter of the GPD fit, we do not expect it to have a large effect on
+marginal modelling). Here, we show how to use each of these thresholding
+methods with the <code>cecl_marg</code> function:</p>
+<div class="sourceCode" id="cb3"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># 1: Specific value</span></span>
+<span><span class="va">thresh_val</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/cecl_marg.html">cecl_marg</a></span><span class="op">(</span></span>
+<span>  <span class="va">data</span>,</span>
+<span>  thresh_method <span class="op">=</span> <span class="st">"value"</span>,</span>
+<span>  thresh_args <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/apply.html" class="external-link">apply</a></span><span class="op">(</span><span class="va">data</span><span class="op">[</span>, <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"X1"</span>, <span class="st">"X2"</span>, <span class="st">"X3"</span><span class="op">)</span><span class="op">]</span>, <span class="fl">2</span>, <span class="va">quantile</span>, probs <span class="op">=</span> <span class="fl">0.9</span><span class="op">)</span>,</span>
+<span>  thresh_only <span class="op">=</span> <span class="cn">TRUE</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># 2. quantile</span></span>
+<span><span class="va">thresh_q</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/cecl_marg.html">cecl_marg</a></span><span class="op">(</span></span>
+<span>  <span class="va">data</span>,</span>
+<span>  thresh_method <span class="op">=</span> <span class="st">"quantile"</span>,</span>
+<span>  thresh_args <span class="op">=</span> <span class="fl">0.9</span>, </span>
+<span>  thresh_only <span class="op">=</span> <span class="cn">TRUE</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># 3. Regression</span></span>
+<span><span class="va">thresh_reg</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/cecl_marg.html">cecl_marg</a></span><span class="op">(</span></span>
+<span>  <span class="va">data</span>,</span>
+<span>  thresh_method <span class="op">=</span> <span class="st">"qgam"</span>,</span>
+<span>  thresh_args <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span></span>
+<span>    f      <span class="op">=</span> <span class="st">"response ~ name"</span>, </span>
+<span>    qu     <span class="op">=</span> <span class="fl">.9</span></span>
+<span>  <span class="op">)</span>,</span>
+<span>  thresh_only <span class="op">=</span> <span class="cn">TRUE</span>,</span>
+<span>  ret_obj <span class="op">=</span> <span class="cn">TRUE</span> <span class="co"># return `qgam` object</span></span>
+<span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] "thresholding X1"</span></span>
+<span><span class="co">#&gt; Estimating learning rate. Each dot corresponds to a loss evaluation. </span></span>
+<span><span class="co">#&gt; qu = 0.9................done </span></span>
+<span><span class="co">#&gt; [1] "thresholding X2"</span></span>
+<span><span class="co">#&gt; Estimating learning rate. Each dot corresponds to a loss evaluation. </span></span>
+<span><span class="co">#&gt; qu = 0.9.................done </span></span>
+<span><span class="co">#&gt; [1] "thresholding X3"</span></span>
+<span><span class="co">#&gt; Estimating learning rate. Each dot corresponds to a loss evaluation. </span></span>
+<span><span class="co">#&gt; qu = 0.9.................done</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/class.html" class="external-link">class</a></span><span class="op">(</span><span class="va">thresh_q</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] "cecl_thresh"          "cecl_thresh_quantile" "list"</span></span></code></pre></div>
+<p>By specifying <code>thresh_only = TRUE</code>, the
+<code>cecl_marg</code> function will only perform thresholding and
+return an object of class <code>cecl_thresh</code>, which contains the
+threshold values and the thresholded data, and, in the case of
+regression thresholding, the fitted <code>qgam</code> objects. See
+<code><a href="../reference/cecl_marg.html">?cecl_marg</a></code> for more details on the outputs and available
+argument options. Currently, no methods are implemented for the
+<code>cecl_thresh</code> class, but this may be added in future
+versions.</p>
+<p>Next, we can fit the marginal models and perform our transformation
+to standard Laplace margins. The <code>cecl_marg</code> function
+provides several in-built options for marginal fitting, specified using
+the <code>marg_method</code> argument, including: - Empirical CDF
+(<code>"ecdf"</code>), which uses the empirical CDF (ECDF) for the
+entire distribution, - stationary GPD (<code>"ismev"</code>), which fits
+a GPD to the upper tail of each variable at each location using the
+<code>ismev</code> package <span class="citation">[-@ismev]</span>, -
+non-stationary GPD (<code>"evgam"</code>), which fits a GPD to the upper
+tail of each variable at each location using the <code>evgam</code>
+package <span class="citation">[-@evgam]</span>, allowing for covariate
+effects through generalized additive models (GAMs). Here, we demonstrate
+how to use each of these marginal fitting methods with the
+<code>cecl_marg</code> function (with the <code>quantile</code>
+thresholding method):</p>
+<div class="sourceCode" id="cb4"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="co"># 1: ECDF</span></span>
+<span><span class="va">marg_ecdf</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/cecl_marg.html">cecl_marg</a></span><span class="op">(</span></span>
+<span>  <span class="va">data</span>,</span>
+<span>  thresh_method <span class="op">=</span> <span class="st">"quantile"</span>,</span>
+<span>  thresh_args <span class="op">=</span> <span class="fl">0.9</span>,</span>
+<span>  marg_method <span class="op">=</span> <span class="st">"ecdf"</span>,</span>
+<span>  ncores <span class="op">=</span> <span class="fl">1</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># 2: ismev</span></span>
+<span><span class="va">marg_ismev</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/cecl_marg.html">cecl_marg</a></span><span class="op">(</span></span>
+<span>  <span class="va">data</span>,</span>
+<span>  thresh_method <span class="op">=</span> <span class="st">"quantile"</span>,</span>
+<span>  thresh_args <span class="op">=</span> <span class="fl">0.9</span>,</span>
+<span>  marg_method <span class="op">=</span> <span class="st">"ismev"</span>,</span>
+<span>  ncores <span class="op">=</span> <span class="fl">1</span>,</span>
+<span>  <span class="co"># ret_obj = FALSE</span></span>
+<span>  ret_obj <span class="op">=</span> <span class="cn">TRUE</span></span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># 3: evgam</span></span>
+<span><span class="va">marg_evgam</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/cecl_marg.html">cecl_marg</a></span><span class="op">(</span></span>
+<span>  <span class="va">data</span>,</span>
+<span>  thresh_method <span class="op">=</span> <span class="st">"quantile"</span>,</span>
+<span>  thresh_args <span class="op">=</span> <span class="fl">0.9</span>,</span>
+<span>  marg_method <span class="op">=</span> <span class="st">"evgam"</span>,</span>
+<span>  <span class="co"># model formulae for GPD scale and shape parameters</span></span>
+<span>  marg_args <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>f <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="st">"excess ~ name"</span>, <span class="st">"~ name"</span><span class="op">)</span><span class="op">)</span>,</span>
+<span>  ncores <span class="op">=</span> <span class="fl">1</span>,</span>
+<span>  ret_obj <span class="op">=</span> <span class="cn">TRUE</span></span>
+<span><span class="op">)</span></span></code></pre></div>
+<p>Several methods are available for the <code>cecl_marg</code> class,
+including <code>print</code> and <code>summary</code>:</p>
+<div class="sourceCode" id="cb5"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">marg_ismev</span></span>
+<span><span class="co">#&gt; Call:</span></span>
+<span><span class="co">#&gt; cecl_marg(data = data, thresh_method = "quantile", thresh_args = 0.9, </span></span>
+<span><span class="co">#&gt;     marg_method = "ismev", ret_obj = TRUE, ncores = 1)</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Number of locations: 12 </span></span>
+<span><span class="co">#&gt; Variables: X1, X2, X3 </span></span>
+<span><span class="co">#&gt; Marginal method: ismev</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">marg_ismev</span>, n <span class="op">=</span> <span class="fl">5</span><span class="op">)</span> <span class="co"># show GPD parameters for the first 5 locations</span></span>
+<span><span class="co">#&gt; Call:</span></span>
+<span><span class="co">#&gt; cecl_marg(data = data, thresh_method = "quantile", thresh_args = 0.9, </span></span>
+<span><span class="co">#&gt;     marg_method = "ismev", ret_obj = TRUE, ncores = 1)</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Number of locations: 12 </span></span>
+<span><span class="co">#&gt; Variables: X1, X2, X3 </span></span>
+<span><span class="co">#&gt; Marginal method: ismev </span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Marginal Model Coefficients (first 5 rows):</span></span>
+<span><span class="co">#&gt;    name var   thresh     sigma            xi</span></span>
+<span><span class="co">#&gt; 1 loc_1  X1 2.209601 0.7142326 -0.0001212084</span></span>
+<span><span class="co">#&gt; 2 loc_1  X2 2.178900 0.8038542 -0.0288469178</span></span>
+<span><span class="co">#&gt; 3 loc_1  X3 2.173950 0.8843408 -0.1100568596</span></span>
+<span><span class="co">#&gt; 4 loc_2  X1 2.209601 0.9319517 -0.0384288992</span></span>
+<span><span class="co">#&gt; 5 loc_2  X2 2.178900 0.7121471  0.1176528462</span></span></code></pre></div>
+<p><code>summary</code> (from <code>coef</code>) prints the fitted GPD
+parameters (<code>thresh</code>, <code>sigma</code>, and
+<code>xi</code>) for each variable at each location. Since
+<code>summary</code> shows the fitted GPD parameters for each location,
+it will return an error for the ECDF method, since no GPD is fitted in
+that case.</p>
+<p>We also have access to all of the usual GPD diagnostic plots, which
+we plot here for <code>loc_1</code> and variable <code>X1</code>:</p>
+<div class="sourceCode" id="cb6"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/par.html" class="external-link">par</a></span><span class="op">(</span>mfrow <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">2</span>, <span class="fl">2</span><span class="op">)</span>, mar <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">4</span>, <span class="fl">4</span>, <span class="fl">2</span>, <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">marg_ismev</span>, which <span class="op">=</span> <span class="st">"pp"</span>, loc <span class="op">=</span> <span class="st">"loc_1"</span>, var <span class="op">=</span> <span class="st">"X1"</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">marg_ismev</span>, which <span class="op">=</span> <span class="st">"qq"</span>, loc <span class="op">=</span> <span class="st">"loc_1"</span>, var <span class="op">=</span> <span class="st">"X1"</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">marg_ismev</span>, which <span class="op">=</span> <span class="st">"return"</span>, loc <span class="op">=</span> <span class="st">"loc_1"</span>, var <span class="op">=</span> <span class="st">"X1"</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">marg_ismev</span>, which <span class="op">=</span> <span class="st">"hist"</span>, loc <span class="op">=</span> <span class="st">"loc_1"</span>, var <span class="op">=</span> <span class="st">"X1"</span><span class="op">)</span></span></code></pre></div>
+<p><img src="CeCl_files/figure-html/marginal_plots-1.png" class="r-plt" width="100%" style="display: block; margin: auto;"></p>
+<p>These plots are also available through <code>ggplot</code>:</p>
+<div class="sourceCode" id="cb7"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="va">marg_ismev</span>, which <span class="op">=</span> <span class="st">"pp"</span>, loc <span class="op">=</span> <span class="st">"loc_1"</span>, var <span class="op">=</span> <span class="st">"X1"</span><span class="op">)</span> <span class="op">+</span> </span>
+<span>   <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="va">marg_ismev</span>, which <span class="op">=</span> <span class="st">"qq"</span>, loc <span class="op">=</span> <span class="st">"loc_1"</span>, var <span class="op">=</span> <span class="st">"X1"</span><span class="op">)</span><span class="op">)</span> <span class="op">/</span> </span>
+<span>  <span class="op">(</span></span>
+<span>    <span class="op">(</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="va">marg_ismev</span>, which <span class="op">=</span> <span class="st">"return"</span>, loc <span class="op">=</span> <span class="st">"loc_1"</span>, var <span class="op">=</span> <span class="st">"X1"</span><span class="op">)</span> <span class="op">+</span> </span>
+<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/theme.html" class="external-link">theme</a></span><span class="op">(</span>axis.text.x <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/element.html" class="external-link">element_text</a></span><span class="op">(</span>angle <span class="op">=</span> <span class="fl">45</span>, hjust <span class="op">=</span> <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span>
+<span>  <span class="op">)</span> <span class="op">+</span> </span>
+<span>     <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="va">marg_ismev</span>, which <span class="op">=</span> <span class="st">"hist"</span>, loc <span class="op">=</span> <span class="st">"loc_1"</span>, var <span class="op">=</span> <span class="st">"X1"</span><span class="op">)</span><span class="op">)</span></span></code></pre></div>
+<p><img src="CeCl_files/figure-html/marginal_ggplot-1.png" class="r-plt" width="100%" style="display: block; margin: auto;"></p>
+<p>Unsurprisingly, since we specified GP margins when simulating the
+data, the GPD fits appear to be quite good, for 100 observations in the
+tail (10% of 1000 observations per location). Future versions of the
+package will also include methods for visualising the standard Laplace
+transformed data.</p>
+<p>However, We also recognise that marginal fitting in extremes can be a
+complex task, and users may wish to use their own preferred methods for
+marginal fitting. Therefore, the <code>CeCl</code> package also provides
+the <code>to_cecl_marg</code> function to allow users to provide their
+own marginally transformed data in standard Laplace margins.
+<!-- To illustrate the use of this function, we can provide the transformed data from `ismev` and have `to_cecl_marg` return an object of class `cecl_marg`. -->
+Since we know the parameter values of our GPD margins, we can cheat a
+little and provide standard Laplace transformed data directly, using the
+fact that the rescaled scale parameter is given by
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msub><mi>σ</mi><mi>ν</mi></msub><mo>=</mo><msub><mi>σ</mi><mi>u</mi></msub><mo>+</mo><mi>ξ</mi><mrow><mo stretchy="true" form="prefix">(</mo><mi>ν</mi><mo>−</mo><mi>u</mi><mo stretchy="true" form="postfix">)</mo></mrow></mrow><annotation encoding="application/x-tex">\sigma_{\nu} = \sigma_u + \xi (\nu - u)</annotation></semantics></math>,
+where
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>ν</mi><annotation encoding="application/x-tex">\nu</annotation></semantics></math>
+and
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>u</mi><annotation encoding="application/x-tex">u</annotation></semantics></math>
+are the new and old thresholds, respectively. <!-- ```{r, to_cecl_marg}
+data_trans <- marg_ismev$transformed # list, but can be data.frame/tibble
+marg_custom <- as_cecl_marg(data_trans)
+marg_custom
+``` --></p>
+<div class="sourceCode" id="cb8"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">locs</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/unique.html" class="external-link">unique</a></span><span class="op">(</span><span class="va">data</span><span class="op">$</span><span class="va">name</span><span class="op">)</span></span>
+<span><span class="va">vars</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">data</span><span class="op">)</span><span class="op">[</span><span class="fl">1</span><span class="op">:</span><span class="va">n_vars</span><span class="op">]</span></span>
+<span><span class="va">gpd_vals</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/coef.html" class="external-link">coef</a></span><span class="op">(</span><span class="va">marg_ismev</span><span class="op">)</span> <span class="op">|&gt;</span> <span class="co"># pull out GPD estimates</span></span>
+<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/mutate.html" class="external-link">mutate</a></span><span class="op">(</span></span>
+<span>    <span class="co"># replace GPD estimates with (re-scaled) true values</span></span>
+<span>    xi <span class="op">=</span> <span class="op">-</span><span class="fl">0.05</span>,</span>
+<span>    sigma <span class="op">=</span> <span class="fl">1</span> <span class="op">+</span> <span class="op">(</span><span class="va">xi</span> <span class="op">*</span> <span class="va">thresh</span><span class="op">)</span>,</span>
+<span>    <span class="co"># change name and var to factors to ensure correct ordering when splitting</span></span>
+<span>    name <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="va">name</span>, levels <span class="op">=</span> <span class="va">locs</span><span class="op">)</span>,</span>
+<span>    var  <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="va">var</span>, levels <span class="op">=</span> <span class="va">vars</span><span class="op">)</span></span>
+<span>  <span class="op">)</span> <span class="op">|&gt;</span> </span>
+<span>  <span class="fu"><a href="https://dplyr.tidyverse.org/reference/group_split.html" class="external-link">group_split</a></span><span class="op">(</span><span class="va">name</span>, .keep <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span> <span class="op">|&gt;</span> </span>
+<span>  <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">lapply</a></span><span class="op">(</span>\<span class="op">(</span><span class="va">x</span><span class="op">)</span> <span class="fu"><a href="https://dplyr.tidyverse.org/reference/group_split.html" class="external-link">group_split</a></span><span class="op">(</span><span class="va">x</span>, <span class="va">var</span>, .keep <span class="op">=</span> <span class="cn">FALSE</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">gpd_vals</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/lapply.html" class="external-link">lapply</a></span><span class="op">(</span><span class="va">gpd_vals</span>, <span class="va">`names&lt;-`</span>, <span class="va">vars</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">gpd_vals</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="va">locs</span></span>
+<span></span>
+<span><span class="co"># perform transformation to standard Laplace margins (function from `CeCl`)</span></span>
+<span><span class="va">data_laplace</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/trans_marg.html">trans_marg</a></span><span class="op">(</span><span class="va">gpd_vals</span>, <span class="va">data</span>, vars <span class="op">=</span> <span class="va">vars</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">data_laplace</span><span class="op">)</span> <span class="op">&lt;-</span> <span class="va">locs</span></span>
+<span></span>
+<span><span class="co"># convert to cecl_marg object</span></span>
+<span><span class="va">marg_custom</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/as_cecl_marg.html">as_cecl_marg</a></span><span class="op">(</span><span class="va">data_laplace</span><span class="op">)</span></span></code></pre></div>
+<p>User-specified marginal transformations work the same as those fitted
+with <code>cecl_marg</code> using the ECDF method, in that no GPD
+parameters are stored, so plotting methods are not available.
+<!-- Future versions of the package may also allow users to provide their own fitted GPD parameters for each location and variable, with `as_cecl_marg` performing the necessary transformations. -->
+Future versions of the package will automate the above process, allowing
+GPD parameters to be provided directly to <code>as_cecl_marg</code>,
+which will then perform the necessary transformations.</p>
+<p>Since we know that we’ve used the true marginal parameters here, we
+will proceed with the <code>marg_custom</code> object for dependence
+fitting.</p>
+<div class="sourceCode" id="cb9"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">marg</span> <span class="op">&lt;-</span> <span class="va">marg_custom</span></span></code></pre></div>
+</div>
+<div class="section level2">
+<h2 id="dependence-fits">Dependence Fits<a class="anchor" aria-label="anchor" href="#dependence-fits"></a>
+</h2>
+<p>Next, we fit the CE dependence model to each location using the
+<code>cecl_dep</code> function.</p>
+<div class="sourceCode" id="cb10"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">dep</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/cecl_dep.html">cecl_dep</a></span><span class="op">(</span><span class="va">marg</span>, cond_prob <span class="op">=</span> <span class="fl">0.9</span>, fit_no_keef <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span></span></code></pre></div>
+<p>Choosing the conditioning probability is an important step in fitting
+the CE model, as it determines the threshold above which the model is
+fitted. In <span class="citation">[@otoole2025]</span>, following from
+the <code>texmexMultivariate</code> vignette for <span class="citation">[@texmex]</span>, bootstrapped estimates of
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>α</mi><annotation encoding="application/x-tex">\alpha</annotation></semantics></math>
+and
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>β</mi><annotation encoding="application/x-tex">\beta</annotation></semantics></math>
+across a range of conditioning quantiles were used to identify a
+suitable conditioning level, as the highest quantile at which the
+estimates stabilised. Future versions of the package will include a
+bootstrapping procedure to assist with this task.</p>
+<p>The <code>cecl_dep</code> function contains several arguments to
+control the fitting procedure, including: - <code>start</code>: a list
+of starting values for the CE parameters
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>α</mi><annotation encoding="application/x-tex">\alpha</annotation></semantics></math>
+and
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>β</mi><annotation encoding="application/x-tex">\beta</annotation></semantics></math>.
+In the future, we will allow different starting values for each
+location. - <code>nruns</code>: the number of optimisation runs to
+perform for each location. - <code>aLow</code>: lower bound for
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>α</mi><annotation encoding="application/x-tex">\alpha</annotation></semantics></math>
+parameters. For instance, we may wish to restrict
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>α</mi><annotation encoding="application/x-tex">\alpha</annotation></semantics></math>
+to be non-negative as we expect positive tail dependence. -
+<code>fixed_b</code>: a logical indicating whether to fix
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>β</mi><annotation encoding="application/x-tex">\beta</annotation></semantics></math>
+parameters to it’s starting value, which can be useful for
+interpretation by estimating only the
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>α</mi><annotation encoding="application/x-tex">\alpha</annotation></semantics></math>
+parameters. - <code>fit_no_keef</code>: a logical indicating whether to
+fit the model without the Keef et al. (2013) constraints <span class="citation">[-@Keef2013]</span>, which can sometimes be too
+restrictive and cause optimisation issues. Furthermore, for Linux and
+Mac users with multiple cores available, the fitting can be parallelised
+using the <code>ncores</code> argument. This is also true of all
+functions including an <code>ncores</code> argument, including
+<code>cecl_marg</code>.</p>
+<p>The <code>cecl_dep</code> function returns an object of class
+<code>cecl_dep</code>, which has several methods available:</p>
+<div class="sourceCode" id="cb11"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">dep</span></span>
+<span><span class="co">#&gt; Call:</span></span>
+<span><span class="co">#&gt; cecl_dep(obj = marg, cond_prob = 0.9, fit_no_keef = TRUE)</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Number of locations: 12 </span></span>
+<span><span class="co">#&gt; Variables: X1, X2, X3</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">dep</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt;    name var cond_var           a         b          m         s       ll</span></span>
+<span><span class="co">#&gt; 1 loc_1  X1       X2  0.65632916 0.3946159 -0.8047117 1.2812492 199.8645</span></span>
+<span><span class="co">#&gt; 2 loc_1  X1       X3 -0.41647639 0.8069403  0.5257057 0.8399368 192.8370</span></span>
+<span><span class="co">#&gt; 3 loc_1  X2       X1 -0.23430053 0.7055356  0.5123284 0.9967373 202.5795</span></span>
+<span><span class="co">#&gt; 4 loc_1  X2       X3 -0.09629775 0.8352500  0.1508311 0.8459299 197.4836</span></span>
+<span><span class="co">#&gt; 5 loc_1  X3       X1 -0.99999965 0.7459580  1.3754470 0.8556436 192.0174</span></span>
+<span><span class="co">#&gt; 6 loc_1  X3       X2 -0.99971991 0.8986208  1.1682555 0.7172376 187.9236</span></span>
+<span><span class="co">#&gt;        dth</span></span>
+<span><span class="co">#&gt; 1 1.601482</span></span>
+<span><span class="co">#&gt; 2 1.601482</span></span>
+<span><span class="co">#&gt; 3 1.601482</span></span>
+<span><span class="co">#&gt; 4 1.601482</span></span>
+<span><span class="co">#&gt; 5 1.601482</span></span>
+<span><span class="co">#&gt; 6 1.601482</span></span></code></pre></div>
+<p>Future versions of the package will also include a
+<code>predict</code> method for generating conditional simulations from
+the fitted CE models, as found in the <code>texmex</code> package <span class="citation">[@texmex]</span>.</p>
+<p>We also have access to several diagnostic plots for the fitted CE
+models: - <code>residual</code> plots the residuals
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mi>Z</mi><annotation encoding="application/x-tex">Z</annotation></semantics></math>
+against large values of the conditioning variable, -
+<code>quantile</code> plots quantiles of the fitted CE model against the
+conditioning variable (on the standard Laplace scale), -
+<code>scatter</code> plots the
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>a</mi><mi>l</mi><mi>p</mi><mi>h</mi><mi>a</mi></mrow><annotation encoding="application/x-tex">alpha</annotation></semantics></math>
+and
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>b</mi><mi>e</mi><mi>t</mi><mi>a</mi></mrow><annotation encoding="application/x-tex">beta</annotation></semantics></math>
+parameters against each other for a given variable and conditioning
+variable. Let’s plot these for the fifth location, which has reasonable
+dependence, and produce a scatter plot of
+<math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mo stretchy="true" form="prefix">(</mo><mi>α</mi><mo>,</mo><mi>β</mi><mo stretchy="true" form="postfix">)</mo></mrow><annotation encoding="application/x-tex">(\alpha, \beta)</annotation></semantics></math>
+values across all locations for <code>X1</code> conditioned on
+<code>X2</code>:</p>
+<div class="sourceCode" id="cb12"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/par.html" class="external-link">par</a></span><span class="op">(</span>mfrow <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">3</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">dep</span>, which <span class="op">=</span> <span class="st">"residual"</span>, var <span class="op">=</span> <span class="st">"X1"</span>, cond_var <span class="op">=</span> <span class="st">"X2"</span>, loc <span class="op">=</span> <span class="st">"loc_5"</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">dep</span>, which <span class="op">=</span> <span class="st">"quantile"</span>, var <span class="op">=</span> <span class="st">"X1"</span>, cond_var <span class="op">=</span> <span class="st">"X2"</span>, loc <span class="op">=</span> <span class="st">"loc_5"</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">dep</span>, which <span class="op">=</span> <span class="st">"scatter"</span>, var <span class="op">=</span> <span class="st">"X1"</span>, cond_var <span class="op">=</span> <span class="st">"X2"</span><span class="op">)</span></span></code></pre></div>
+<p><img src="CeCl_files/figure-html/dependence_plots-1.png" class="r-plt" width="100%" style="display: block; margin: auto;"></p>
+<p>The residual plot should roughly show no obvious patterns (as
+indicated by the horizontal trend), and the quantile plot should look
+sensible.
+<!-- Lines in the same direction indicate that the dependence is asymptotically dependent, while lines in opposite directions indicate asymptotic independence. -->
+Again, these plots are also available through <code>ggplot</code>:</p>
+<div class="sourceCode" id="cb13"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="va">dep</span>, which <span class="op">=</span> <span class="st">"residual"</span>, var <span class="op">=</span> <span class="st">"X1"</span>, cond_var <span class="op">=</span> <span class="st">"X2"</span>, loc <span class="op">=</span> <span class="st">"loc_5"</span><span class="op">)</span> <span class="op">+</span> </span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="va">dep</span>, which <span class="op">=</span> <span class="st">"quantile"</span>, var <span class="op">=</span> <span class="st">"X1"</span>, cond_var <span class="op">=</span> <span class="st">"X2"</span>, loc <span class="op">=</span> <span class="st">"loc_5"</span><span class="op">)</span> <span class="op">+</span></span>
+<span>  <span class="op">(</span></span>
+<span>    <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="va">dep</span>, which <span class="op">=</span> <span class="st">"scatter"</span>, var <span class="op">=</span> <span class="st">"X1"</span>, cond_var <span class="op">=</span> <span class="st">"X2"</span><span class="op">)</span> <span class="op">+</span> </span>
+<span>      <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/theme.html" class="external-link">theme</a></span><span class="op">(</span>axis.text.x <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/element.html" class="external-link">element_text</a></span><span class="op">(</span>angle <span class="op">=</span> <span class="fl">45</span>, hjust <span class="op">=</span> <span class="fl">1</span><span class="op">)</span><span class="op">)</span></span>
+<span>  <span class="op">)</span></span>
+<span><span class="co">#&gt; `geom_smooth()` using method = 'loess' and formula = 'y ~ x'</span></span></code></pre></div>
+<p><img src="CeCl_files/figure-html/dependence_ggplot-1.png" class="r-plt" width="100%" style="display: block; margin: auto;"></p>
+<p>It is a good idea to print these diagnostic plots for all locations
+and variable combinations to ensure that the fits are sensible before
+proceeding to clustering. For example, to print all residual and
+quantile plots to a PDF, you could run something like:</p>
+<div class="sourceCode" id="cb14"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/grDevices/pdf.html" class="external-link">pdf</a></span><span class="op">(</span><span class="st">"cecl_dep_diagnostics.pdf"</span>, width <span class="op">=</span> <span class="fl">8</span>, height <span class="op">=</span> <span class="fl">6</span><span class="op">)</span></span>
+<span><span class="kw">for</span> <span class="op">(</span><span class="va">loc</span> <span class="kw">in</span> <span class="fu"><a href="https://rdrr.io/r/base/unique.html" class="external-link">unique</a></span><span class="op">(</span><span class="va">data</span><span class="op">$</span><span class="va">name</span><span class="op">)</span><span class="op">)</span> <span class="op">{</span></span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="va">dep</span>, which <span class="op">=</span> <span class="st">"residual"</span>, var <span class="op">=</span> <span class="st">"X1"</span>, cond_var <span class="op">=</span> <span class="st">"X2"</span>, loc <span class="op">=</span> <span class="va">loc</span><span class="op">)</span> <span class="op">+</span> </span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="va">dep</span>, which <span class="op">=</span> <span class="st">"quantile"</span>, var <span class="op">=</span> <span class="st">"X1"</span>, cond_var <span class="op">=</span> <span class="st">"X2"</span>, loc <span class="op">=</span> <span class="va">loc</span><span class="op">)</span></span>
+<span><span class="op">}</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/grDevices/dev.html" class="external-link">dev.off</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level2">
+<h2 id="clustering">Clustering<a class="anchor" aria-label="anchor" href="#clustering"></a>
+</h2>
+<p>Finally, we can cluster the fitted CE models using the skew-geometric
+Jensen-Shannon based dissimilarity measure proposed in <span class="citation">[@otoole2025]</span>. First, to calculate the
+dissimilarity matrix, we can use the <code>cecl_dist</code>
+function:</p>
+<div class="sourceCode" id="cb15"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">dist</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/cecl_dist.html">cecl_dist</a></span><span class="op">(</span><span class="va">dep</span>, <span class="va">marg_ismev</span>, seed <span class="op">=</span> <span class="va">seed</span><span class="op">)</span></span></code></pre></div>
+<p><code>cecl_dist</code> also has several arguments to control the
+distance calculation, including: - <code>laplace_cap</code>: The
+divergence is estimating using Monte Carlo integration, simulating
+values of the conditioning variable from a standard Laplace
+distribution. To avoid issues with extremely large values on the
+standard Laplace scale, we cap the maximum quantile used for simulation
+at <code>laplace_cap</code> (default 0.99). - <code>n_mc</code>: The
+number of Monte Carlo samples to use for estimating the divergence. -
+<code>par_dist</code>: An optional argument to parallelise the distance
+calculation itself, rather than parallelising across conditioning
+variables. Useful when the number of locations is large.</p>
+<p>The <code>cecl_dist</code> function returns an object of class
+<code>cecl_dist</code>, which has several methods available:</p>
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">dist</span></span>
+<span><span class="co">#&gt; Distance matrix of class 'cecl_dist'</span></span>
+<span><span class="co">#&gt; Number of locations: 12 </span></span>
+<span><span class="co">#&gt; Variables: X1, X2, X3</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">dist</span><span class="op">)</span> <span class="co"># gives summary of aggregated dissimilarity matrix</span></span>
+<span><span class="co">#&gt;     Min.  1st Qu.   Median     Mean  3rd Qu.     Max. </span></span>
+<span><span class="co">#&gt; 0.002454 0.013034 0.097200 0.154738 0.161740 0.476989</span></span></code></pre></div>
+<p>We can produce a scree plot of the total within-group sum of squares
+(TWGSS) for different numbers of clusters <code>k</code>, as well as a
+heatmap/image of the dissimilarity matrix:</p>
+<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/par.html" class="external-link">par</a></span><span class="op">(</span>mfrow <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">2</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/invisible.html" class="external-link">invisible</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">dist</span>, which <span class="op">=</span> <span class="st">"scree"</span><span class="op">)</span><span class="op">)</span> <span class="co"># normally prints TWGSS for each k</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">dist</span>, which <span class="op">=</span> <span class="st">"image"</span><span class="op">)</span></span></code></pre></div>
+<p><img src="CeCl_files/figure-html/distance_plots-1.png" class="r-plt" width="100%" style="display: block; margin: auto;"></p>
+<p>And also in <code>ggplot</code>:</p>
+<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="va">dist</span>, which <span class="op">=</span> <span class="st">"scree"</span><span class="op">)</span><span class="op">$</span><span class="va">plot</span> <span class="op">+</span> </span>
+<span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="va">dist</span>, which <span class="op">=</span> <span class="st">"image"</span><span class="op">)</span></span></code></pre></div>
+<p><img src="CeCl_files/figure-html/distance_ggplot-1.png" class="r-plt" width="100%" style="display: block; margin: auto;"></p>
+<p>Unsurprisingly, the scree plot should show a clear “elbow” at the
+true number of clusters (3 in this case), and the dissimilarity matrix
+should show three distinct blocks along the diagonal.</p>
+<p>Finally, we can perform clustering using the <code>cecl_clust</code>
+function:</p>
+<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">clust</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/cecl_clust.html">cecl_clust</a></span><span class="op">(</span></span>
+<span>  <span class="va">dist</span>, </span>
+<span>  k <span class="op">=</span> <span class="fl">3</span>, </span>
+<span>  cluster_mem <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/sort.html" class="external-link">sort</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fl">1</span><span class="op">:</span><span class="fl">3</span>, each <span class="op">=</span> <span class="fl">4</span><span class="op">)</span><span class="op">)</span>, <span class="co"># known cluster membership</span></span>
+<span>  seed <span class="op">=</span> <span class="va">seed</span> </span>
+<span><span class="op">)</span></span></code></pre></div>
+<p>Optionally, we can also run <code>cecl_clust</code> on the
+<code>cecl_dep</code> and <code>cecl_marg</code> objects directly,
+without needing to calculate the distance matrix first:</p>
+<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">clust_dep</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/cecl_clust.html">cecl_clust</a></span><span class="op">(</span></span>
+<span>  <span class="va">dep</span>,</span>
+<span>  <span class="va">marg_ismev</span>,</span>
+<span>  k <span class="op">=</span> <span class="fl">3</span>,</span>
+<span>  cluster_mem <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/sort.html" class="external-link">sort</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/rep.html" class="external-link">rep</a></span><span class="op">(</span><span class="fl">1</span><span class="op">:</span><span class="fl">3</span>, each <span class="op">=</span> <span class="fl">4</span><span class="op">)</span><span class="op">)</span>, <span class="co"># known cluster membership</span></span>
+<span>  seed <span class="op">=</span> <span class="va">seed</span> </span>
+<span><span class="op">)</span></span>
+<span></span>
+<span><span class="co"># confirm that results of two `cecl_clust` methods are identical</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/all.equal.html" class="external-link">all.equal</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/class.html" class="external-link">unclass</a></span><span class="op">(</span><span class="va">clust</span><span class="op">)</span>, <span class="fu"><a href="https://rdrr.io/r/base/class.html" class="external-link">unclass</a></span><span class="op">(</span><span class="va">clust_dep</span><span class="op">[</span><span class="fu"><a href="https://rdrr.io/r/base/names.html" class="external-link">names</a></span><span class="op">(</span><span class="va">clust_dep</span><span class="op">)</span> <span class="op">!=</span> <span class="st">"dist_obj"</span><span class="op">]</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt; [1] TRUE</span></span></code></pre></div>
+<p><code>clust_dep$dist_obj</code> will be identical to the output of
+<code>cecl_dist</code> calculated previously, in case the user wishes to
+inspect it.</p>
+<p>The <code>cecl_clust</code> function returns an object of class
+<code>cecl_clust</code>, which has several methods available:</p>
+<div class="sourceCode" id="cb21"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">clust</span></span>
+<span><span class="co">#&gt; Clustering results of class 'cecl_clust'</span></span>
+<span><span class="co">#&gt; Number of locations: 12 </span></span>
+<span><span class="co">#&gt; Number of clusters: 3 </span></span>
+<span><span class="co">#&gt; Adjusted Rand index: 1</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/summary.html" class="external-link">summary</a></span><span class="op">(</span><span class="va">clust</span><span class="op">)</span></span>
+<span><span class="co">#&gt; Medoids:</span></span>
+<span><span class="co">#&gt;      ID         </span></span>
+<span><span class="co">#&gt; [1,] "3" "loc_3"</span></span>
+<span><span class="co">#&gt; [2,] "5" "loc_5"</span></span>
+<span><span class="co">#&gt; [3,] "9" "loc_9"</span></span>
+<span><span class="co">#&gt; Clustering vector:</span></span>
+<span><span class="co">#&gt;  loc_1  loc_2  loc_3  loc_4  loc_5  loc_6  loc_7  loc_8  loc_9 loc_10 loc_11 </span></span>
+<span><span class="co">#&gt;      1      1      1      1      2      2      2      2      3      3      3 </span></span>
+<span><span class="co">#&gt; loc_12 </span></span>
+<span><span class="co">#&gt;      3 </span></span>
+<span><span class="co">#&gt; Objective function:</span></span>
+<span><span class="co">#&gt;       build        swap </span></span>
+<span><span class="co">#&gt; 0.004874233 0.004874233 </span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Numerical information per cluster:</span></span>
+<span><span class="co">#&gt;      size    max_diss     av_diss   diameter separation</span></span>
+<span><span class="co">#&gt; [1,]    4 0.008410853 0.003980231 0.01119181 0.06585687</span></span>
+<span><span class="co">#&gt; [2,]    4 0.007392932 0.005019369 0.01024108 0.06585687</span></span>
+<span><span class="co">#&gt; [3,]    4 0.009761591 0.005623098 0.01407303 0.08046704</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Isolated clusters:</span></span>
+<span><span class="co">#&gt;  L-clusters: character(0)</span></span>
+<span><span class="co">#&gt;  L*-clusters: [1] 1 2 3</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Silhouette plot information:</span></span>
+<span><span class="co">#&gt;        cluster neighbor sil_width</span></span>
+<span><span class="co">#&gt; loc_3        1        2 0.9441209</span></span>
+<span><span class="co">#&gt; loc_4        1        2 0.9348022</span></span>
+<span><span class="co">#&gt; loc_1        1        2 0.9347957</span></span>
+<span><span class="co">#&gt; loc_2        1        2 0.8910212</span></span>
+<span><span class="co">#&gt; loc_5        2        1 0.9233402</span></span>
+<span><span class="co">#&gt; loc_8        2        1 0.9212550</span></span>
+<span><span class="co">#&gt; loc_7        2        1 0.9153137</span></span>
+<span><span class="co">#&gt; loc_6        2        1 0.8995880</span></span>
+<span><span class="co">#&gt; loc_9        3        2 0.9433953</span></span>
+<span><span class="co">#&gt; loc_10       3        2 0.9273822</span></span>
+<span><span class="co">#&gt; loc_12       3        2 0.9248353</span></span>
+<span><span class="co">#&gt; loc_11       3        2 0.9041223</span></span>
+<span><span class="co">#&gt; Average silhouette width per cluster:</span></span>
+<span><span class="co">#&gt; [1] 0.9261850 0.9148742 0.9249338</span></span>
+<span><span class="co">#&gt; Average silhouette width of total data set:</span></span>
+<span><span class="co">#&gt; [1] 0.9219977</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Available components:</span></span>
+<span><span class="co">#&gt; [1] "medoids"    "id.med"     "clustering" "objective"  "isolation" </span></span>
+<span><span class="co">#&gt; [6] "clusinfo"   "silinfo"    "diss"       "call"</span></span></code></pre></div>
+<p>We can see that the clustering has perfectly recovered the true
+clusters based on the Adjusted Rand Index (ARI) of 1. The
+<code>summary</code> method is that of <code>pam</code>. However, since
+silhouette widths are not applicable for our dissimilarity measure,
+please ignore this part of the output (we may remove this in future
+versions).</p>
+<p>We can also produce the <code>scatter</code> and <code>image</code>
+plots from previous sections, but this time with the locations ordered
+and coloured by their assigned cluster:</p>
+<div class="sourceCode" id="cb22"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/par.html" class="external-link">par</a></span><span class="op">(</span>mfrow <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">2</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">clust</span>, which <span class="op">=</span> <span class="st">"scatter"</span>, var <span class="op">=</span> <span class="st">"X1"</span>, cond_var <span class="op">=</span> <span class="st">"X2"</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">clust</span>, which <span class="op">=</span> <span class="st">"image"</span><span class="op">)</span></span></code></pre></div>
+<p><img src="CeCl_files/figure-html/clustering_plots-1.png" class="r-plt" width="100%" style="display: block; margin: auto;"></p>
+<p>And also in <code>ggplot</code>:</p>
+<div class="sourceCode" id="cb23"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="va">clust</span>, which <span class="op">=</span> <span class="st">"scatter"</span>, var <span class="op">=</span> <span class="st">"X1"</span>, cond_var <span class="op">=</span> <span class="st">"X2"</span><span class="op">)</span> <span class="op">+</span> </span>
+<span>  <span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="va">clust</span>, which <span class="op">=</span> <span class="st">"image"</span><span class="op">)</span> <span class="op">+</span> </span>
+<span>     <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/theme.html" class="external-link">theme</a></span><span class="op">(</span></span>
+<span>      axis.text.x <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/element.html" class="external-link">element_text</a></span><span class="op">(</span>size <span class="op">=</span> <span class="fl">10</span>, angle <span class="op">=</span> <span class="fl">45</span>, hjust <span class="op">=</span> <span class="fl">1</span><span class="op">)</span>,</span>
+<span>      axis.text.y <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/element.html" class="external-link">element_text</a></span><span class="op">(</span>size <span class="op">=</span> <span class="fl">10</span><span class="op">)</span>,</span>
+<span>      legend.title <span class="op">=</span> <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/element.html" class="external-link">element_text</a></span><span class="op">(</span>size <span class="op">=</span> <span class="fl">12</span><span class="op">)</span></span>
+<span>     <span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt; Warning: Vectorized input to `element_text()` is not officially supported.</span></span>
+<span><span class="co">#&gt; <span style="color: #00BBBB;">ℹ</span> Results may be unexpected or may change in future versions of ggplot2.</span></span>
+<span><span class="co">#&gt; Vectorized input to `element_text()` is not officially supported.</span></span>
+<span><span class="co">#&gt; <span style="color: #00BBBB;">ℹ</span> Results may be unexpected or may change in future versions of ggplot2.</span></span></code></pre></div>
+<p><img src="CeCl_files/figure-html/ggplot_clust-1.png" class="r-plt" width="100%" style="display: block; margin: auto;"></p>
+<p>In conclusion, we have successfully used the <code>CeCl</code>
+package to cluster multivariate data based on their tail dependence
+structures using the conditional extremes model. Please refer to the
+package documentation for more details on the available functions and
+methods, or contact the author for any questions or suggestions.</p>
+</div>
+<div class="section level2">
+<h2 id="references">References<a class="anchor" aria-label="anchor" href="#references"></a>
+</h2>
+</div>
   </div>
 
   <div class="col-md-3 hidden-xs hidden-sm" id="pkgdown-sidebar">
