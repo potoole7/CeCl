@@ -26,6 +26,19 @@ TODO (text):
 - Read very very carefully!!
 
 TODO (marginal)
+- Marginal plotting methods don't calculate residuals properly
+  - ggplot:
+    - Fix residual calculation (done)
+    - Fix QQ, PP, hist, return level plots (done)
+    - Add density plot
+    - Add uncertainty to PP and QQ plots!
+    - Fix for evgam output as well (vector of parameter estimates)
+  - plot:
+    - Fix residual calculation (done)
+    - Fix QQ, PP, hist, return level plots
+    - add density plot
+    - Add uncertainty to PP and QQ plots!
+    - fix for evgam output as well
 - Explain that currently only supported for single predictor (location, individual, etc) (also add to package!!)
 - Fix plotting methods for evgam fits! Only working for ismev
 - Allow different `qgam` and `evgam` formulae for each variable
@@ -170,7 +183,6 @@ thresh_q <- cecl_marg(
 )
 
 # 3. Regression
-# TODO Fix!
 thresh_reg <- cecl_marg(
   data,
   thresh_method = "qgam",
@@ -250,7 +262,11 @@ These plots are also available through `ggplot`:
 ```{r, marginal_ggplot}
 (ggplot(marg_ismev, which = "pp", loc = "loc_1", var = "X1") + 
    ggplot(marg_ismev, which = "qq", loc = "loc_1", var = "X1")) / 
-  (ggplot(marg_ismev, which = "return", loc = "loc_1", var = "X1") + 
+  (
+    (
+  ggplot(marg_ismev, which = "return", loc = "loc_1", var = "X1") + 
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  ) + 
      ggplot(marg_ismev, which = "hist", loc = "loc_1", var = "X1"))
 ```
 
@@ -306,7 +322,6 @@ marg <- marg_custom
 
 Next, we fit the CE dependence model to each location using the `cecl_dep` function.
 ```{r, dependence_fit}
-# TODO Investigate why this is failing !!!
 dep <- cecl_dep(marg, cond_prob = 0.9, fit_no_keef = TRUE)
 ```
 
@@ -348,7 +363,10 @@ Again, these plots are also available through `ggplot`:
 ```{r, dependence_ggplot}
 ggplot(dep, which = "residual", var = "X1", cond_var = "X2", loc = "loc_5") + 
   ggplot(dep, which = "quantile", var = "X1", cond_var = "X2", loc = "loc_5") +
-  ggplot(dep, which = "scatter", var = "X1", cond_var = "X2")
+  (
+    ggplot(dep, which = "scatter", var = "X1", cond_var = "X2") + 
+      theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  )
 ```
 
 It is a good idea to print these diagnostic plots for all locations and variable combinations to ensure that the fits are sensible before proceeding to clustering.

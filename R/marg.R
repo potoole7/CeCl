@@ -996,7 +996,7 @@ summary.cecl_marg <- \(object, n, ...) {
 #' @param mult_col Name of the column representing locations, default `"name"`.
 #' @param var Variable name to plot.
 #' @param return_periods Return periods for return level plot,
-#' Default c(1.5, 2, 5, 10, 20, 50, 100, 200).
+#' Default c(1.5, 2.5, 5, 10, 20, 50, 100, 200).
 #' @param nboot Number of bootstrap samples for return level plot confidence
 #' intervals, Default 200.
 #' @param ci_quantiles Quantiles for confidence intervals in return level plot,
@@ -1039,7 +1039,7 @@ plot.cecl_marg <- \(
   loc,
   mult_col = "name",
   var,
-  return_periods = c(1.5, 2, 5, 10, 20, 50, 100, 200),
+  return_periods = c(1.5, 2.5, 5, 10, 20, 50, 100, 200),
   nboot = 200,
   ci_quantiles = c(0.025, 0.975),
   log_scale = TRUE,
@@ -1299,7 +1299,7 @@ ggplot.cecl_marg <- \(
   loc,
   var,
   mult_col = "name",
-  return_periods = c(1.5, 2, 5, 10, 20, 50, 100, 200),
+  return_periods = c(1.5, 2.5, 5, 10, 20, 50, 100, 200),
   nboot = 200,
   ci_quantiles = c(0.025, 0.975),
   log_scale = TRUE,
