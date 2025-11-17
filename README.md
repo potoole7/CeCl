@@ -75,7 +75,6 @@ gen_t <- \(cor_t, n_vars = 2, n = 1000, n_locs = 5) {
   # generate data
   cop_t <- tCopula(param = cor_t, dim = n_vars, df = 3, dispstr = "ex")
   u <- rCopula(n, cop_t)
-  # data <- data.frame(apply(u, 2, qt, df = 3))
   data <- data.frame(apply(u, 2, qgpd, xi = -0.05, sigma = 1, u = 0))
 }
 
