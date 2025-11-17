@@ -25,3 +25,5 @@ News.md
 \.*gcov$
 ^.*\.Rproj$
 ^\.Rproj\.user$
+^doc$
+^Meta$
