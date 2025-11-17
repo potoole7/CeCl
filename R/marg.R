@@ -711,10 +711,11 @@ fit_marg <- \(
 #' "name".
 #' @param vars Names of variable columns.
 #' @return List of matrices transformed to Laplace margins for each location.
+#' @export
 trans_marg <- \(
   marginal,
   data_df,
-  mult_col = NULL,
+  mult_col = "name",
   vars
 ) {
   # Calculate dependence from marginals (default output object)
@@ -994,7 +995,15 @@ summary.cecl_marg <- \(object, n, ...) {
 #' @param loc Location name to plot.
 #' @param mult_col Name of the column representing locations, default `"name"`.
 #' @param var Variable name to plot.
-#' @param ... Additional arguments (not used)
+#' @param return_periods Return periods for return level plot,
+#' Default c(1.5, 2.5, 5, 10, 20, 50, 100, 200).
+#' @param nboot Number of bootstrap samples for return level plot confidence
+#' intervals, Default 200.
+#' @param ci_quantiles Quantiles for confidence intervals in return level plot,
+#' Default c(0.025, 0.975).
+#' @param log_scale Logical indicating whether to use log scale for return
+#' level plot x-axis, Default TRUE.
+#' @param ... Additional arguments to pass to plotting.
 #' @method plot cecl_marg
 #' @rdname plot.cecl_marg
 #' @export
@@ -1025,7 +1034,16 @@ summary.cecl_marg <- \(object, n, ...) {
 #' # plot for a specific location and variable
 #' plot(marg_fit, which = "qq", loc = "loc_1", var = "X1")
 plot.cecl_marg <- \(
-  x, which = c("qq", "pp", "hist", "return"), loc, mult_col = "name", var, ...
+  x,
+  which = c("qq", "pp", "hist", "return"),
+  loc,
+  mult_col = "name",
+  var,
+  return_periods = c(1.5, 2.5, 5, 10, 20, 50, 100, 200),
+  nboot = 200,
+  ci_quantiles = c(0.025, 0.975),
+  log_scale = TRUE,
+  ...
 ) {
   stopifnot(inherits(x, "cecl_marg"))
 
@@ -1056,15 +1074,35 @@ plot.cecl_marg <- \(
     dplyr::select(dplyr::all_of(var))
 
   # Calculate residuals based on marginal method
+  resid_fun <- \(q, gpd_params) do.call(
+    pgpd,
+    c(
+      list(q = q),
+      c(setNames(
+        gpd_params[c("sigma", "xi")],
+        c("sigma", "xi")
+      ), "u" = 0)
+    )
+  )
+
+  # Calculate residuals based on marginal method
   if (inherits(x, "cecl_marg_ismev")) {
     gpd_params <- x$marginal[[loc]][[var]]
-    residuals <- (thresh_data[[var]] - gpd_params$thresh) / gpd_params$sigma
+    sigma <- gpd_params$sigma
+    xi <- gpd_params$xi
+    # residuals <- (thresh_data[[var]] - gpd_params$thresh) / gpd_params$sigma
+    exceedances <- thresh_data[[var]] - gpd_params$thresh
+    residuals <- resid_fun(exceedances, gpd_params)
   } else if (inherits(x, "cecl_marg_evgam")) {
+    stop("Plot method not implemented for evgam marg_method yet.")
     evgam_fit <- x$evgam_fit[[which(x$vars == var)]]
     pred_row <- evgam_fit$predictions |>
       dplyr::filter(.data[[x$mult_col]] == loc)
     sigma <- pred_row$scale
-    residuals <- (thresh_data[[var]] - pred_row$thresh) / sigma
+    xi <- pred_row$shape
+    # residuals <- (thresh_data[[var]] - pred_row$thresh) / sigma
+    exceedances <- thresh_data[[var]] - pred_row$thresh
+    residuals <- resid_fun(exceedances, list(sigma = sigma, xi = xi))
   } else {
     stop("Plot method not implemented for this marg_method")
   }
@@ -1072,26 +1110,38 @@ plot.cecl_marg <- \(
   # Generate specified plot
   if (which == "qq") {
     stats::qqplot(
-      stats::qexp(stats::ppoints(length(residuals))),
-      residuals,
+      qgpd(
+        stats::ppoints(length(residuals)),
+        u = 0, sigma = sigma, xi = xi
+      ),
+      # residuals,
+      sort(exceedances),
       xlab = "Theoretical Quantiles",
-      ylab = "Sample Quantiles"
+      ylab = "Sample Quantiles",
+      ...
     )
     graphics::abline(0, 1, col = "red")
   } else if (which == "pp") {
     plot(
       stats::ppoints(length(residuals)),
-      stats::pexp(sort(residuals)),
+      sort(residuals),
       xlab = "Theoretical Probabilities",
-      ylab = "Sample Probabilities"
+      ylab = "Sample Probabilities",
+      ...
     )
     graphics::abline(0, 1, col = "red")
   } else if (which == "hist") {
-    graphics::hist(
-      residuals,
+    # if main not specified, set to NULL (hist automatically adds title)
+    plot_args <- list(
+      x      = residuals,
       breaks = 20,
-      xlab = "Residuals"
+      xlab   = "Residuals",
+      ...
     )
+    if (!"main" %in% names(plot_args)) {
+      plot_args[["main"]] <- list(NULL)
+    }
+    do.call(graphics::hist, plot_args)
   } else if (which == "return") {
     #  Extract fitted parameters
     gpd_params <- x$marginal[[loc]][[var]]
@@ -1105,21 +1155,29 @@ plot.cecl_marg <- \(
     lambda_u <- n_exc / n_total
 
     # Define return periods
-    T_vals <- c(1.5, 2, 5, 10, 20, 50, 100, 200)
+    T_vals <- return_periods
     z_T <- if (abs(xi) > 1e-6) {
       u + (sigma / xi) * ((T_vals * lambda_u)^xi - 1)
     } else {
       u + sigma * log(T_vals * lambda_u)
     }
 
+    if (log_scale) {
+      T_vals_plot <- log(T_vals)
+      ylab <- "Return Level (log)"
+    } else {
+      T_vals_plot <- T_vals
+      ylab <- "Return Level"
+    }
+
     plot(
-      T_vals, z_T,
+      T_vals_plot, z_T,
       type = "b", pch = 19,
       xlab = "Return Period",
-      ylab = "Return Level"
+      ylab = ylab,
+      ...
     )
 
-    nboot <- 500
     zT_boot <- matrix(NA, nrow = nboot, ncol = length(T_vals))
 
     for (b in seq_len(nboot)) {
@@ -1149,15 +1207,16 @@ plot.cecl_marg <- \(
         (sigma_b / xi_b) * ((T_vals * lambda_u_b)^xi_b - 1)
     }
 
-    ci <- apply(zT_boot, 2, stats::quantile, probs = c(0.025, 0.975))
+    ci <- apply(zT_boot, 2, stats::quantile, probs = ci_quantiles)
     z_T_lower <- ci[1, ]
     z_T_upper <- ci[2, ]
+
     graphics::lines(
-      T_vals, z_T_upper,
+      T_vals_plot, z_T_upper,
       lty = 2, col = ggsci::pal_nejm()(1)[1]
     )
     graphics::lines(
-      T_vals, z_T_lower,
+      T_vals_plot, z_T_lower,
       lty = 2, col = ggsci::pal_nejm()(1)[1]
     )
   }
@@ -1240,6 +1299,10 @@ ggplot.cecl_marg <- \(
   loc,
   var,
   mult_col = "name",
+  return_periods = c(1.5, 2.5, 5, 10, 20, 50, 100, 200),
+  nboot = 200,
+  ci_quantiles = c(0.025, 0.975),
+  log_scale = TRUE,
   ...,
   environment = parent.frame()
 ) {
@@ -1274,34 +1337,69 @@ ggplot.cecl_marg <- \(
     dplyr::select(dplyr::all_of(var))
 
   # Calculate residuals based on marginal method
+  resid_fun <- \(q, gpd_params) do.call(
+    pgpd,
+    c(
+      list(q = q),
+      c(setNames(
+        gpd_params[c("sigma", "xi")],
+        c("sigma", "xi")
+      ), "u" = 0)
+    )
+  )
+
   if (inherits(data, "cecl_marg_ismev")) {
     gpd_params <- data$marginal[[loc]][[var]]
-    residuals <- (thresh_data[[var]] - gpd_params$thresh) / gpd_params$sigma
+    exceedances <- thresh_data[[var]] - gpd_params$thresh
+    residuals <- resid_fun(exceedances, gpd_params)
+    # TODO Check if this works as well
   } else if (inherits(data, "cecl_marg_evgam")) {
+    stop("ggplot method not implemented for evgam marg_method yet.")
     evgam_fit <- data$evgam_fit[[which(data$vars == var)]]
     pred_row <- evgam_fit$predictions |>
       dplyr::filter(.data[[data$mult_col]] == loc)
     sigma <- pred_row$scale
-    residuals <- (thresh_data[[var]] - pred_row$thresh) / sigma
+    # residuals <- (thresh_data[[var]] - pred_row$thresh) / sigma
+    exceedances <- thresh_data[[var]] - pred_row$thresh
+    residuals <- resid_fun(
+      exceedances, list(sigma = sigma, xi = pred_row$shape)
+    )
   } else {
     stop("ggplot method not implemented for this marg_method")
   }
+  # check residuals
+  stopifnot(
+    "NA residuals — check pgpd arguments/parameterization" =
+      !any(is.na(residuals))
+  )
+  stopifnot(
+    "Some residuals are outside [0,1] — check parameterization" =
+      all(residuals >= 0 & residuals <= 1)
+  )
 
   res_df <- data.frame(residuals = residuals)
 
   # Generate specified ggplot
   if (which == "qq") {
+    gpd_pars <- c(list("u" = 0), setNames(
+      gpd_params[c("sigma", "xi")],
+      c("sigma", "xi")
+    ))
+
+
+    qfun <- \(p) do.call(qgpd, c(list(p), gpd_pars))
+
     ggplot2::ggplot(res_df, ggplot2::aes(
-      sample = residuals,
+      sample = exceedances
     )) +
-      ggplot2::stat_qq() +
-      ggplot2::stat_qq_line(col = "red") +
+      ggplot2::stat_qq(distribution = qfun) +
+      ggplot2::geom_abline(intercept = 0, slope = 1, colour = "red") +
       ggplot2::labs(x = "Theoretical Quantiles", y = "Sample Quantiles") +
       cecl_theme()
   } else if (which == "pp") {
     ggplot2::ggplot(res_df, ggplot2::aes(
-      x = stats::ppoints(length(residuals)),
-      y = stats::pexp(sort(residuals))
+      x = sort(stats::ppoints(length(residuals))),
+      y = sort(residuals)
     )) +
       ggplot2::geom_point() +
       ggplot2::geom_abline(slope = 1, intercept = 0, col = "red") +
@@ -1320,6 +1418,11 @@ ggplot.cecl_marg <- \(
       ggplot2::labs(x = "Residuals") +
       cecl_theme()
   } else if (which == "return") {
+    # TODO Add predict method for marginal fits! would make this easier
+    # TODO Add checking for return level arguments if using
+
+    # browser()
+
     # Extract parameters
     gpd_params <- data$marginal[[loc]][[var]]
     u <- gpd_params$thresh
@@ -1332,42 +1435,69 @@ ggplot.cecl_marg <- \(
     lambda_u <- n_exc / n_total
 
     # Return periods
-    T_vals <- c(1.5, 2, 5, 10, 20, 50, 100, 200)
-    z_T <- if (abs(xi) > 1e-6) {
-      u + (sigma / xi) * ((T_vals * lambda_u)^xi - 1)
-    } else {
-      u + sigma * log(T_vals * lambda_u)
+    T_vals <- return_periods
+
+    return_level <- \(T, u, sigma, xi, tol = 1e-8) {
+      TT <- T * lambda_u
+      if (abs(xi) > tol) {
+        u + (sigma / xi) * (TT^xi - 1)
+      } else {
+        u + sigma * log(TT)
+      }
     }
 
-    df <- data.frame(
-      T_val = T_vals,
-      z_T = z_T
+    # Compute nominal (fitted) return levels
+    z_T <- vapply(
+      T_vals, return_level, numeric(1),
+      u = u, sigma = sigma, xi = xi
     )
 
+    df <- data.frame(T_vals = T_vals, z_T = z_T)
+
     # bootstrap CI
-    nboot <- 200
-    zT_list <- list()
+    zT_list <- vector(mode = "list", length = nboot)
+    b_ok <- 0 # count of successful bootstraps
     for (b in seq_len(nboot)) {
-      sim_data <- rgpd(
-        n     = nrow(thresh_data),
-        u     = u,
-        sigma = sigma,
-        xi    = xi
+      sim_exc <- try(
+        rgpd(n = n_exc, u = 0, sigma = sigma, xi = xi),
+        silent = TRUE
       )
+      if (inherits(sim_exc, "try-error")) {
+        # fallback to inverse cdf
+        sim_exc <- qgpd(runif(n_exc), u = 0, sigma = sigma, xi = xi)
+      }
+      # fit GPD to simulated exceedances
       fit_b <- try(
-        ismev::gpd.fit(sim_data, threshold = u, show = FALSE),
+        ismev::gpd.fit(sim_exc, threshold = 0, show = FALSE),
         silent = TRUE
       )
       if (inherits(fit_b, "try-error") || any(is.na(fit_b$mle))) next
+      if (any(is.na(fit_b$mle))) next
+
+      # extract bootstrap MLEs
       sigma_b <- fit_b$mle[1]
-      xi_b <- ifelse(abs(fit_b$mle[2]) < 1e-6, 1e-6, fit_b$mle[2])
-      zT_list[[length(zT_list) + 1]] <- u +
-        (sigma_b / xi_b) * ((T_vals * lambda_u)^xi_b - 1)
+      xi_b <- fit_b$mle[2]
+
+      # compute return levels using robust formula (handle xi_b ~ 0)
+      zTb <- vapply(T_vals, function(T) {
+        return_level(T, u = u, sigma = sigma_b, xi = xi_b)
+      }, numeric(1))
+
+      b_ok <- b_ok + 1
+      zT_list[[b_ok]] <- zTb
     }
-    if (length(zT_list) > 0) {
+
+    # remove unused trailing NULLs if any
+    zT_list <- zT_list[seq_len(b_ok)]
+
+    if (b_ok > 0) {
       zT_boot <- do.call(rbind, zT_list)
-      df$lower <- apply(zT_boot, 2, stats::quantile, probs = 0.025)
-      df$upper <- apply(zT_boot, 2, stats::quantile, probs = 0.975)
+      df$lower <- apply(zT_boot, 2, stats::quantile, probs = ci_quantiles[1])
+      df$upper <- apply(zT_boot, 2, stats::quantile, probs = ci_quantiles[2])
+    } else {
+      df$lower <- NA_real_
+      df$upper <- NA_real_
+      message("No successful bootstrap fits for CI estimation.")
     }
 
     # ggplot
@@ -1378,12 +1508,21 @@ ggplot.cecl_marg <- \(
       cecl_theme()
 
     # Add CI ribbon if available
-    if ("lower" %in% names(df) && "upper" %in% names(df)) {
+    if (!all(is.na(df$lower)) && !all(is.na(df$upper))) {
       p <- p + ggplot2::geom_ribbon(
         ggplot2::aes(ymin = lower, ymax = upper),
         alpha = 0.2,
         fill = ggsci::pal_nejm()(1)
       )
+    }
+
+    # convert to natural log scale
+    if (log_scale == TRUE) {
+      p <- p +
+        # convert to natural log scale
+        ggplot2::scale_x_continuous(breaks = T_vals, transform = "log") +
+        ggplot2::annotation_logticks(sides = "b") +
+        ggplot2::labs(x = "Return Period", y = "Return Level (log)")
     }
 
     return(p)
@@ -1433,7 +1572,10 @@ as_cecl_marg.data.frame <- \(x, name_col = "name", ...) {
     lapply(as.matrix)
 
   names(ret) <- levels(x_fact[[name_col]])
-  ret <- list("transformed" = ret)
+  ret <- list(
+    "transformed" = ret,
+    "vars"        = names(ret)[names(ret) != name_col]
+  )
   class(ret) <- c("cecl_marg", "cecl_marg_user")
   ret
 }
@@ -1453,7 +1595,10 @@ as_cecl_marg.list <- \(x, ...) {
 
   # for a list of matrices
   if (all(vapply(x, is.matrix, logical(1)))) {
-    cecl_marg_obj <- list("transformed" = x)
+    cecl_marg_obj <- list(
+      "transformed" = x,
+      "vars"        = colnames(x[[1]]) # NOTE: Assumes no name_col
+    )
     # for dataframes or tibbles, convert to matrices
   } else if (all(vapply(x, \(y) {
     inherits(y, c("data.frame", "tbl_df"))
@@ -1464,7 +1609,8 @@ as_cecl_marg.list <- \(x, ...) {
     }, logical(1))))
 
     cecl_marg_obj <- list(
-      "transformed" = lapply(x, as.matrix)
+      "transformed" = lapply(x, as.matrix), # TODO: Add optional var names
+      "vars"        = names(x)
     )
   } else {
     stop("Input list must contain only matrices or dataframes/tibbles.")

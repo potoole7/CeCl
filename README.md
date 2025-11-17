@@ -96,7 +96,7 @@ data |>
   cecl_theme()
 ```
 
-<img src="man/figures/README-example-1.png" width="100%" />
+<img src="man/figures/README-example-1.png" width="100%" style="display: block; margin: auto;" />
 
 The two “true” clusters of locations clearly visible in our plot will
 have different tail dependence structures.
@@ -117,7 +117,7 @@ marg <- cecl_marg(
 # see `help(cecl_marg)` for details on arguments and available methods
 
 # fit conditional extremes model to each location at 90th dependence quantile
-dep <- cecl_dep(obj = marg,cond_prob = 0.9)
+dep <- cecl_dep(obj = marg, cond_prob = 0.9)
 # again, see `help(cecl_dep)` for details on arguments and available methods
 ```
 
@@ -146,11 +146,12 @@ follows:
 ggplot(clust, which = "image")
 ```
 
-<img src="man/figures/README-plot_clust-1.png" width="100%" /> We can
-confirm from the Adjusted Rand Index from the printed `cecl_clust`
-object that the clustering has perfectly recovered the true clusters of
-locations based on their tail dependence structures. Our dissimilarity
-matrix plot also clearly shows two distinct clusters of locations.
+<img src="man/figures/README-plot_clust-1.png" width="100%" style="display: block; margin: auto;" />
+We can confirm from the Adjusted Rand Index from the printed
+`cecl_clust` object that the clustering has perfectly recovered the true
+clusters of locations based on their tail dependence structures. Our
+dissimilarity matrix plot also clearly shows two distinct clusters of
+locations.
 
 ## License
 

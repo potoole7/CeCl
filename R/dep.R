@@ -664,6 +664,7 @@ plot_scatter.cecl_dep <- \(
       pos = 3
     )
   }
+  return(invisible(NULL))
 }
 
 #' @title Plot residuals from `cecl_dep` object
@@ -729,6 +730,7 @@ plot_resid <- \(
       col = "blue", lwd = 2
     )
   }
+  return(invisible(NULL))
 }
 
 # plot quantiles of conditional expectation at single location (for single var)
@@ -856,6 +858,7 @@ plot_quantile <- \(
     }
     add_line_plot(ploty)
   }
+  return(invisible(NULL))
 }
 
 #' @title Plot from `cecl_dep` object
