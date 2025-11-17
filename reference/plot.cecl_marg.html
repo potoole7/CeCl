@@ -62,6 +62,10 @@ QQ, PP, histogram, and return level plots.</p>
 <span>  <span class="va">loc</span>,</span>
 <span>  mult_col <span class="op">=</span> <span class="st">"name"</span>,</span>
 <span>  <span class="va">var</span>,</span>
+<span>  return_periods <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1.5</span>, <span class="fl">2.5</span>, <span class="fl">5</span>, <span class="fl">10</span>, <span class="fl">20</span>, <span class="fl">50</span>, <span class="fl">100</span>, <span class="fl">200</span><span class="op">)</span>,</span>
+<span>  nboot <span class="op">=</span> <span class="fl">200</span>,</span>
+<span>  ci_quantiles <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0.025</span>, <span class="fl">0.975</span><span class="op">)</span>,</span>
+<span>  log_scale <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  <span class="va">...</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
@@ -90,6 +94,26 @@ return level plot.</p></dd>
 
 <dt id="arg-var">var<a class="anchor" aria-label="anchor" href="#arg-var"></a></dt>
 <dd><p>Variable name to plot.</p></dd>
+
+
+<dt id="arg-return-periods">return_periods<a class="anchor" aria-label="anchor" href="#arg-return-periods"></a></dt>
+<dd><p>Return periods for return level plot,
+Default c(1.5, 2.5, 5, 10, 20, 50, 100, 200).</p></dd>
+
+
+<dt id="arg-nboot">nboot<a class="anchor" aria-label="anchor" href="#arg-nboot"></a></dt>
+<dd><p>Number of bootstrap samples for return level plot confidence
+intervals, Default 200.</p></dd>
+
+
+<dt id="arg-ci-quantiles">ci_quantiles<a class="anchor" aria-label="anchor" href="#arg-ci-quantiles"></a></dt>
+<dd><p>Quantiles for confidence intervals in return level plot,
+Default c(0.025, 0.975).</p></dd>
+
+
+<dt id="arg-log-scale">log_scale<a class="anchor" aria-label="anchor" href="#arg-log-scale"></a></dt>
+<dd><p>Logical indicating whether to use log scale for return
+level plot x-axis, Default TRUE.</p></dd>
 
 
 <dt id="arg--">...<a class="anchor" aria-label="anchor" href="#arg--"></a></dt>
