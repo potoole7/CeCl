@@ -20,8 +20,10 @@ knitr::opts_chunk$set(
 )
 ```
 
-TODO (doc)
-- Use Oxford commas throughout
+<!--
+
+TODO (text):
+- Read very very carefully!!
 
 TODO (marginal)
 - Explain that currently only supported for single predictor (location, individual, etc) (also add to package!!)
@@ -29,11 +31,14 @@ TODO (marginal)
 - Allow different `qgam` and `evgam` formulae for each variable
 - Is the `quantile` thresholding method calculated per location or overall for a single variable?
 - Remove titles for marginal plots
+- for scatter plot (`ggplot`), ensure alpha plotted between -1 and 1
+  - Or else, if min value is > 0, 0 to 1 (for plot and ggplot)
 - Add plotting functions for transformed marginal data
 - For user-inputted marginals, fix printing variables
 - Add `as_cecl_marg` method that also takes in GPD parameters and performs transformation
 - For marginal diagnostic plots, standardise x-axis/y-axis limits
   - Also add uncertainty bounds for PP/QQ plots, and allow log scale for return level plots
+- Don't let var == cond_var in plotting functions
   
 TODO (dependence)
 - Implement bootstrap
@@ -42,6 +47,7 @@ TODO (dependence)
 - Allow back transformation from standard Laplace to original scale for quantile plots
 - `plot_scatter` for ggplot should have alpha and beta, not a and b as axis labels
 - Add a `predict` method
+- Add tests that results from texmex and CeCl match for CE fits (for simulated data)
 
 TODO (distance)
 - For image plot, add option to suppress axis labels (x and y separately)
@@ -50,6 +56,8 @@ TODO (distance)
 
 TODO (clustering)
 - For image plot, coloured image plot has y-axis labels too close
+
+-->
 
 This vignette shows how to use the `CeCl` package to perform clustering for 
 multivariate extremes based on the conditional extremes (CE) model of Heffernan and Tawn (2004) [-@Heffernan2004]. 
@@ -85,10 +93,13 @@ We simulate multivariate data using t-copulas with different correlation paramet
 The correlation parameter for each group/cluster is set to be different, so that we can see if our clustering method is able to recover these groups based on their tail dependence structures.
 ```{r, simulate_data}
 # metadata
+seed <- 123
 n_vars <- 3 # number of variables
 n_locs <- 12 # number of locations
 n_clust <- 3 # number of clusters
-n <- 1000 * (12 / 3) # total number of observations per group
+# n <- 1000 * (12 / 3) # total number of observations per group
+n_per_loc <- 1000 # total obs per location times # locs per group
+n <- n_per_loc * (12 / 3) # total obs per location times # locs per group
 df_t <- 3 # degrees of freedom for t-copula
 cor_t_vec <- c(0.1, 0.5, 0.9) # correlation parameters for each group
 
@@ -101,7 +112,7 @@ gen_t <- \(cor_t) {
 }
 
 # Generate data for two different correlation settings
-set.seed(123)
+set.seed(seed)
 data <- do.call(rbind, lapply(cor_t_vec, gen_t))
 # Add dummy location names
 # data$name <- rep(paste0("loc_", 1:10), each = 200)
@@ -117,12 +128,10 @@ data |>
   ggplot(aes(x = X1, y = X2, colour = clust)) +
   facet_wrap(~ clust) +
   geom_density_2d(show.legend = FALSE) +
-  cecl_theme()
+  cecl_theme() # custom CeCl theme
 ```
 
 Visualising the data, we can see that the three groups have different dependence structures, with group A having weak dependence, group B having moderate dependence, and group C having strong dependence.
-
-...
 More complex simulation examples using mixtures of Gaussian and t-copulas can
 be found in [@otoole2025].
 
@@ -141,7 +150,8 @@ Once a suitable threshold quantile or value has been selected, this can be passe
 - Quantile thresholding (`"quantile"`), where the user specifies a fixed quantile for each variable,
 - Regression thresholding using quantile GAMs (`"qgam"`), where the user specifies a formula and quantile for fitting a quantile GAM using the `qgam` package [-@qgam]. Note that this method allows for non-stationary thresholds that vary with covariates. 
 
-Here, we demonstrate how to use each of these thresholding methods with the `cecl_marg` function:
+As we know our data was simulated with GP margins, thresholding is not strictly necessary here, but we include it for demonstration purposes (and since changing the threshold will only change the scale parameter of the GPD fit, we do not expect it to have a large effect on marginal modelling).
+Here, we show how to use each of these thresholding methods with the `cecl_marg` function:
 ```{r, marginal_thresh}
 # 1: Specific value
 thresh_val <- cecl_marg(
@@ -161,17 +171,16 @@ thresh_q <- cecl_marg(
 
 # 3. Regression
 # TODO Fix!
-# thresh_reg <- cecl_marg(
-#   data,
-#   thresh_method = "qgam",
-#   thresh_args = list(
-#     f      = "response ~ name", 
-#     qu     = .9
-#   ),
-#   thresh_only = TRUE,
-#   ret_obj = TRUE # return `qgam` object
-# )
-
+thresh_reg <- cecl_marg(
+  data,
+  thresh_method = "qgam",
+  thresh_args = list(
+    f      = "response ~ name", 
+    qu     = .9
+  ),
+  thresh_only = TRUE,
+  ret_obj = TRUE # return `qgam` object
+)
 class(thresh_q)
 ```
 
@@ -217,8 +226,6 @@ marg_evgam <- cecl_marg(
   ncores = 1,
   ret_obj = TRUE
 )
-
-
 ```
 
 Several methods are available for the `cecl_marg` class, including `print` and `summary`:
@@ -247,30 +254,62 @@ These plots are also available through `ggplot`:
      ggplot(marg_ismev, which = "hist", loc = "loc_1", var = "X1"))
 ```
 
-Unsurprisingly, since we specified GP margins when simulating the data, the GPD fits appear to be very good, even with just 10 observations in the tail (10% of 1000 observations per location).
+Unsurprisingly, since we specified GP margins when simulating the data, the GPD fits appear to be quite good, for `r n_per_loc * 0.1`
+observations in the tail (10% of `r n_per_loc` observations per location).
 Future versions of the package will also include methods for visualising the standard Laplace transformed data.
 
 However, We also recognise that marginal fitting in extremes can be a complex task, and users may wish to use their own preferred methods for marginal fitting.
 Therefore, the `CeCl` package also provides the `to_cecl_marg` function to allow users to provide their own marginally transformed data in standard Laplace margins.
-To illustrate the use of this function, we can provide the transformed data from `ismev` and have `to_cecl_marg` return an object of class `cecl_marg`. 
-```{r, to_cecl_marg}
+<!-- To illustrate the use of this function, we can provide the transformed data from `ismev` and have `to_cecl_marg` return an object of class `cecl_marg`. -->
+Since we know the parameter values of our GPD margins, we can cheat a little and provide standard Laplace transformed data directly, using the fact that the rescaled scale parameter is given by $\sigma_{\nu} = \sigma_u + \xi (\nu - u)$, where $\nu$ and $u$ are the new and old thresholds, respectively.
+<!-- ```{r, to_cecl_marg}
 data_trans <- marg_ismev$transformed # list, but can be data.frame/tibble
 marg_custom <- as_cecl_marg(data_trans)
 marg_custom
+``` -->
+```{r to_cecl_marg}
+locs <- unique(data$name)
+vars <- names(data)[1:n_vars]
+gpd_vals <- coef(marg_ismev) |> # pull out GPD estimates
+  mutate(
+    # replace GPD estimates with (re-scaled) true values
+    xi = -0.05,
+    sigma = 1 + (xi * thresh),
+    # change name and var to factors to ensure correct ordering when splitting
+    name = factor(name, levels = locs),
+    var  = factor(var, levels = vars)
+  ) |> 
+  group_split(name, .keep = FALSE) |> 
+  lapply(\(x) group_split(x, var, .keep = FALSE))
+gpd_vals <- lapply(gpd_vals, `names<-`, vars)
+names(gpd_vals) <- locs
+
+# perform transformation to standard Laplace margins (function from `CeCl`)
+data_laplace <- trans_marg(gpd_vals, data, vars = vars)
+names(data_laplace) <- locs
+
+# convert to cecl_marg object
+marg_custom <- as_cecl_marg(data_laplace)
 ```
 
-User-specified marginal transformations work the same as those fitted using `cecl_marg` using the ECDF method, in that no GPD parameters are stored, so plotting methods are not available.
-Future versions of the package may also allow users to provide their own fitted GPD parameters for each location and variable, with `as_cecl_marg` performing the necessary transformations.
+User-specified marginal transformations work the same as those fitted with `cecl_marg` using the ECDF method, in that no GPD parameters are stored, so plotting methods are not available.
+<!-- Future versions of the package may also allow users to provide their own fitted GPD parameters for each location and variable, with `as_cecl_marg` performing the necessary transformations. -->
+Future versions of the package will automate the above process, allowing GPD parameters to be provided directly to `as_cecl_marg`, which will then perform the necessary transformations.
+
+Since we know that we've used the true marginal parameters here, we will proceed with the `marg_custom` object for dependence fitting.
+```{r, use_custom_marg}
+marg <- marg_custom
+```
 
 
 ## Dependence Fits
 
 Next, we fit the CE dependence model to each location using the `cecl_dep` function.
 ```{r, dependence_fit}
-dep <- cecl_dep(obj = marg_ismev, cond_prob = 0.9)
+# TODO Investigate why this is failing !!!
+dep <- cecl_dep(marg, cond_prob = 0.9, fit_no_keef = TRUE)
 ```
 
-Simple as that!
 Choosing the conditioning probability is an important step in fitting the CE model, as it determines the threshold above which the model is fitted.
 In [@otoole2025], following from the `texmexMultivariate` vignette for [@texmex], bootstrapped estimates of $\alpha$ and $\beta$ across a range of conditioning quantiles were used to identify a suitable conditioning level, as the highest quantile at which the estimates stabilised.
 Future versions of the package will include a bootstrapping procedure to assist with this task.
@@ -291,22 +330,24 @@ head(summary(dep))
 
 Future versions of the package will also include a `predict` method for generating conditional simulations from the fitted CE models, as found in the `texmex` package [@texmex].
 
-We also have access to several diagnostic plots for the fitted CE models.
-`residual` plots the residuals $Z$ against large values of the conditioning variable,
-`quantile` plots quantiles of the fitted CE model against the conditioning variable (on the standard Laplace scale),
-`scatter` plots the $alpha$ and $beta$ parameters against each other for a given variable and conditioning variable.
-```{r}
+We also have access to several diagnostic plots for the fitted CE models:
+- `residual` plots the residuals $Z$ against large values of the conditioning variable,
+- `quantile` plots quantiles of the fitted CE model against the conditioning variable (on the standard Laplace scale),
+- `scatter` plots the $alpha$ and $beta$ parameters against each other for a given variable and conditioning variable.
+Let's plot these for the fifth location, which has reasonable dependence, and produce a scatter plot of $(\alpha, \beta)$ values across all locations for `X1` conditioned on `X2`:
+```{r, dependence_plots}
 par(mfrow = c(1, 3))
-plot(dep, which = "residual", var = "X1", cond_var = "X2", loc = "loc_1")
-plot(dep, which = "quantile", var = "X1", cond_var = "X2", loc = "loc_1")
+plot(dep, which = "residual", var = "X1", cond_var = "X2", loc = "loc_5")
+plot(dep, which = "quantile", var = "X1", cond_var = "X2", loc = "loc_5")
 plot(dep, which = "scatter", var = "X1", cond_var = "X2")
 ```
 
-The residual plot should roughly show no obvious patterns (as indicated by the horizontal trend), and the quantile plot should look sensible and have no lines crossing each other.
+The residual plot should roughly show no obvious patterns (as indicated by the horizontal trend), and the quantile plot should look sensible.
+<!-- Lines in the same direction indicate that the dependence is asymptotically dependent, while lines in opposite directions indicate asymptotic independence. -->
 Again, these plots are also available through `ggplot`:
 ```{r, dependence_ggplot}
-ggplot(dep, which = "residual", var = "X1", cond_var = "X2", loc = "loc_1") + 
-  ggplot(dep, which = "quantile", var = "X1", cond_var = "X2", loc = "loc_1") +
+ggplot(dep, which = "residual", var = "X1", cond_var = "X2", loc = "loc_5") + 
+  ggplot(dep, which = "quantile", var = "X1", cond_var = "X2", loc = "loc_5") +
   ggplot(dep, which = "scatter", var = "X1", cond_var = "X2")
 ```
 
@@ -326,7 +367,7 @@ dev.off()
 Finally, we can cluster the fitted CE models using the skew-geometric Jensen-Shannon based dissimilarity measure proposed in [@otoole2025].
 First, to calculate the dissimilarity matrix, we can use the `cecl_dist` function:
 ```{r, distance_matrix}
-dist <- cecl_dist(dep, marg_ismev, seed = 123)
+dist <- cecl_dist(dep, marg_ismev, seed = seed)
 ```
 
 `cecl_dist` also has several arguments to control the distance calculation, including:
@@ -336,20 +377,20 @@ To avoid issues with extremely large values on the standard Laplace scale, we ca
 - `par_dist`: An optional argument to parallelise the distance calculation itself, rather than parallelising across conditioning variables. Useful when the number of locations is large.
 
 The `cecl_dist` function returns an object of class `cecl_dist`, which has several methods available:
-```{r}
+```{r, distance_methods}
 dist
-summary(dist)
+summary(dist) # gives summary of aggregated dissimilarity matrix
 ```
 
 We can produce a scree plot of the total within-group sum of squares (TWGSS) for different numbers of clusters `k`, as well as a heatmap/image of the dissimilarity matrix:
-```{r}
+```{r, distance_plots}
 par(mfrow = c(1, 2))
 invisible(plot(dist, which = "scree")) # normally prints TWGSS for each k
 plot(dist, which = "image")
 ```
 
 And also in `ggplot`:
-```{r}
+```{r, distance_ggplot}
 ggplot(dist, which = "scree")$plot + 
   ggplot(dist, which = "image")
 ```
@@ -362,27 +403,28 @@ clust <- cecl_clust(
   dist, 
   k = 3, 
   cluster_mem = sort(rep(1:3, each = 4)), # known cluster membership
-  seed = 123
+  seed = seed 
 )
 ```
 
 Optionally, we can also run `cecl_clust` on the `cecl_dep` and `cecl_marg` objects directly, without needing to calculate the distance matrix first:
-```{r}
+```{r, clustering_direct}
 clust_dep <- cecl_clust(
   dep,
   marg_ismev,
   k = 3,
   cluster_mem = sort(rep(1:3, each = 4)), # known cluster membership
-  seed = 123
+  seed = seed 
 )
 
+# confirm that results of two `cecl_clust` methods are identical
 all.equal(unclass(clust), unclass(clust_dep[names(clust_dep) != "dist_obj"]))
 ```
 
 `clust_dep$dist_obj` will be identical to the output of `cecl_dist` calculated previously, in case the user wishes to inspect it.
 
 The `cecl_clust` function returns an object of class `cecl_clust`, which has several methods available:
-```{r}
+```{r, clustering_methods}
 clust
 summary(clust)
 ```
@@ -392,7 +434,7 @@ The `summary` method is that of `pam`.
 However, since silhouette widths are not applicable for our dissimilarity measure, please ignore this part of the output (we may remove this in future versions).
 
 We can also produce the `scatter` and `image` plots from previous sections, but this time with the locations ordered and coloured by their assigned cluster:
-```{r}
+```{r, clustering_plots}
 par(mfrow = c(1, 2))
 plot(clust, which = "scatter", var = "X1", cond_var = "X2")
 plot(clust, which = "image")
