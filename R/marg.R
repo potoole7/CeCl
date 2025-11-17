@@ -1078,7 +1078,7 @@ plot.cecl_marg <- \(
     pgpd,
     c(
       list(q = q),
-      c(setNames(
+      c(stats::setNames(
         gpd_params[c("sigma", "xi")],
         c("sigma", "xi")
       ), "u" = 0)
@@ -1341,7 +1341,7 @@ ggplot.cecl_marg <- \(
     pgpd,
     c(
       list(q = q),
-      c(setNames(
+      c(stats::setNames(
         gpd_params[c("sigma", "xi")],
         c("sigma", "xi")
       ), "u" = 0)
@@ -1369,11 +1369,11 @@ ggplot.cecl_marg <- \(
   }
   # check residuals
   stopifnot(
-    "NA residuals — check pgpd arguments/parameterization" =
+    "NA residuals - check pgpd arguments/parameterization" =
       !any(is.na(residuals))
   )
   stopifnot(
-    "Some residuals are outside [0,1] — check parameterization" =
+    "Some residuals are outside [0,1] - check parameterization" =
       all(residuals >= 0 & residuals <= 1)
   )
 
@@ -1464,7 +1464,7 @@ ggplot.cecl_marg <- \(
       )
       if (inherits(sim_exc, "try-error")) {
         # fallback to inverse cdf
-        sim_exc <- qgpd(runif(n_exc), u = 0, sigma = sigma, xi = xi)
+        sim_exc <- qgpd(stats::runif(n_exc), u = 0, sigma = sigma, xi = xi)
       }
       # fit GPD to simulated exceedances
       fit_b <- try(
