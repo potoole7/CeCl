@@ -1094,6 +1094,7 @@ plot.cecl_marg <- \(
     exceedances <- thresh_data[[var]] - gpd_params$thresh
     residuals <- resid_fun(exceedances, gpd_params)
   } else if (inherits(x, "cecl_marg_evgam")) {
+    stop("Plot method not implemented for evgam marg_method yet.")
     evgam_fit <- x$evgam_fit[[which(x$vars == var)]]
     pred_row <- evgam_fit$predictions |>
       dplyr::filter(.data[[x$mult_col]] == loc)
@@ -1353,6 +1354,7 @@ ggplot.cecl_marg <- \(
     residuals <- resid_fun(exceedances, gpd_params)
     # TODO Check if this works as well
   } else if (inherits(data, "cecl_marg_evgam")) {
+    stop("ggplot method not implemented for evgam marg_method yet.")
     evgam_fit <- data$evgam_fit[[which(data$vars == var)]]
     pred_row <- evgam_fit$predictions |>
       dplyr::filter(.data[[data$mult_col]] == loc)
