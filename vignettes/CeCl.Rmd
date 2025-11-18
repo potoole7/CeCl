@@ -1,6 +1,8 @@
 ---
 title: "Clustering multivariate tail dependence with CeCl"
 output: rmarkdown::html_vignette
+bibliography: ../references.bib
+csl: ../apa.csl
 vignette: >
   %\VignetteIndexEntry{my-vignette}
   %\VignetteEngine{knitr::rmarkdown}
@@ -24,22 +26,21 @@ knitr::opts_chunk$set(
 
 TODO (text):
 - Read very very carefully!!
+- Fix references (done)
 
 TODO (marginal)
 - Problems with marginal plotting methods (plot and ggplot):
   - Fix residual calculation (done)
   - Fix QQ, PP, hist, return level plots (done)
   - Add density to histogram (done)
-  - Add uncertainty to PP and QQ plots (bootstrap) 
+  - Add uncertainty to PP and QQ plots (bootstrap) (done)
   - Add plot of transformed data (done)
   - Fix for evgam output as well (vector of parameter estimates) (done)
-- Allow for multiple marginal plots to be produced at once (done)
-- For user-inputted marginals, fix printing variables
+  - Allow for multiple marginal plots to be produced at once (done)
+- For user-inputted marginals, fix printing variables (done)
 - Explain that currently only supported for single predictor (location, individual, etc) (also add to package where you can't fit for multiple predictors!!)
 - Allow different `qgam` and `evgam` formulae for each variable (already allowed?)
 - Is the `quantile` thresholding method calculated per location or overall for a single variable?
-- for scatter plot (`ggplot`), ensure alpha plotted between -1 and 1
-  - Or else, if min value is > 0, 0 to 1 (for plot and ggplot)
 - Add `as_cecl_marg` method that also takes in GPD parameters and performs transformation
   
 TODO (dependence)
@@ -50,6 +51,8 @@ TODO (dependence)
 - `plot_scatter` for ggplot should have alpha and beta, not a and b as axis labels
 - Add a `predict` method
 - Add tests that results from texmex and CeCl match for CE fits (for simulated data)
+- for scatter plot (`ggplot`), ensure alpha plotted between -1 and 1
+- Or else, if min value is > 0, 0 to 1 (for plot and ggplot)
 
 TODO (distance)
 - For image plot, add option to suppress axis labels (x and y separately)
@@ -61,8 +64,7 @@ TODO (clustering)
 
 -->
 
-This vignette shows how to use the `CeCl` package to perform clustering for 
-multivariate extremes based on the conditional extremes (CE) model of Heffernan and Tawn (2004) [-@Heffernan2004]. 
+This vignette shows how to use the `CeCl` package implementing the method described in [O'Toole et al.](https://arxiv.org/abs/2510.20424) [-@otoole2025] to perform clustering for multivariate extreme events based on their tail dependence structures using the conditional extremes model of Heffernan and Tawn [-@Heffernan2004].
 We begin with performing the marginal transformation using the 
 `cecl_marg` function, which has several in-built options for marginal fitting.
 Optionally, the user can also provide their own transformed data using `as_cecl_marg`. 
@@ -79,8 +81,8 @@ please report any issues or suggestions on the [GitHub issues page](https:/githu
 ## Setup
 
 ```{r setup, message=FALSE, warning=FALSE}
-library(CeCl) # main package
-library(copula) # for generating data
+library(CeCl)      # main package
+library(copula)    # for generating data
 library(ggplot2) 
 library(patchwork) # for combining ggplots
 library(dplyr)
@@ -150,7 +152,7 @@ turning to the wealth of other more advanced methods available in the literature
 Once a suitable threshold quantile or value has been selected, this can be passed to the `cecl_marg` function using the `thresh_method` and `thresh_args` arguments, which supports:
 - Value thresholding (`"value"`), where the user specifies a fixed threshold value for each variable,
 - Quantile thresholding (`"quantile"`), where the user specifies a fixed quantile for each variable,
-- Regression thresholding using quantile GAMs (`"qgam"`), where the user specifies a formula and quantile for fitting a quantile GAM using the `qgam` package [-@qgam]. Note that this method allows for non-stationary thresholds that vary with covariates. 
+- Regression thresholding using quantile GAMs (`"qgam"`), where the user specifies a formula and quantile for fitting a quantile GAM using the `qgam` package [@qgam]. Note that this method allows for non-stationary thresholds that vary with covariates. 
 
 As we know our data was simulated with GP margins, thresholding is not strictly necessary here, but we include it for demonstration purposes (and since changing the threshold will only change the scale parameter of the GPD fit, we do not expect it to have a large effect on marginal modelling).
 Here, we show how to use each of these thresholding methods with the `cecl_marg` function:
@@ -192,8 +194,8 @@ Currently, no methods are implemented for the `cecl_thresh` class, but this may 
 Next, we can fit the marginal models and perform our transformation to standard Laplace margins.
 The `cecl_marg` function provides several in-built options for marginal fitting, specified using the `marg_method` argument, including:
 - Empirical CDF (`"ecdf"`), which uses the empirical CDF (ECDF) for the entire distribution,
-- stationary GPD (`"ismev"`), which fits a GPD to the upper tail of each variable at each location using the `ismev` package [-@ismev],
-- non-stationary GPD (`"evgam"`), which fits a GPD to the upper tail of each variable at each location using the `evgam` package [-@evgam], allowing for covariate effects through generalized additive models (GAMs).
+- stationary GPD (`"ismev"`), which fits a GPD to the upper tail of each variable at each location using the `ismev` package [@ismev],
+- non-stationary GPD (`"evgam"`), which fits a GPD to the upper tail of each variable at each location using the `evgam` package [@evgam], allowing for covariate effects through generalized additive models (GAMs).
 Here, we demonstrate how to use each of these marginal fitting methods with the `cecl_marg` function (with the `quantile` thresholding method):
 ```{r, marginal_fit}
 # 1: ECDF
@@ -249,13 +251,13 @@ This plot shows the transformed data (from each of our three marginal fitting me
 A `ggplot` version of this plot is also available. 
 
 We also have access to all of the usual GPD diagnostic plots, which we plot here for `loc_1` and variable `X1`:
-```{r marginal_plots}
+```{r marginal_plots, message=FALSE, warning=FALSE}
 par(mfrow = c(2, 2), mar = c(4, 4, 2, 1))
 plot(marg_ismev, which = c("pp", "qq", "return", "hist"), loc = "loc_1", var = "X1")
 ```
 
 These plots are also available through `ggplot`:
-```{r, marginal_ggplot}
+```{r, marginal_ggplot, message=FALSE, warning=FALSE}
 # create plots
 marg_plots <- ggplot(
   marg_ismev, 
@@ -301,9 +303,10 @@ names(data_laplace) <- locs
 
 # convert to cecl_marg object
 marg_custom <- as_cecl_marg(data_laplace)
+marg_custom
 ```
 
-User-specified marginal transformations work the same as those fitted with `cecl_marg` using the ECDF method, in that no GPD parameters are stored, so plotting methods are not available.
+User-specified marginal transformations work the same as those fitted with `cecl_marg` using the ECDF method, in that no GPD parameters are stored, so diagnostic plotting methods are not available.
 <!-- Future versions of the package may also allow users to provide their own fitted GPD parameters for each location and variable, with `as_cecl_marg` performing the necessary transformations. -->
 Future versions of the package will automate the above process, allowing GPD parameters to be provided directly to `as_cecl_marg`, which will then perform the necessary transformations.
 
@@ -329,7 +332,7 @@ The `cecl_dep` function contains several arguments to control the fitting proced
 - `nruns`: the number of optimisation runs to perform for each location.
 - `aLow`: lower bound for $\alpha$ parameters. For instance, we may wish to restrict $\alpha$ to be non-negative as we expect positive tail dependence. 
 - `fixed_b`: a logical indicating whether to fix $\beta$ parameters to it's starting value, which can be useful for interpretation by estimating only the $\alpha$ parameters.
-- `fit_no_keef`: a logical indicating whether to fit the model without the Keef et al. (2013) constraints [-@Keef2013], which can sometimes be too restrictive and cause optimisation issues.
+- `fit_no_keef`: a logical indicating whether to fit the model without the Keef et al. (2013) constraints [@Keef2013], which can sometimes be too restrictive and cause optimisation issues.
 Furthermore, for Linux and Mac users with multiple cores available, the fitting can be parallelised using the `ncores` argument. This is also true of all functions including an `ncores` argument, including `cecl_marg`. 
 
 The `cecl_dep` function returns an object of class `cecl_dep`, which has several methods available:
