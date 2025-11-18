@@ -838,7 +838,7 @@ plot_image.cecl_clust <- \(
       }
     }
   } else {
-    # no names -- assume same order
+    # no names, so assume same order
     if (length(clustering) != nrow(dist_matrix)) {
       stop(paste(
         "Length of clustering vector does not match distance-matrix",
@@ -910,14 +910,11 @@ plot_image.cecl_clust <- \(
 
     usr <- graphics::par("usr")
     # offsets for label placement
-    # TODO Fix
     x_off <- 0.8
-    y_off <- 0.3
+    y_off <- 0.8
 
-    # label colors from cluster assignment
+    # label colours from cluster assignment
     x_cols <- cluster_to_col[as.character(clustering[x_names])]
-    # y_sample_names <- rev(y_names)
-    # y_cols <- cluster_to_col[as.character(clustering[y_sample_names])]
     y_cols <- cluster_to_col[as.character(clustering[y_names])]
 
     # Draw x-axis labels (colored) — slightly below the ticks
@@ -932,6 +929,20 @@ plot_image.cecl_clust <- \(
         col = x_cols,
         cex = graphics::par("cex.axis")
       )
+      # if not labelling, still include colour bar showing cluster membership
+    } else {
+      bar_height <- 0.6
+      for (i in seq_len(n)) {
+        graphics::rect(
+          xleft = i - 0.5,
+          xright = i + 0.5,
+          ybottom = usr[3] - bar_height,
+          ytop = usr[3] - 0.05,
+          col = x_cols[i],
+          border = NA,
+          xpd = TRUE
+        )
+      }
     }
 
     # Draw y-axis labels (colored) — slightly left of ticks
@@ -945,28 +956,40 @@ plot_image.cecl_clust <- \(
         col = y_cols,
         cex = graphics::par("cex.axis")
       )
+    } else {
+      bar_width <- 0.6
+      for (j in seq_len(n)) {
+        graphics::rect(
+          xleft = usr[1] - bar_width,
+          xright = usr[1] - 0.05,
+          ybottom = j - 0.5,
+          ytop = j + 0.5,
+          col = y_cols[j],
+          border = NA,
+          xpd = TRUE
+        )
+      }
     }
 
     graphics::box()
   } else {
-    # preserve the ordering in the matrix: x_names in matrix row order
+    # preserve ordering
     x_names <- rownames(dist_matrix)
     y_names <- colnames(dist_matrix)
 
-    # build heatmap dataframe
+    # heatmap dataframe
     df <- as.data.frame(as.table(dist_matrix)) |>
-      # ensure factor order is the current matrix order
       dplyr::mutate(
         Var1 = factor(Var1, levels = x_names),
         Var2 = factor(Var2, levels = rev(y_names))
       )
 
-    # add clustering
+    # clustering dataframe
     clust_df <- dplyr::as_tibble(clustering) |>
       dplyr::rename(cluster = value) |>
       dplyr::mutate(name = names(clustering))
 
-    # match colours to clustering for x and y axis labels
+    # map cluster colours
     plot_cols_x <- palette_cols[
       clust_df$cluster[match(levels(df$Var1), clust_df$name)]
     ]
@@ -974,14 +997,15 @@ plot_image.cecl_clust <- \(
       clust_df$cluster[match(levels(df$Var2), clust_df$name)]
     ]
 
-    # Split into diagonal and off-diagonal dataframes
-    # (want to have white for NAs without affecting fill legend)
+    # diagonal / off-diagonal
     diag_df <- dplyr::filter(df, Var1 == Var2)
     off_diag_df <- dplyr::filter(df, Var1 != Var2)
 
-    p <- off_diag_df |>
-      # TODO optionally bin here
-      ggplot2::ggplot(ggplot2::aes(x = Var1, y = Var2, fill = Freq)) +
+    # main heatmap
+    # TODO Optionally allow binning of colours here
+    p <- ggplot2::ggplot(
+      off_diag_df, ggplot2::aes(x = Var1, y = Var2, fill = Freq)
+    ) +
       ggplot2::geom_tile() +
       ggplot2::geom_tile(
         data = diag_df,
@@ -989,18 +1013,10 @@ plot_image.cecl_clust <- \(
         fill = "white",
         show.legend = FALSE
       ) +
-      ggplot2::coord_fixed() + # keep squares square
-      ggplot2::labs(
-        x = "", y = "",
-        fill = "Dissimilarity"
-      ) +
+      ggplot2::coord_fixed() +
+      ggplot2::scale_fill_viridis_c(option = "A", direction = -1) +
+      ggplot2::labs(x = "", y = "", fill = "Dissimilarity") +
       ggplot2::theme(
-        axis.text.x = ggplot2::element_text(
-          size = 11.5,
-          angle = 45,
-          hjust = 1
-        ),
-        axis.text.y = ggplot2::element_text(size = 11.5),
         panel.background = ggplot2::element_blank(),
         panel.grid.major = ggplot2::element_blank(),
         panel.border = ggplot2::element_blank(),
@@ -1008,23 +1024,93 @@ plot_image.cecl_clust <- \(
         legend.text = ggplot2::element_text(size = 14)
       )
 
-    if (!show_xlab) {
-      p <- p + ggplot2::theme(
-        axis.text.x = ggplot2::element_blank(),
-        axis.ticks.x = ggplot2::element_blank()
-      )
+    # add colour to x- and y-axis labels to reflect clustering
+    if (show_xlab) {
+      p <- p +
+        theme(
+          axis.text.x = ggplot2::element_text(
+            colour = plot_cols_x, size = 11.5,
+            angle = 45,
+            hjust = 1
+          )
+        )
     }
-    if (!show_ylab) {
-      p <- p + ggplot2::theme(
-        axis.ticks.y = ggplot2::element_blank()
-      )
+    if (show_ylab) {
+      p <- p +
+        theme(axis.text.y = ggplot2::element_text(colour = plot_cols_y))
     }
 
-    # colour based on if colours are binned or not
+    if (show_xlab && show_ylab) {
+      return(p)
+    }
+
+    # check for ggnewscale
+    if (!requireNamespace("ggnewscale", quietly = TRUE)) {
+      message(paste0(
+        "Package 'ggnewscale' not installed;",
+        "cluster colour strips will not be displayed."
+      ))
+      return(p)
+    }
+
+    # reserve extra row / column for strips
+    x_extra <- min(as.numeric(df$Var1)) - 1
+    y_bottom <- min(as.numeric(df$Var2)) - 1
+
+
+    # X-axis strip (bottom)
+    if (!show_xlab) {
+      df_xstrip <- data.frame(
+        Var1 = factor(levels(df$Var1), levels = levels(df$Var1)),
+        Var2 = factor(rep(y_bottom, length(levels(df$Var1)))),
+        fill = plot_cols_x
+      )
+
+      p <- p +
+        ggnewscale::new_scale_fill() +
+        ggplot2::geom_tile(
+          data = df_xstrip,
+          ggplot2::aes(x = Var1, y = Var2, fill = fill)
+        ) +
+        ggplot2::scale_fill_identity() +
+        ggplot2::theme(
+          axis.text.x  = ggplot2::element_blank(),
+          axis.ticks.x = ggplot2::element_blank()
+        )
+    }
+
+    # Y-axis strip (left)
+    if (!show_ylab) {
+      df_ystrip <- data.frame(
+        Var1 = factor(rep(x_extra, length(levels(df$Var2)))),
+        Var2 = factor(levels(df$Var2), levels = levels(df$Var2)),
+        fill = plot_cols_y
+      )
+
+      p <- p +
+        ggnewscale::new_scale_fill() +
+        ggplot2::geom_tile(
+          data = df_ystrip,
+          ggplot2::aes(x = Var1, y = Var2, fill = fill)
+        ) +
+        ggplot2::scale_fill_identity() +
+        ggplot2::theme(
+          axis.text.y  = ggplot2::element_blank(),
+          axis.ticks.y = ggplot2::element_blank()
+        )
+    }
+
+    # ensure correct limits including strips (when showing only one axis)
     p <- p +
-      ggplot2::scale_fill_viridis_c(
-        option = "A",
-        direction = -1
+      ggplot2::scale_x_discrete(
+        expand = c(0, 0),
+        limits = c(x_extra, levels(df$Var1)),
+        breaks = levels(df$Var1)
+      ) +
+      ggplot2::scale_y_discrete(
+        expand = c(0, 0),
+        limits = c(y_bottom, levels(df$Var2)),
+        breaks = levels(df$Var2)
       )
 
     return(p)
