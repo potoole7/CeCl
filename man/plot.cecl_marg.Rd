@@ -23,8 +23,9 @@
 \item{x}{Object of class \code{cecl_marg}.}
 
 \item{which}{Type of plot to generate. Choices are \code{"qq"} for QQ plot,
-\code{"pp"} for PP plot, \code{"hist"} for histogram of residuals, or \code{"return"} for
-return level plot.}
+\code{"pp"} for PP plot, \code{"hist"} for histogram of residuals, \code{"return"} for
+return level plot, and \code{"transformed"} for a plot of the Laplace-scale
+transformed data. Several plots can also be produced.}
 
 \item{loc}{Location name to plot.}
 
