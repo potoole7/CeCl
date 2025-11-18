@@ -1127,7 +1127,7 @@ plot.cecl_marg <- \(
   }
 
   # Ask if multiple plots needed
-  mf <- par("mfrow")
+  mf <- graphics::par("mfrow")
   capacity <- mf[1] * mf[2]
   # save original par settings & ensure reset
   op <- graphics::par(ask = length(which) > capacity)
