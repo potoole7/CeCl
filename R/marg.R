@@ -1252,7 +1252,7 @@ plot.cecl_marg <- \(
 #' @title CECL ggplot theme
 #' @description Custom ggplot theme for CECL plots.
 #' @param legend.position Position of legend in plot, default "bottom".
-#' @param nejm_pal Logical indicating whether to use NEJM color palette,
+#' @param nejm_pal Logical indicating whether to use NEJM colour palette,
 #' default TRUE.
 #' @return List of ggplot theme elements.
 #' @rdname cecl_theme
@@ -1464,19 +1464,19 @@ ggplot.cecl_marg <- \(
     if (plot_dens) {
       p <- p +
         ggplot2::geom_histogram(
-          aes(y = after_stat(density)),
-          fill = ggsci::pal_nejm()(1)[1],
-          color = "black"
+          ggplot2::aes(y = ggplot2::after_stat(density)),
+          fill = "grey",
+          colour = "black"
         ) +
         ggplot2::geom_density(
-          color = "red",
+          colour = "red",
           size = 1
         )
     } else {
       p <- p +
         ggplot2::geom_histogram(
-          fill = ggsci::pal_nejm()(1)[1],
-          color = "black"
+          fill = "grey",
+          colour = "black"
         )
     }
     return(p)
