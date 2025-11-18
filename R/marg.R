@@ -1117,6 +1117,11 @@ plot.cecl_marg <- \(
     # For transformed plot
   } else {
     stopifnot("must specify `cond_var`" = !is.null(cond_var))
+    stopifnot("`cond_var` must differ from `var`." = cond_var != var)
+    stopifnot(
+      paste0("`cond_var` ", cond_var, " not found in cecl_marg object.") =
+        cond_var %in% x$vars
+    )
     transformed <- x$transformed[[loc]][, c(var, cond_var), drop = FALSE]
   }
 
@@ -1409,6 +1414,11 @@ ggplot.cecl_marg <- \(
     }
   } else {
     stopifnot("must specify `cond_var`." = !is.null(cond_var))
+    stopifnot("`cond_var` must differ from `var`." = cond_var != var)
+    stopifnot(
+      paste0("`cond_var` ", cond_var, " not found in cecl_marg object.") =
+        cond_var %in% x$vars
+    )
     transformed <- data$transformed[[loc]][, c(var, cond_var), drop = FALSE]
   }
 
