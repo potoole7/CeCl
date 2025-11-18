@@ -658,12 +658,20 @@ plot_image <- \(x, ...) {
 #' @param type Character string specifying which plot to produce.
 #' Either `"ggplot"` for ggplot object, or `"plot"` for base R plot.
 #' Default is `"ggplot"`.
+#' @param show_xlab Logical, whether to show x-axis labels, Default: FALSE.
+#' @param show_ylab Logical, whether to show y-axis labels, Default: TRUE.
 #' @param ... Additional arguments passed to plotting functions.
 #' @return ggplot object or base R plot of distance matrix image/heatmap.
 # #' @rdname plot_image
 # #' @method plot_image cecl_dist
 #' @export
-plot_image.cecl_dist <- \(x, type = c("ggplot", "plot"), ...) {
+plot_image.cecl_dist <- \(
+  x,
+  type = c("ggplot", "plot"),
+  show_xlab = FALSE,
+  show_ylab = TRUE,
+  ...
+) {
   stopifnot(inherits(x, "cecl_dist"))
   type <- match.arg(type)
 
@@ -688,16 +696,22 @@ plot_image.cecl_dist <- \(x, type = c("ggplot", "plot"), ...) {
       ...
     )
 
-    graphics::axis(1, at = 1:n, labels = x_names, las = 2)
-    graphics::axis(2, at = 1:n, labels = y_names, las = 2)
+    # add axes if specified
+    if (show_xlab) {
+      graphics::axis(1, at = 1:n, labels = x_names, las = 2)
+    }
+    if (show_ylab) {
+      graphics::axis(2, at = 1:n, labels = y_names, las = 2)
+    }
     graphics::box()
+    # ggplot
   } else {
     # build heatmap dataframe
     df <- as.data.frame(as.table(dist_matrix)) |>
       # ensure factor order is the current matrix order
       dplyr::mutate(
         Var1 = factor(Var1, levels = x_names),
-        Var2 = factor(Var2, levels = rev(y_names))
+        Var2 = factor(Var2, levels = y_names)
       )
 
     # Split into diagonal and off-diagonal dataframes
@@ -740,6 +754,19 @@ plot_image.cecl_dist <- \(x, type = c("ggplot", "plot"), ...) {
       ) +
       NULL
 
+    if (!show_xlab) {
+      p <- p + ggplot2::theme(
+        axis.text.x = ggplot2::element_blank(),
+        axis.ticks.x = ggplot2::element_blank()
+      )
+    }
+    if (!show_ylab) {
+      p <- p + ggplot2::theme(
+        axis.text.y = ggplot2::element_blank(),
+        axis.ticks.y = ggplot2::element_blank()
+      )
+    }
+
     # colour based on if colours are binned or not
     p <- p +
       ggplot2::scale_fill_viridis_c(
@@ -758,9 +785,7 @@ plot_image.cecl_dist <- \(x, type = c("ggplot", "plot"), ...) {
 #' @description Create image/heatmap plot of distance matrix
 #' from a fitted `cecl_clust` object.
 #' @param x Object of class `cecl_clust`.
-#' @param type Character string specifying which plot to produce.
-#' Either `"ggplot"` for ggplot object, or `"plot"` for base R plot.
-#' Default is `"ggplot"`.
+#' @inheritParams plot_image.cecl_dist
 #' @param ... Additional arguments passed to plotting functions.
 #' @return ggplot object or base R plot of distance matrix image/heatmap.
 #' @rdname plot_image
@@ -769,6 +794,8 @@ plot_image.cecl_dist <- \(x, type = c("ggplot", "plot"), ...) {
 plot_image.cecl_clust <- \(
   x,
   type = c("ggplot", "plot"),
+  show_xlab = FALSE,
+  show_ylab = TRUE,
   order_by_cluster = TRUE,
   label_colours = NULL,
   ...
@@ -872,13 +899,18 @@ plot_image.cecl_clust <- \(
       xlab = "", ylab = "",
       ...
     )
-    # TODO Convert these comments from Chat GPT
+    # TODO Convert comments from Chat GPT
     # Draw axes first (so we keep tick marks and baseline label placement)
-    graphics::axis(1, at = 1:n, labels = FALSE, las = 2) # ticks only
-    graphics::axis(2, at = 1:n, labels = FALSE, las = 2)
+    if (show_xlab) {
+      graphics::axis(1, at = 1:n, labels = FALSE, las = 2) # ticks only
+    }
+    if (show_ylab) {
+      graphics::axis(2, at = 1:n, labels = FALSE, las = 2)
+    }
 
     usr <- graphics::par("usr")
     # offsets for label placement
+    # TODO Fix
     x_off <- 0.8
     y_off <- 0.3
 
@@ -889,27 +921,31 @@ plot_image.cecl_clust <- \(
     y_cols <- cluster_to_col[as.character(clustering[y_names])]
 
     # Draw x-axis labels (colored) — slightly below the ticks
-    graphics::text(
-      x = 1:n,
-      y = usr[3] - x_off,
-      labels = x_names,
-      srt = 90,
-      adj = 1,
-      xpd = TRUE,
-      col = x_cols,
-      cex = graphics::par("cex.axis")
-    )
+    if (show_xlab) {
+      graphics::text(
+        x = 1:n,
+        y = usr[3] - x_off,
+        labels = x_names,
+        srt = 90,
+        adj = 1,
+        xpd = TRUE,
+        col = x_cols,
+        cex = graphics::par("cex.axis")
+      )
+    }
 
     # Draw y-axis labels (colored) — slightly left of ticks
-    graphics::text(
-      x = usr[1] - y_off,
-      y = 1:n,
-      labels = y_names,
-      adj = 1,
-      xpd = TRUE,
-      col = y_cols,
-      cex = graphics::par("cex.axis")
-    )
+    if (show_ylab) {
+      graphics::text(
+        x = usr[1] - y_off,
+        y = 1:n,
+        labels = y_names,
+        adj = 1,
+        xpd = TRUE,
+        col = y_cols,
+        cex = graphics::par("cex.axis")
+      )
+    }
 
     graphics::box()
   } else {
@@ -964,17 +1000,25 @@ plot_image.cecl_clust <- \(
           angle = 45,
           hjust = 1
         ),
-        axis.text.y = ggplot2::element_text(
-          size = 11.5,
-          angle = 45,
-          hjust = 1
-        ),
+        axis.text.y = ggplot2::element_text(size = 11.5),
         panel.background = ggplot2::element_blank(),
         panel.grid.major = ggplot2::element_blank(),
         panel.border = ggplot2::element_blank(),
         legend.title = ggplot2::element_text(size = 15),
         legend.text = ggplot2::element_text(size = 14)
       )
+
+    if (!show_xlab) {
+      p <- p + ggplot2::theme(
+        axis.text.x = ggplot2::element_blank(),
+        axis.ticks.x = ggplot2::element_blank()
+      )
+    }
+    if (!show_ylab) {
+      p <- p + ggplot2::theme(
+        axis.ticks.y = ggplot2::element_blank()
+      )
+    }
 
     # colour based on if colours are binned or not
     p <- p +
