@@ -995,6 +995,8 @@ summary.cecl_marg <- \(object, n, ...) {
 #' @param loc Location name to plot.
 #' @param mult_col Name of the column representing locations, default `"name"`.
 #' @param var Variable name to plot.
+#' @param cond_var Optional conditioning variable for plotting Laplace
+#' transformed data, Default NULL.
 #' @param plot_dens Logical indicating whether to plot histogram on top of
 #' density estimate, Default TRUE.
 #' @param return_periods Return periods for return level plot,
@@ -1037,10 +1039,11 @@ summary.cecl_marg <- \(object, n, ...) {
 #' plot(marg_fit, which = "qq", loc = "loc_1", var = "X1")
 plot.cecl_marg <- \(
   x,
-  which = c("qq", "pp", "hist", "return"),
+  which = c("qq", "pp", "hist", "return", "transformed"),
   loc,
   mult_col = "name",
   var,
+  cond_var = NULL,
   plot_dens = TRUE,
   return_periods = c(1.5, 2.5, 5, 10, 20, 50, 100, 200),
   nboot = 200,
@@ -1050,10 +1053,10 @@ plot.cecl_marg <- \(
 ) {
   stopifnot(inherits(x, "cecl_marg"))
 
-  if (inherits(x, "cecl_marg_ecdf")) {
+  if (inherits(x, "cecl_marg_ecdf") && which != "transformed") {
     stop(paste(
-      "No residuals to plot for 'ecdf' marg_method.",
-      "Use 'thresh_only = TRUE' in 'cecl_marg' to only threshold data."
+      "No residuals to plot for 'ecdf' `marg_method`,",
+      "only 'transformed' plot available."
     ))
   }
 
@@ -1062,7 +1065,6 @@ plot.cecl_marg <- \(
   if (missing(loc) || missing(var)) {
     stop("Please specify both 'loc' and 'var' to plot.")
   }
-
   if (!loc %in% names(x$original)) {
     stop(paste("Location", loc, "not found in the cecl_marg object."))
   }
@@ -1089,29 +1091,46 @@ plot.cecl_marg <- \(
   )
 
   # Calculate residuals based on marginal method
-  if (inherits(x, "cecl_marg_ismev")) {
-    gpd_params <- x$marginal[[loc]][[var]]
-    sigma <- gpd_params$sigma
-    xi <- gpd_params$xi
-    # residuals <- (thresh_data[[var]] - gpd_params$thresh) / gpd_params$sigma
-    exceedances <- thresh_data[[var]] - gpd_params$thresh
-    residuals <- resid_fun(exceedances, gpd_params)
-  } else if (inherits(x, "cecl_marg_evgam")) {
-    stop("Plot method not implemented for evgam marg_method yet.")
-    evgam_fit <- x$evgam_fit[[which(x$vars == var)]]
-    pred_row <- evgam_fit$predictions |>
-      dplyr::filter(.data[[x$mult_col]] == loc)
-    sigma <- pred_row$scale
-    xi <- pred_row$shape
-    # residuals <- (thresh_data[[var]] - pred_row$thresh) / sigma
-    exceedances <- thresh_data[[var]] - pred_row$thresh
-    residuals <- resid_fun(exceedances, list(sigma = sigma, xi = xi))
+  if (which != "transformed") {
+    if (inherits(x, "cecl_marg_ismev")) {
+      gpd_params <- x$marginal[[loc]][[var]]
+      sigma <- gpd_params$sigma
+      xi <- gpd_params$xi
+      # residuals <- (thresh_data[[var]] - gpd_params$thresh) / gpd_params$sigma
+      exceedances <- thresh_data[[var]] - gpd_params$thresh
+      residuals <- resid_fun(exceedances, gpd_params)
+    } else if (inherits(x, "cecl_marg_evgam")) {
+      stop("Plot method not implemented for evgam marg_method yet.")
+      evgam_fit <- x$evgam_fit[[which(x$vars == var)]]
+      pred_row <- evgam_fit$predictions |>
+        dplyr::filter(.data[[x$mult_col]] == loc)
+      sigma <- pred_row$scale
+      xi <- pred_row$shape
+      # residuals <- (thresh_data[[var]] - pred_row$thresh) / sigma
+      exceedances <- thresh_data[[var]] - pred_row$thresh
+      residuals <- resid_fun(exceedances, list(sigma = sigma, xi = xi))
+    } else {
+      stop("Plot method not implemented for this marg_method")
+    }
+    if (!is.null(cond_var)) {
+      message("Ignoring `cond_var` for which != 'transformed'")
+    }
+    # For transformed plot
   } else {
-    stop("Plot method not implemented for this marg_method")
+    stopifnot("must specify `cond_var`" = !is.null(cond_var))
+    transformed <- x$transformed[[loc]][, c(var, cond_var), drop = FALSE]
   }
 
-  # Generate specified plot
-  if (which == "qq") {
+  # Generate specified plots
+  if (which == "transformed") {
+    plot(
+      transformed[, cond_var],
+      transformed[, var],
+      xlab = paste0("F(", cond_var, ")"),
+      ylab = paste0("F(", var, ")"),
+      ...
+    )
+  } else if (which == "qq") {
     stats::qqplot(
       qgpd(
         stats::ppoints(length(residuals)),
@@ -1303,9 +1322,10 @@ cecl_theme <- \(legend.position = "bottom", nejm_pal = TRUE) {
 ggplot.cecl_marg <- \(
   data = NULL,
   mapping = ggplot2::aes(),
-  which = c("qq", "pp", "hist", "return"),
+  which = c("qq", "pp", "hist", "return", "transformed"),
   loc,
   var,
+  cond_var = NULL,
   mult_col = "name",
   plot_dens = TRUE,
   return_periods = c(1.5, 2.5, 5, 10, 20, 50, 100, 200),
@@ -1317,10 +1337,10 @@ ggplot.cecl_marg <- \(
 ) {
   stopifnot(inherits(data, "cecl_marg"))
 
-  if (inherits(data, "cecl_marg_ecdf")) {
+  if (inherits(data, "cecl_marg_ecdf") && which != "transformed") {
     stop(paste(
-      "No residuals to plot for 'ecdf' marg_method.",
-      "Use 'thresh_only = TRUE' in 'cecl_marg' to only threshold data."
+      "No residuals to plot for 'ecdf' `marg_method`,",
+      "only 'transformed' plot available."
     ))
   }
 
@@ -1337,7 +1357,7 @@ ggplot.cecl_marg <- \(
     stop(paste("Variable", var, "not found in the cecl_marg object."))
   }
 
-  quantile <- lower <- upper <- NULL
+  quantile <- lower <- upper <- density <- NULL
 
   # Extract original and thresholded data for specified location and variable
   orig_data <- data$original[[loc]] |>
@@ -1357,50 +1377,69 @@ ggplot.cecl_marg <- \(
     )
   )
 
-  if (inherits(data, "cecl_marg_ismev")) {
-    gpd_params <- data$marginal[[loc]][[var]]
-    exceedances <- thresh_data[[var]] - gpd_params$thresh
-    residuals <- resid_fun(exceedances, gpd_params)
-    # TODO Check if this works as well
-  } else if (inherits(data, "cecl_marg_evgam")) {
-    stop("ggplot method not implemented for evgam marg_method yet.")
-    evgam_fit <- data$evgam_fit[[which(data$vars == var)]]
-    pred_row <- evgam_fit$predictions |>
-      dplyr::filter(.data[[data$mult_col]] == loc)
-    sigma <- pred_row$scale
-    # residuals <- (thresh_data[[var]] - pred_row$thresh) / sigma
-    exceedances <- thresh_data[[var]] - pred_row$thresh
-    residuals <- resid_fun(
-      exceedances, list(sigma = sigma, xi = pred_row$shape)
+  if (which != "transformed") {
+    if (inherits(data, "cecl_marg_ismev")) {
+      gpd_params <- data$marginal[[loc]][[var]]
+      exceedances <- thresh_data[[var]] - gpd_params$thresh
+      residuals <- resid_fun(exceedances, gpd_params)
+      # TODO Check if this works as well
+    } else if (inherits(data, "cecl_marg_evgam")) {
+      stop("ggplot method not implemented for evgam marg_method yet.")
+      evgam_fit <- data$evgam_fit[[which(data$vars == var)]]
+      pred_row <- evgam_fit$predictions |>
+        dplyr::filter(.data[[data$mult_col]] == loc)
+      sigma <- pred_row$scale
+      # residuals <- (thresh_data[[var]] - pred_row$thresh) / sigma
+      exceedances <- thresh_data[[var]] - pred_row$thresh
+      residuals <- resid_fun(
+        exceedances, list(sigma = sigma, xi = pred_row$shape)
+      )
+    } else {
+      stop("ggplot method not implemented for this marg_method")
+    }
+    # check residuals
+    stopifnot(
+      "NA residuals - check pgpd arguments/parameterization" =
+        !any(is.na(residuals))
     )
-  } else {
-    stop("ggplot method not implemented for this marg_method")
-  }
-  # check residuals
-  stopifnot(
-    "NA residuals - check pgpd arguments/parameterization" =
-      !any(is.na(residuals))
-  )
-  stopifnot(
-    "Some residuals are outside [0,1] - check parameterization" =
-      all(residuals >= 0 & residuals <= 1)
-  )
+    stopifnot(
+      "Some residuals are outside [0,1] - check parameterization" =
+        all(residuals >= 0 & residuals <= 1)
+    )
+    res_df <- data.frame(residuals = residuals)
 
-  res_df <- data.frame(residuals = residuals)
+    if (!is.null(cond_var)) {
+      message("Ignoring `cond_var` for which != 'transformed'")
+    }
+  } else {
+    stopifnot("must specify `cond_var`." = !is.null(cond_var))
+    transformed <- data$transformed[[loc]][, c(var, cond_var), drop = FALSE]
+  }
 
   # Generate specified ggplot
-  if (which == "qq") {
+  if (which == "transformed") {
+    ggplot2::ggplot(
+      as.data.frame(transformed),
+      ggplot2::aes_string(x = cond_var, y = var)
+    ) +
+      ggplot2::geom_point() +
+      ggplot2::labs(
+        x = paste0("F(", cond_var, ")"),
+        y = paste0("F(", var, ")")
+      ) +
+      cecl_theme()
+  } else if (which == "qq") {
     gpd_pars <- c(list("u" = 0), stats::setNames(
       gpd_params[c("sigma", "xi")],
       c("sigma", "xi")
     ))
 
-
     qfun <- \(p) do.call(qgpd, c(list(p), gpd_pars))
 
-    ggplot2::ggplot(res_df, ggplot2::aes(
-      sample = exceedances
-    )) +
+    ggplot2::ggplot(
+      res_df,
+      ggplot2::aes(sample = exceedances)
+    ) +
       ggplot2::stat_qq(distribution = qfun) +
       ggplot2::geom_abline(intercept = 0, slope = 1, colour = "red") +
       ggplot2::labs(x = "Theoretical Quantiles", y = "Sample Quantiles") +
