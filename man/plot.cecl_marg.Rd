@@ -6,10 +6,12 @@
 \usage{
 \method{plot}{cecl_marg}(
   x,
-  which = c("qq", "pp", "hist", "return"),
+  which = c("qq", "pp", "hist", "return", "transformed"),
   loc,
   mult_col = "name",
   var,
+  cond_var = NULL,
+  plot_dens = TRUE,
   return_periods = c(1.5, 2.5, 5, 10, 20, 50, 100, 200),
   nboot = 200,
   ci_quantiles = c(0.025, 0.975),
@@ -29,6 +31,12 @@ return level plot.}
 \item{mult_col}{Name of the column representing locations, default \code{"name"}.}
 
 \item{var}{Variable name to plot.}
+
+\item{cond_var}{Optional conditioning variable for plotting Laplace
+transformed data, Default NULL.}
+
+\item{plot_dens}{Logical indicating whether to plot histogram on top of
+density estimate, Default TRUE.}
 
 \item{return_periods}{Return periods for return level plot,
 Default c(1.5, 2.5, 5, 10, 20, 50, 100, 200).}
