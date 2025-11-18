@@ -990,8 +990,9 @@ summary.cecl_marg <- \(object, n, ...) {
 #' QQ, PP, histogram, and return level plots.
 #' @param x Object of class `cecl_marg`.
 #' @param which Type of plot to generate. Choices are `"qq"` for QQ plot,
-#' `"pp"` for PP plot, `"hist"` for histogram of residuals, or `"return"` for
-#' return level plot.
+#' `"pp"` for PP plot, `"hist"` for histogram of residuals, `"return"` for
+#' return level plot, and `"transformed"` for a plot of the Laplace-scale
+#' transformed data. Several plots can also be produced.
 #' @param loc Location name to plot.
 #' @param mult_col Name of the column representing locations, default `"name"`.
 #' @param var Variable name to plot.
@@ -1060,7 +1061,7 @@ plot.cecl_marg <- \(
     ))
   }
 
-  which <- match.arg(which)
+  which <- match.arg(which, several.ok = TRUE)
 
   if (missing(loc) || missing(var)) {
     stop("Please specify both 'loc' and 'var' to plot.")
@@ -1091,7 +1092,7 @@ plot.cecl_marg <- \(
   )
 
   # Calculate residuals based on marginal method
-  if (which != "transformed") {
+  if (any(which != "transformed")) {
     gpd_params <- x$marginal[[loc]][[var]]
     if (inherits(x, "cecl_marg_ismev")) {
       sigma <- gpd_params$sigma
@@ -1115,7 +1116,8 @@ plot.cecl_marg <- \(
       message("Ignoring `cond_var` for which != 'transformed'")
     }
     # For transformed plot
-  } else {
+  }
+  if (any(which == "transformed")) {
     stopifnot("must specify `cond_var`" = !is.null(cond_var))
     stopifnot("`cond_var` must differ from `var`." = cond_var != var)
     stopifnot(
@@ -1124,131 +1126,139 @@ plot.cecl_marg <- \(
     transformed <- x$transformed[[loc]][, c(var, cond_var), drop = FALSE]
   }
 
+  # save original par settings & ensure reset
+  mf <- par("mfrow")
+  capacity <- mf[1] * mf[2]
+  op <- par(ask = length(which) > capacity)
+  on.exit(par(op))
+
   # Generate specified plots
-  if (which == "transformed") {
-    plot(
-      transformed[, cond_var],
-      transformed[, var],
-      xlab = paste0("F(", cond_var, ")"),
-      ylab = paste0("F(", var, ")"),
-      ...
-    )
-  } else if (which == "qq") {
-    stats::qqplot(
-      qgpd(
+  for (w in which) {
+    if (w == "transformed") {
+      plot(
+        transformed[, cond_var],
+        transformed[, var],
+        xlab = paste0("F(", cond_var, ")"),
+        ylab = paste0("F(", var, ")"),
+        ...
+      )
+    } else if (w == "qq") {
+      stats::qqplot(
+        qgpd(
+          stats::ppoints(length(residuals)),
+          u = 0, sigma = sigma, xi = xi
+        ),
+        # residuals,
+        sort(exceedances),
+        xlab = "Theoretical Quantiles",
+        ylab = "Sample Quantiles",
+        ...
+      )
+      graphics::abline(0, 1, col = "red")
+    } else if (w == "pp") {
+      plot(
         stats::ppoints(length(residuals)),
-        u = 0, sigma = sigma, xi = xi
-      ),
-      # residuals,
-      sort(exceedances),
-      xlab = "Theoretical Quantiles",
-      ylab = "Sample Quantiles",
-      ...
-    )
-    graphics::abline(0, 1, col = "red")
-  } else if (which == "pp") {
-    plot(
-      stats::ppoints(length(residuals)),
-      sort(residuals),
-      xlab = "Theoretical Probabilities",
-      ylab = "Sample Probabilities",
-      ...
-    )
-    graphics::abline(0, 1, col = "red")
-  } else if (which == "hist") {
-    # if main not specified, set to NULL (hist automatically adds title)
-    plot_args <- list(
-      x      = residuals,
-      breaks = 20,
-      xlab   = "Residuals",
-      prob   = ifelse(plot_dens, TRUE, FALSE),
-      ...
-    )
-    if (!"main" %in% names(plot_args)) {
-      plot_args[["main"]] <- list(NULL)
-    }
-    do.call(graphics::hist, plot_args)
-    # add density plot if specified
-    if (plot_dens) {
-      graphics::lines(stats::density(residuals), col = "red", lwd = 2)
-    }
-  } else if (which == "return") {
-    #  Extract fitted parameters
-    gpd_params <- x$marginal[[loc]][[var]]
-    u <- gpd_params$thresh
-    sigma <- gpd_params$sigma
-    xi <- gpd_params$xi
+        sort(residuals),
+        xlab = "Theoretical Probabilities",
+        ylab = "Sample Probabilities",
+        ...
+      )
+      graphics::abline(0, 1, col = "red")
+    } else if (w == "hist") {
+      # if main not specified, set to NULL (hist automatically adds title)
+      plot_args <- list(
+        x      = residuals,
+        breaks = 20,
+        xlab   = "Residuals",
+        prob   = ifelse(plot_dens, TRUE, FALSE),
+        ...
+      )
+      if (!"main" %in% names(plot_args)) {
+        plot_args[["main"]] <- list(NULL)
+      }
+      do.call(graphics::hist, plot_args)
+      # add density plot if specified
+      if (plot_dens) {
+        graphics::lines(stats::density(residuals), col = "red", lwd = 2)
+      }
+    } else if (w == "return") {
+      #  Extract fitted parameters
+      gpd_params <- x$marginal[[loc]][[var]]
+      u <- gpd_params$thresh
+      sigma <- gpd_params$sigma
+      xi <- gpd_params$xi
 
-    # Estimate exceedance rate
-    n_total <- nrow(orig_data)
-    n_exc <- nrow(thresh_data)
-    lambda_u <- n_exc / n_total
+      # Estimate exceedance rate
+      n_total <- nrow(orig_data)
+      n_exc <- nrow(thresh_data)
+      lambda_u <- n_exc / n_total
 
-    # Define return periods
-    T_vals <- return_periods
-    z_T <- if (abs(xi) > 1e-6) {
-      u + (sigma / xi) * ((T_vals * lambda_u)^xi - 1)
-    } else {
-      u + sigma * log(T_vals * lambda_u)
-    }
+      # Define return periods
+      T_vals <- return_periods
+      z_T <- if (abs(xi) > 1e-6) {
+        u + (sigma / xi) * ((T_vals * lambda_u)^xi - 1)
+      } else {
+        u + sigma * log(T_vals * lambda_u)
+      }
 
-    if (log_scale) {
-      T_vals_plot <- log(T_vals)
-      xlab <- "Return Period (log)"
-    } else {
-      T_vals_plot <- T_vals
-      xlab <- "Return Period"
-    }
+      if (log_scale) {
+        T_vals_plot <- log(T_vals)
+        xlab <- "Return Period (log)"
+      } else {
+        T_vals_plot <- T_vals
+        xlab <- "Return Period"
+      }
 
-    plot(
-      T_vals_plot, z_T,
-      type = "b", pch = 19,
-      xlab = xlab,
-      ylab = "Return Level",
-      ...
-    )
-
-    zT_boot <- matrix(NA, nrow = nboot, ncol = length(T_vals))
-
-    for (b in seq_len(nboot)) {
-      sim_data <- rgpd(
-        n     = nrow(thresh_data),
-        u     = gpd_params$thresh,
-        sigma = gpd_params$sigma,
-        xi    = gpd_params$xi
+      plot(
+        T_vals_plot, z_T,
+        type = "b", pch = 19,
+        xlab = xlab,
+        ylab = "Return Level",
+        ...
       )
 
-      fit_b <- ismev::gpd.fit(
-        sim_data,
-        threshold = gpd_params$thresh, show = FALSE
+      zT_boot <- matrix(NA, nrow = nboot, ncol = length(T_vals))
+
+      for (b in seq_len(nboot)) {
+        sim_data <- rgpd(
+          n     = nrow(thresh_data),
+          u     = gpd_params$thresh,
+          sigma = gpd_params$sigma,
+          xi    = gpd_params$xi
+        )
+
+        fit_b <- ismev::gpd.fit(
+          sim_data,
+          threshold = gpd_params$thresh, show = FALSE
+        )
+
+        if (inherits(fit_b, "try-error")) next # skip failed fit
+
+        sigma_b <- fit_b$mle[1]
+        xi_b <- fit_b$mle[2]
+        lambda_u_b <- lambda_u
+
+        # skip if invalid MLEs
+        if (any(is.na(fit_b$mle))) next
+        xi_b <- ifelse(abs(xi_b) < 1e-6, 1e-6, xi_b)
+
+        zT_boot[b, ] <- gpd_params$thresh +
+          (sigma_b / xi_b) * ((T_vals * lambda_u_b)^xi_b - 1)
+      }
+
+      ci <- apply(zT_boot, 2, stats::quantile, probs = ci_quantiles)
+      z_T_lower <- ci[1, ]
+      z_T_upper <- ci[2, ]
+
+      graphics::lines(
+        T_vals_plot, z_T_upper,
+        lty = 2, col = ggsci::pal_nejm()(1)[1]
       )
-
-      if (inherits(fit_b, "try-error")) next # skip failed fit
-
-      sigma_b <- fit_b$mle[1]
-      xi_b <- fit_b$mle[2]
-      lambda_u_b <- lambda_u
-
-      # skip if invalid MLEs
-      if (any(is.na(fit_b$mle))) next
-      xi_b <- ifelse(abs(xi_b) < 1e-6, 1e-6, xi_b)
-
-      zT_boot[b, ] <- gpd_params$thresh +
-        (sigma_b / xi_b) * ((T_vals * lambda_u_b)^xi_b - 1)
+      graphics::lines(
+        T_vals_plot, z_T_lower,
+        lty = 2, col = ggsci::pal_nejm()(1)[1]
+      )
     }
-
-    ci <- apply(zT_boot, 2, stats::quantile, probs = ci_quantiles)
-    z_T_lower <- ci[1, ]
-    z_T_upper <- ci[2, ]
-
-    graphics::lines(
-      T_vals_plot, z_T_upper,
-      lty = 2, col = ggsci::pal_nejm()(1)[1]
-    )
-    graphics::lines(
-      T_vals_plot, z_T_lower,
-      lty = 2, col = ggsci::pal_nejm()(1)[1]
-    )
   }
 }
 
