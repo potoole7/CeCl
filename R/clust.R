@@ -670,12 +670,11 @@ plot_image.cecl_dist <- \(x, type = c("ggplot", "plot"), ...) {
   Var1 <- Var2 <- Freq <- NULL
 
   dist_matrix <- as.matrix(x$dist_mat) # convert from dist to matrix
-  # dist_matrix <- as.matrix(dist_mat)
 
+  # extract row and column tick labels
+  x_names <- rownames(dist_matrix)
+  y_names <- rev(colnames(dist_matrix))
   if (type == "plot") {
-    # extract row and column tick labels
-    x_names <- rownames(dist_matrix)
-    y_names <- rev(colnames(dist_matrix))
     n <- length(x_names)
 
     dist_plt <- t(dist_matrix[x_names, y_names])
@@ -693,29 +692,65 @@ plot_image.cecl_dist <- \(x, type = c("ggplot", "plot"), ...) {
     graphics::axis(2, at = 1:n, labels = y_names, las = 2)
     graphics::box()
   } else {
-    # convert matrix to data frame
+    # build heatmap dataframe
     df <- as.data.frame(as.table(dist_matrix)) |>
-      # ensure correct ordering of factors
+      # ensure factor order is the current matrix order
       dplyr::mutate(
-        Var1 = factor(Var1, levels = rownames(dist_matrix)),
-        Var2 = factor(Var2, levels = rev(colnames(dist_matrix)))
+        Var1 = factor(Var1, levels = x_names),
+        Var2 = factor(Var2, levels = rev(y_names))
       )
-    p <- ggplot2::ggplot(df, ggplot2::aes(Var1, Var2, fill = Freq)) +
+
+    # Split into diagonal and off-diagonal dataframes
+    # (want to have white for NAs without affecting fill legend)
+    diag_df <- dplyr::filter(df, Var1 == Var2)
+    off_diag_df <- dplyr::filter(df, Var1 != Var2)
+
+    p <- off_diag_df |>
+      # ggplot(aes(x = Var1, y = Var2, fill = Distance)) +
+      # TODO optionally bin here
+      ggplot2::ggplot(ggplot2::aes(x = Var1, y = Var2, fill = Freq)) +
       ggplot2::geom_tile() +
-      cecl_theme(nejm_pal = FALSE) +
-      ggplot2::labs(
-        x = "",
-        y = "",
-        fill = "Distance"
+      ggplot2::geom_tile(
+        data = diag_df,
+        ggplot2::aes(x = Var1, y = Var2),
+        fill = "white",
+        show.legend = FALSE
       ) +
-      # TODO Change colour scheme to one in paper?
-      ggplot2::scale_fill_viridis_c() +
+      ggplot2::coord_fixed() + # keep squares square
+      ggplot2::labs(
+        x = "", y = "",
+        fill = "Dissimilarity"
+      ) +
       ggplot2::theme(
-        axis.text.x = ggplot2::element_text(angle = 45, hjust = 1)
+        # remove x-axis labels, as they are repeats
+        # axis.text.x      = ggplot2::element_blank(),
+        # axis.ticks.x     = ggplot2::element_blank(),
+        # Colour by cluster
+        axis.text.x = ggplot2::element_text(
+          size = 11.5,
+          angle = 45,
+          hjust = 1
+        ),
+        axis.text.y = ggplot2::element_text(size = 11.5),
+        panel.background = ggplot2::element_blank(),
+        panel.grid.major = ggplot2::element_blank(),
+        panel.border = ggplot2::element_blank(),
+        legend.title = ggplot2::element_text(size = 15),
+        legend.text = ggplot2::element_text(size = 14)
+      ) +
+      NULL
+
+    # colour based on if colours are binned or not
+    p <- p +
+      ggplot2::scale_fill_viridis_c(
+        option = "A",
+        direction = -1
       )
+
     return(p)
   }
 }
+
 
 # TODO Add some kind of highlighting for locations within the same cluster?
 # TODO Allow custom upper bound to colour scale? Large distances may dominate
@@ -909,48 +944,37 @@ plot_image.cecl_clust <- \(
     off_diag_df <- dplyr::filter(df, Var1 != Var2)
 
     p <- off_diag_df |>
-      # ggplot(aes(x = Var1, y = Var2, fill = Distance)) +
       # TODO optionally bin here
       ggplot2::ggplot(ggplot2::aes(x = Var1, y = Var2, fill = Freq)) +
       ggplot2::geom_tile() +
       ggplot2::geom_tile(
         data = diag_df,
-        # aes(x = Column, y = Row),
         ggplot2::aes(x = Var1, y = Var2),
         fill = "white",
         show.legend = FALSE
       ) +
-      # ggplot2::scale_fill_viridis_d(
-      #   option = "A",
-      #   direction = -1
-      # ) +
       ggplot2::coord_fixed() + # keep squares square
       ggplot2::labs(
         x = "", y = "",
         fill = "Dissimilarity"
       ) +
       ggplot2::theme(
-        # remove x-axis labels, as they are repeats
-        # axis.text.x      = ggplot2::element_blank(),
-        # axis.ticks.x     = ggplot2::element_blank(),
-        # Colour by cluster
         axis.text.x = ggplot2::element_text(
-          colour = plot_cols_x,
           size = 11.5,
           angle = 45,
           hjust = 1
         ),
         axis.text.y = ggplot2::element_text(
-          colour = plot_cols_y,
-          size = 11.5
+          size = 11.5,
+          angle = 45,
+          hjust = 1
         ),
         panel.background = ggplot2::element_blank(),
         panel.grid.major = ggplot2::element_blank(),
         panel.border = ggplot2::element_blank(),
         legend.title = ggplot2::element_text(size = 15),
         legend.text = ggplot2::element_text(size = 14)
-      ) +
-      NULL
+      )
 
     # colour based on if colours are binned or not
     p <- p +
