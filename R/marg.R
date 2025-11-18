@@ -1347,8 +1347,8 @@ plot.cecl_marg <- \(
       plot(
         transformed[, cond_var],
         transformed[, var],
-        xlab = paste0("F(", cond_var, ")"),
-        ylab = paste0("F(", var, ")"),
+        xlab = cond_var,
+        ylab = var
         ...
       )
     } else if (w == "qq") {
@@ -1696,8 +1696,8 @@ ggplot.cecl_marg <- \(
       ) +
         ggplot2::geom_point(...) +
         ggplot2::labs(
-          x = paste0("F(", cond_var, ")"),
-          y = paste0("F(", var, ")")
+          x = cond_var,
+          y = var
         ) +
         cecl_theme()
     } else if (w == "qq") {
