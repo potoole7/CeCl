@@ -11,7 +11,7 @@ yet, or the repository is only intended to be a limited example, demo,
 or
 proof-of-concept.](https://www.repostatus.org/badges/latest/concept.svg)](https://www.repostatus.org/#concept)
 [![R build
-status](https://github.com/mrc-ide/CeCl/workflows/R-CMD-check/badge.svg)](https://github.com/mrc-ide/CeCl/actions/workflows/R-CMD-check.yaml)
+status](https://github.com/potoole7/CeCl/workflows/R-CMD-check/badge.svg)](https://github.com/mrc-ide/CeCl/actions/workflows/R-CMD-check.yaml)
 <!-- [![codecov.io](https://codecov.io/github/mrc-ide/CeCl/coverage.svg?branch=main)](https://codecov.io/github/mrc-ide/CeCl?branch=main) -->
 <!-- badges: end -->
 
@@ -41,8 +41,8 @@ pak::pak("potoole7/CeCl")
 Once installed, you can apply the main `CeCl` workflow in three steps:
 
 ``` r
-marg <- cecl_marg(data)   # performs marginal transformation
-dep  <- cecl_dep(marg)    # fits conditional extremes models
+marg  <- cecl_marg(data)  # performs marginal transformation
+dep   <- cecl_dep(marg)   # fits conditional extremes models
 clust <- cecl_clust(dep)  # clusters based on tail dependence
 ```
 
@@ -146,11 +146,10 @@ ggplot(clust, which = "image")
 ```
 
 <img src="man/figures/README-plot_clust-1.png" width="100%" style="display: block; margin: auto;" />
-We can confirm from the Adjusted Rand Index from the printed
-`cecl_clust` object that the clustering has perfectly recovered the true
-clusters of locations based on their tail dependence structures. Our
-dissimilarity matrix plot also clearly shows two distinct clusters of
-locations.
+The Adjusted Rand Index reported in the `cecl_clust` object confirms
+that the clustering has perfectly recovered the true clusters of
+locations based on their tail-dependence structures. Our dissimilarity
+matrix plot also clearly shows two distinct clusters of locations.
 
 ## License
 

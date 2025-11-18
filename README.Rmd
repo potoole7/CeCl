@@ -25,7 +25,7 @@ knitr::opts_chunk$set(
 
 <!-- badges: start -->
 [![Project Status: Concept – Minimal or no implementation has been done yet, or the repository is only intended to be a limited example, demo, or proof-of-concept.](https://www.repostatus.org/badges/latest/concept.svg)](https://www.repostatus.org/#concept)
-[![R build status](https://github.com/mrc-ide/CeCl/workflows/R-CMD-check/badge.svg)](https://github.com/mrc-ide/CeCl/actions/workflows/R-CMD-check.yaml)
+[![R build status](https://github.com/potoole7/CeCl/workflows/R-CMD-check/badge.svg)](https://github.com/mrc-ide/CeCl/actions/workflows/R-CMD-check.yaml)
 <!-- [![codecov.io](https://codecov.io/github/mrc-ide/CeCl/coverage.svg?branch=main)](https://codecov.io/github/mrc-ide/CeCl?branch=main) -->
 <!-- badges: end -->
 
@@ -46,8 +46,8 @@ pak::pak("potoole7/CeCl")
 
 Once installed, you can apply the main `CeCl` workflow in three steps:
 ```{r, quick_usage, eval=FALSE}
-marg <- cecl_marg(data)   # performs marginal transformation
-dep  <- cecl_dep(marg)    # fits conditional extremes models
+marg  <- cecl_marg(data)  # performs marginal transformation
+dep   <- cecl_dep(marg)   # fits conditional extremes models
 clust <- cecl_clust(dep)  # clusters based on tail dependence
 ```
 This fits the conditional extremes models to each group/location and clusters them based on their tail dependence structure.
@@ -127,7 +127,7 @@ We can visualise the dissimilarity matrix used for clustering as follows:
 ```{r plot_clust, message=FALSE, warning=FALSE}
 ggplot(clust, which = "image")
 ```
-We can confirm from the Adjusted Rand Index from the printed `cecl_clust` object that the clustering has perfectly recovered the true clusters of locations based on their tail dependence structures.
+The Adjusted Rand Index reported in the `cecl_clust` object confirms that the clustering has perfectly recovered the true clusters of locations based on their tail-dependence structures.
 Our dissimilarity matrix plot also clearly shows two distinct clusters of locations.
 
 ## License
@@ -135,4 +135,3 @@ Our dissimilarity matrix plot also clearly shows two distinct clusters of locati
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## References
-
