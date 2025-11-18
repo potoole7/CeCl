@@ -14,6 +14,7 @@
   plot_dens = TRUE,
   return_periods = c(1.5, 2.5, 5, 10, 20, 50, 100, 200),
   nboot = 200,
+  refit = FALSE,
   ci_quantiles = c(0.025, 0.975),
   log_scale = TRUE,
   ...
@@ -42,10 +43,13 @@ density estimate, Default TRUE.}
 \item{return_periods}{Return periods for return level plot,
 Default c(1.5, 2.5, 5, 10, 20, 50, 100, 200).}
 
-\item{nboot}{Number of bootstrap samples for return level plot confidence
-intervals, Default 200.}
+\item{nboot}{Number of bootstrap samples for confidence
+intervals, set to NULL for none confidence interval, Default: 200.}
 
-\item{ci_quantiles}{Quantiles for confidence intervals in return level plot,
+\item{refit}{Logical indicating whether to refit GPD for each bootstrap
+sample when calculating uncertainty envelopes, Default FALSE.}
+
+\item{ci_quantiles}{Quantiles for confidence intervals,
 Default c(0.025, 0.975).}
 
 \item{log_scale}{Logical indicating whether to use log scale for return

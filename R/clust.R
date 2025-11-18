@@ -803,7 +803,7 @@ plot_image.cecl_clust <- \(
   type <- match.arg(type)
   stopifnot(inherits(x, "cecl_clust"))
 
-  Var1 <- Var2 <- value <- Freq <- NULL
+  Var1 <- Var2 <- value <- Freq <- fill <- NULL
 
   #  extract distance matrix and PAM clustering
   dist_matrix <- as.matrix(x$dist_mat)
@@ -1027,7 +1027,7 @@ plot_image.cecl_clust <- \(
     # add colour to x- and y-axis labels to reflect clustering
     if (show_xlab) {
       p <- p +
-        theme(
+        ggplot2::theme(
           axis.text.x = ggplot2::element_text(
             colour = plot_cols_x, size = 11.5,
             angle = 45,
@@ -1037,7 +1037,9 @@ plot_image.cecl_clust <- \(
     }
     if (show_ylab) {
       p <- p +
-        theme(axis.text.y = ggplot2::element_text(colour = plot_cols_y))
+        ggplot2::theme(
+          axis.text.y = ggplot2::element_text(colour = plot_cols_y)
+        )
     }
 
     if (show_xlab && show_ylab) {

@@ -8,7 +8,7 @@ bootstrap_pp_qq(
   exceedances,
   gpd_params,
   type = c("qq", "pp"),
-  nsim = 200,
+  nboot = 200,
   refit = FALSE,
   ci_quantiles = c(0.025, 0.975)
 )
@@ -22,7 +22,8 @@ specifying fitted GPD parameters.}
 \item{type}{Type of envelope to generate: "qq" for QQ plot,
 "pp" for PP plot, or both.}
 
-\item{nsim}{Number of bootstrap simulations (default 200).}
+\item{nboot}{Number of bootstrap simulations, set to NULL for no
+envelopes, Default 200.}
 
 \item{refit}{Logical; if TRUE, refit GPD model for each simulated dataset
 (slower, includes parameter uncertainty). If FALSE, use fixed fitted

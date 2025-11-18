@@ -10,6 +10,8 @@ plot_image(x, ...)
 \method{plot_image}{cecl_clust}(
   x,
   type = c("ggplot", "plot"),
+  show_xlab = FALSE,
+  show_ylab = TRUE,
   order_by_cluster = TRUE,
   label_colours = NULL,
   ...
@@ -23,6 +25,10 @@ plot_image(x, ...)
 \item{type}{Character string specifying which plot to produce.
 Either \code{"ggplot"} for ggplot object, or \code{"plot"} for base R plot.
 Default is \code{"ggplot"}.}
+
+\item{show_xlab}{Logical, whether to show x-axis labels, Default: FALSE.}
+
+\item{show_ylab}{Logical, whether to show y-axis labels, Default: TRUE.}
 }
 \value{
 Plot of object.

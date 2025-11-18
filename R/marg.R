@@ -1199,6 +1199,8 @@ bootstrap_pp_qq <- \(
 #' Default c(1.5, 2.5, 5, 10, 20, 50, 100, 200).
 #' @param nboot Number of bootstrap samples for confidence
 #' intervals, set to NULL for none confidence interval, Default: 200.
+#' @param refit Logical indicating whether to refit GPD for each bootstrap
+#' sample when calculating uncertainty envelopes, Default FALSE.
 #' @param ci_quantiles Quantiles for confidence intervals,
 #' Default c(0.025, 0.975).
 #' @param log_scale Logical indicating whether to use log scale for return
@@ -1311,8 +1313,8 @@ plot.cecl_marg <- \(
     if (!is.null(cond_var)) {
       message("Ignoring `cond_var` for which != 'transformed'")
     }
-    # For transformed plot
   }
+  # For transformed plot
   if (any(which == "transformed")) {
     stopifnot("must specify `cond_var`" = !is.null(cond_var))
     stopifnot("`cond_var` must differ from `var`." = cond_var != var)
@@ -1362,24 +1364,16 @@ plot.cecl_marg <- \(
       )
       # add uncertainty
       if (nboot > 0) {
-        polygon(
+        graphics::polygon(
           c(qq_df$theor, rev(qq_df$theor)),
           c(qq_df$lower, rev(qq_df$upper)),
-          col = rgb(0.7, 0.7, 0.7, 0.4),
+          col = grDevices::rgb(0.7, 0.7, 0.7, 0.4),
           border = NA
         )
       }
-      points(qq_df$theor, qq_df$sample)
-      abline(0, 1, col = "red")
+      graphics::points(qq_df$theor, qq_df$sample)
+      graphics::abline(0, 1, col = "red")
     } else if (w == "pp") {
-      # plot(
-      #   stats::ppoints(length(residuals)),
-      #   sort(residuals),
-      #   xlab = "Theoretical Probabilities",
-      #   ylab = "Sample Probabilities",
-      #   ...
-      # )
-
       pp_df <- env$pp
       plot(
         pp_df$p,
@@ -1388,15 +1382,15 @@ plot.cecl_marg <- \(
         ylab = "Model"
       )
       if (nboot > 0) {
-        polygon(
+        graphics::polygon(
           c(pp_df$p, rev(pp_df$p)),
           c(pp_df$lower, rev(pp_df$upper)),
-          col = rgb(0.7, 0.7, 0.7, 0.4),
+          col = grDevices::rgb(0.7, 0.7, 0.7, 0.4),
           border = NA
         )
       }
-      points(pp_df$p, pp_df$model)
-      abline(0, 1, col = "red")
+      graphics::points(pp_df$p, pp_df$model)
+      graphics::abline(0, 1, col = "red")
     } else if (w == "hist") {
       # if main not specified, set to NULL (hist automatically adds title)
       plot_args <- list(
@@ -1610,7 +1604,7 @@ ggplot.cecl_marg <- \(
     stop(paste("Variable", var, "not found in the cecl_marg object."))
   }
 
-  quantile <- lower <- upper <- density <- x <- NULL
+  quantile <- lower <- upper <- density <- x <- theor <- model <- NULL
 
   # Extract original and thresholded data for specified location and variable
   orig_data <- data$original[[loc]] |>
