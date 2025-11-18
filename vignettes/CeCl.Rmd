@@ -32,14 +32,14 @@ TODO (marginal)
     - Fix QQ, PP, hist, return level plots (done)
     - Add density to histogram (done)
     - Add uncertainty to PP and QQ plots (bootstrap)
-    - Add plot of transformed data
+    - Add plot of transformed data (done)
     - Fix for evgam output as well (vector of parameter estimates)
   - plot:
     - Fix residual calculation (done)
     - Fix QQ, PP, hist, return level plots (done)
     - add density to histogram (done)
     - Add uncertainty to PP and QQ plots (bootstrap)
-    - Add plot of transformed data
+    - Add plot of transformed data (done)
     - fix for evgam output as well
 - Explain that currently only supported for single predictor (location, individual, etc) (also add to package where you can't fit for multiple predictors!!)
 - Fix plotting methods for evgam fits! Only working for ismev
@@ -253,9 +253,12 @@ Since `summary` shows the fitted GPD parameters for each location, it will retur
 
 We can plot the transformed data for a given location, conditioning variable, and variable of interest using the `plot` method:
 ```{r}
-plot(marg_ismev, which = "transformed", loc = "loc_1", cond_var = "X2", var = "X1")
+par(mfrow = c(1, 3))
+plot(marg_ecdf, which = "transformed", loc = "loc_1", cond_var = "X2", var = "X1", main = "ECDF")
+plot(marg_ismev, which = "transformed", loc = "loc_1", cond_var = "X2", var = "X1", main = "ISMEV")
+plot(marg_evgam, which = "transformed", loc = "loc_1", cond_var = "X2", var = "X1", main = "EVGAM")
 ```
-This plot shows the transformed data on standard Laplace margins, with the conditioning variable `X2` on the x-axis and the variable of interest `X1` on the y-axis.
+This plot shows the transformed data (from each of our three marginal fitting methods) on standard Laplace margins, with the conditioning variable `X2` on the x-axis and the variable of interest `X1` on the y-axis.
 A `ggplot` version of this plot is also available. 
 
 We also have access to all of the usual GPD diagnostic plots, which we plot here for `loc_1` and variable `X1`:
@@ -284,13 +287,7 @@ observations in the tail (10% of `r n_per_loc` observations per location).
 
 However, We also recognise that marginal fitting in extremes can be a complex task, and users may wish to use their own preferred methods for marginal fitting.
 Therefore, the `CeCl` package also provides the `to_cecl_marg` function to allow users to provide their own marginally transformed data in standard Laplace margins.
-<!-- To illustrate the use of this function, we can provide the transformed data from `ismev` and have `to_cecl_marg` return an object of class `cecl_marg`. -->
 Since we know the parameter values of our GPD margins, we can cheat a little and provide standard Laplace transformed data directly, using the fact that the rescaled scale parameter is given by $\sigma_{\nu} = \sigma_u + \xi (\nu - u)$, where $\nu$ and $u$ are the new and old thresholds, respectively.
-<!-- ```{r, to_cecl_marg}
-data_trans <- marg_ismev$transformed # list, but can be data.frame/tibble
-marg_custom <- as_cecl_marg(data_trans)
-marg_custom
-``` -->
 ```{r to_cecl_marg}
 locs <- unique(data$name)
 vars <- names(data)[1:n_vars]

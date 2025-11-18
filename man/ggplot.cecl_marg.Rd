@@ -54,7 +54,7 @@ Default c(0.025, 0.975).}
 \item{log_scale}{Logical indicating whether to use log scale for return
 level plot x-axis, Default TRUE.}
 
-\item{...}{Additional arguments (not used).}
+\item{...}{Additional arguments for main \code{ggplot2} plotting function.}
 
 \item{environment}{Parent frame environment.}
 }

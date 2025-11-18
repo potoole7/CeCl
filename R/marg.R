@@ -1092,22 +1092,21 @@ plot.cecl_marg <- \(
 
   # Calculate residuals based on marginal method
   if (which != "transformed") {
+    gpd_params <- x$marginal[[loc]][[var]]
     if (inherits(x, "cecl_marg_ismev")) {
-      gpd_params <- x$marginal[[loc]][[var]]
       sigma <- gpd_params$sigma
       xi <- gpd_params$xi
-      # residuals <- (thresh_data[[var]] - gpd_params$thresh) / gpd_params$sigma
       exceedances <- thresh_data[[var]] - gpd_params$thresh
       residuals <- resid_fun(exceedances, gpd_params)
     } else if (inherits(x, "cecl_marg_evgam")) {
-      stop("Plot method not implemented for evgam marg_method yet.")
+      # stop("Plot method not implemented for evgam marg_method yet.")
       evgam_fit <- x$evgam_fit[[which(x$vars == var)]]
       pred_row <- evgam_fit$predictions |>
-        dplyr::filter(.data[[x$mult_col]] == loc)
+        dplyr::filter(.data[[mult_col]] == loc)
       sigma <- pred_row$scale
       xi <- pred_row$shape
-      # residuals <- (thresh_data[[var]] - pred_row$thresh) / sigma
-      exceedances <- thresh_data[[var]] - pred_row$thresh
+      # exceedances <- thresh_data[[var]] - pred_row$thresh
+      exceedances <- thresh_data[[var]] - gpd_params$thresh
       residuals <- resid_fun(exceedances, list(sigma = sigma, xi = xi))
     } else {
       stop("Plot method not implemented for this marg_method")
@@ -1191,17 +1190,17 @@ plot.cecl_marg <- \(
 
     if (log_scale) {
       T_vals_plot <- log(T_vals)
-      ylab <- "Return Level (log)"
+      xlab <- "Return Period (log)"
     } else {
       T_vals_plot <- T_vals
-      ylab <- "Return Level"
+      xlab <- "Return Period"
     }
 
     plot(
       T_vals_plot, z_T,
       type = "b", pch = 19,
-      xlab = "Return Period",
-      ylab = ylab,
+      xlab = xlab,
+      ylab = "Return Level",
       ...
     )
 
@@ -1283,7 +1282,7 @@ cecl_theme <- \(legend.position = "bottom", nejm_pal = TRUE) {
 #' @description Generate ggplot diagnostic plots for `cecl_marg` object.
 #' @param data object of class `cecl_marg`.
 #' @param mapping Not used.
-#' @param ... Additional arguments (not used).
+#' @param ... Additional arguments for main `ggplot2` plotting function.
 #' @param environment Parent frame environment.
 #' @inheritParams plot.cecl_marg
 #' @return ggplot diagnostic plot for `cecl_marg` object.
@@ -1378,19 +1377,16 @@ ggplot.cecl_marg <- \(
   )
 
   if (which != "transformed") {
+    gpd_params <- data$marginal[[loc]][[var]]
     if (inherits(data, "cecl_marg_ismev")) {
-      gpd_params <- data$marginal[[loc]][[var]]
       exceedances <- thresh_data[[var]] - gpd_params$thresh
       residuals <- resid_fun(exceedances, gpd_params)
-      # TODO Check if this works as well
     } else if (inherits(data, "cecl_marg_evgam")) {
-      stop("ggplot method not implemented for evgam marg_method yet.")
       evgam_fit <- data$evgam_fit[[which(data$vars == var)]]
       pred_row <- evgam_fit$predictions |>
-        dplyr::filter(.data[[data$mult_col]] == loc)
+        dplyr::filter(.data[[mult_col]] == loc)
       sigma <- pred_row$scale
-      # residuals <- (thresh_data[[var]] - pred_row$thresh) / sigma
-      exceedances <- thresh_data[[var]] - pred_row$thresh
+      exceedances <- thresh_data[[var]] - gpd_params$thresh
       residuals <- resid_fun(
         exceedances, list(sigma = sigma, xi = pred_row$shape)
       )
@@ -1422,7 +1418,7 @@ ggplot.cecl_marg <- \(
       as.data.frame(transformed),
       ggplot2::aes_string(x = cond_var, y = var)
     ) +
-      ggplot2::geom_point() +
+      ggplot2::geom_point(...) +
       ggplot2::labs(
         x = paste0("F(", cond_var, ")"),
         y = paste0("F(", var, ")")
@@ -1440,7 +1436,7 @@ ggplot.cecl_marg <- \(
       res_df,
       ggplot2::aes(sample = exceedances)
     ) +
-      ggplot2::stat_qq(distribution = qfun) +
+      ggplot2::stat_qq(distribution = qfun, ...) +
       ggplot2::geom_abline(intercept = 0, slope = 1, colour = "red") +
       ggplot2::labs(x = "Theoretical Quantiles", y = "Sample Quantiles") +
       cecl_theme()
@@ -1449,7 +1445,7 @@ ggplot.cecl_marg <- \(
       x = sort(stats::ppoints(length(residuals))),
       y = sort(residuals)
     )) +
-      ggplot2::geom_point() +
+      ggplot2::geom_point(...) +
       ggplot2::geom_abline(slope = 1, intercept = 0, col = "red") +
       ggplot2::labs(
         x = "Theoretical Probabilities",
@@ -1466,7 +1462,8 @@ ggplot.cecl_marg <- \(
         ggplot2::geom_histogram(
           ggplot2::aes(y = ggplot2::after_stat(density)),
           fill = "grey",
-          colour = "black"
+          colour = "black",
+          ...
         ) +
         ggplot2::geom_density(
           colour = "red",
@@ -1476,7 +1473,8 @@ ggplot.cecl_marg <- \(
       p <- p +
         ggplot2::geom_histogram(
           fill = "grey",
-          colour = "black"
+          colour = "black",
+          ...
         )
     }
     return(p)
@@ -1565,7 +1563,7 @@ ggplot.cecl_marg <- \(
 
     # ggplot
     p <- ggplot2::ggplot(df, ggplot2::aes(x = T_vals, y = z_T)) +
-      ggplot2::geom_line() +
+      ggplot2::geom_line(...) +
       ggplot2::geom_point() +
       ggplot2::labs(x = "Return Period", y = "Return Level") +
       cecl_theme()
@@ -1582,10 +1580,9 @@ ggplot.cecl_marg <- \(
     # convert to natural log scale
     if (log_scale == TRUE) {
       p <- p +
-        # convert to natural log scale
         ggplot2::scale_x_continuous(breaks = T_vals, transform = "log") +
         ggplot2::annotation_logticks(sides = "b") +
-        ggplot2::labs(x = "Return Period", y = "Return Level (log)")
+        ggplot2::labs(x = "Return Period (log)", y = "Return Level")
     }
 
     return(p)
