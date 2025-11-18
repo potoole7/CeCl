@@ -1756,7 +1756,7 @@ ggplot.cecl_marg <- \(
           ) +
           ggplot2::geom_density(
             colour = "red",
-            size = 1
+            linewidth = 1
           )
       } else {
         p <- p +
