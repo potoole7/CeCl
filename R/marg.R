@@ -995,6 +995,8 @@ summary.cecl_marg <- \(object, n, ...) {
 #' @param loc Location name to plot.
 #' @param mult_col Name of the column representing locations, default `"name"`.
 #' @param var Variable name to plot.
+#' @param plot_dens Logical indicating whether to plot histogram on top of
+#' density estimate, Default TRUE.
 #' @param return_periods Return periods for return level plot,
 #' Default c(1.5, 2.5, 5, 10, 20, 50, 100, 200).
 #' @param nboot Number of bootstrap samples for return level plot confidence
@@ -1039,6 +1041,7 @@ plot.cecl_marg <- \(
   loc,
   mult_col = "name",
   var,
+  plot_dens = TRUE,
   return_periods = c(1.5, 2.5, 5, 10, 20, 50, 100, 200),
   nboot = 200,
   ci_quantiles = c(0.025, 0.975),
@@ -1136,12 +1139,17 @@ plot.cecl_marg <- \(
       x      = residuals,
       breaks = 20,
       xlab   = "Residuals",
+      prob   = ifelse(plot_dens, TRUE, FALSE),
       ...
     )
     if (!"main" %in% names(plot_args)) {
       plot_args[["main"]] <- list(NULL)
     }
     do.call(graphics::hist, plot_args)
+    # add density plot if specified
+    if (plot_dens) {
+      graphics::lines(stats::density(residuals), col = "red", lwd = 2)
+    }
   } else if (which == "return") {
     #  Extract fitted parameters
     gpd_params <- x$marginal[[loc]][[var]]
@@ -1299,6 +1307,7 @@ ggplot.cecl_marg <- \(
   loc,
   var,
   mult_col = "name",
+  plot_dens = TRUE,
   return_periods = c(1.5, 2.5, 5, 10, 20, 50, 100, 200),
   nboot = 200,
   ci_quantiles = c(0.025, 0.975),
@@ -1409,14 +1418,29 @@ ggplot.cecl_marg <- \(
       ) +
       cecl_theme()
   } else if (which == "hist") {
-    ggplot2::ggplot(res_df, ggplot2::aes(x = residuals)) +
-      ggplot2::geom_histogram(
-        bins = 20,
-        fill = ggsci::pal_nejm()(1)[1],
-        color = "black"
-      ) +
+    p <- ggplot2::ggplot(res_df, ggplot2::aes(x = residuals)) +
       ggplot2::labs(x = "Residuals") +
       cecl_theme()
+
+    if (plot_dens) {
+      p <- p +
+        ggplot2::geom_histogram(
+          aes(y = after_stat(density)),
+          fill = ggsci::pal_nejm()(1)[1],
+          color = "black"
+        ) +
+        ggplot2::geom_density(
+          color = "red",
+          size = 1
+        )
+    } else {
+      p <- p +
+        ggplot2::geom_histogram(
+          fill = ggsci::pal_nejm()(1)[1],
+          color = "black"
+        )
+    }
+    return(p)
   } else if (which == "return") {
     # TODO Add predict method for marginal fits! would make this easier
     # TODO Add checking for return level arguments if using
