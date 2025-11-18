@@ -985,6 +985,201 @@ summary.cecl_marg <- \(object, n, ...) {
   invisible(object)
 }
 
+#' @title Bootstrap QQ/PP envelope for GPD exceedances
+#' @description Generate bootstrap QQ/PP envelopes for GPD exceedances.
+#' @param exceedances Numeric vector of exceedances (data - threshold).
+#' @param gpd_params List with elements `thresh`, `sigma`, `xi`
+#' specifying fitted GPD parameters.
+#' @param type Type of envelope to generate: "qq" for QQ plot,
+#' "pp" for PP plot, or both.
+#' @param nboot Number of bootstrap simulations, set to NULL for no
+#' envelopes, Default 200.
+#' @param refit Logical; if TRUE, refit GPD model for each simulated dataset
+#' (slower, includes parameter uncertainty). If FALSE, use fixed fitted
+#' parameters.
+#' @param ci_quantiles Quantiles for confidence intervals,
+#' Default c(0.025, 0.975).
+#'
+bootstrap_pp_qq <- \(
+  exceedances,
+  gpd_params,
+  type = c("qq", "pp"),
+  nboot = 200,
+  refit = FALSE,
+  ci_quantiles = c(0.025, 0.975)
+) {
+  type <- match.arg(type, several.ok = TRUE)
+  if (!is.numeric(exceedances) || length(exceedances) < 2) {
+    stop("exceedances must be numeric length >= 2")
+  }
+
+  # fitted params
+  u <- gpd_params$thresh
+  sigma <- gpd_params$sigma
+  xi <- gpd_params$xi
+
+  n_exc <- length(exceedances)
+  p <- stats::ppoints(n_exc)
+
+  # observed quantities
+  observed_sample_q <- sort(exceedances)
+  # PITs under fitted model
+  observed_pit <- pgpd(exceedances, u = 0, sigma = sigma, xi = xi)
+  observed_pp_sorted <- sort(observed_pit)
+  # theoretical quantiles for QQ x-axis
+  theor_q <- qgpd(p, u = 0, sigma = sigma, xi = xi)
+
+  # preallocate matrix to hold simulated quantiles/PITs
+  sim_mat_qq <- NULL
+  sim_mat_pp <- NULL
+  ok_qq <- logical(nboot)
+  ok_pp <- logical(nboot)
+  if ("qq" %in% type) {
+    sim_mat_qq <- matrix(NA_real_, nrow = nboot, ncol = n_exc)
+  }
+  if ("pp" %in% type) {
+    sim_mat_pp <- matrix(NA_real_, nrow = nboot, ncol = n_exc)
+  }
+
+  # if nboot = 0, return NA envelopes
+  if (nboot == 0) {
+    res <- list(nboot = nboot, refit = refit, ci_quantiles = ci_quantiles)
+    if ("qq" %in% type) {
+      qq_df <- data.frame(
+        p = p, theor = theor_q, sample = observed_sample_q,
+        lower = NA_real_, upper = NA_real_
+      )
+      res$n_succ_qq <- 0L
+      res$qq <- qq_df
+    }
+    if ("pp" %in% type) {
+      pp_df <- data.frame(
+        p = p, model = observed_pp_sorted,
+        lower = NA_real_, upper = NA_real_
+      )
+      res$n_succ_pp <- 0L
+      res$pp <- pp_df
+    }
+    return(res)
+  }
+  for (b in seq_len(nboot)) {
+    # simulate n_exc raw values from rgpd with threshold = u
+    sim_raw <- try(
+      rgpd(n = n_exc, u = u, sigma = sigma, xi = xi),
+      silent = TRUE
+    )
+    if (inherits(sim_raw, "try-error") || any(is.na(sim_raw))) {
+      next
+    }
+
+    # convert to exceedances (Y = X - u)
+    sim_exc <- sim_raw - u
+
+    if (!refit) {
+      # fixed-parameter envelope: evaluate simulated sample quantiles or PITs
+      # under fitted params
+      if ("qq" %in% type) {
+        sim_mat_qq[b, ] <- sort(sim_exc) # sample quantiles of simulated data
+        ok_qq[b] <- TRUE
+      }
+      if ("pp" %in% type) {
+        sim_pit <- pgpd(sim_exc, u = 0, sigma = sigma, xi = xi)
+        sim_mat_pp[b, ] <- sort(sim_pit)
+        ok_pp[b] <- TRUE
+      }
+    } else {
+      # refit to simulated raw data (threshold = u)
+      fit_b <- try(
+        ismev::gpd.fit(sim_raw, threshold = u, show = FALSE),
+        silent = TRUE
+      )
+      if (inherits(fit_b, "try-error") || any(is.na(fit_b$mle))) {
+        next
+      }
+
+      sigma_b <- fit_b$mle[1]
+      xi_b <- fit_b$mle[2]
+
+      # compute same quantities but using the fitted parameters where needed
+      if ("qq" %in% type) {
+        # Use sample quantiles of simulated exceedances
+        sim_mat_qq[b, ] <- sort(sim_exc)
+        ok_qq[b] <- TRUE
+      }
+      if ("pp" %in% type) {
+        # PIT under the refit params
+        sim_pit_b <- pgpd(sim_exc, u = 0, sigma = sigma_b, xi = xi_b)
+        sim_mat_pp[b, ] <- sort(sim_pit_b)
+        ok_pp[b] <- TRUE
+      }
+    }
+  }
+
+  # prepare result object
+  res <- list(nboot = nboot, refit = refit, ci_quantiles = ci_quantiles)
+
+  # QQ results (if requested)
+  ci <- ci_quantiles
+  if ("qq" %in% type) {
+    if (!any(ok_qq)) {
+      message("bootstrap_pp_qq: no successful QQ simulations")
+      qq_df <- data.frame(
+        p = p, theor = theor_q, sample = observed_sample_q,
+        lower = NA_real_, upper = NA_real_
+      )
+      res$n_succ_qq <- 0L
+    } else {
+      sim_mat_qq_ok <- sim_mat_qq[ok_qq, , drop = FALSE]
+      n_succ_qq <- nrow(sim_mat_qq_ok)
+      lower_qq <- apply(
+        sim_mat_qq_ok, 2, stats::quantile,
+        probs = ci[1], na.rm = TRUE
+      )
+      upper_qq <- apply(
+        sim_mat_qq_ok, 2, stats::quantile,
+        probs = ci[2], na.rm = TRUE
+      )
+      qq_df <- data.frame(
+        p = p, theor = theor_q, sample = observed_sample_q,
+        lower = lower_qq, upper = upper_qq
+      )
+      res$n_succ_qq <- n_succ_qq
+    }
+    res$qq <- qq_df
+  }
+
+  # PP results (if requested)
+  if ("pp" %in% type) {
+    if (!any(ok_pp)) {
+      message("bootstrap_pp_qq: no successful PP simulations")
+      pp_df <- data.frame(
+        p = p, model = observed_pp_sorted,
+        lower = NA_real_, upper = NA_real_
+      )
+      res$n_succ_pp <- 0L
+    } else {
+      sim_mat_pp_ok <- sim_mat_pp[ok_pp, , drop = FALSE]
+      n_succ_pp <- nrow(sim_mat_pp_ok)
+      lower_pp <- apply(
+        sim_mat_pp_ok, 2, stats::quantile,
+        probs = ci[1], na.rm = TRUE
+      )
+      upper_pp <- apply(
+        sim_mat_pp_ok, 2, stats::quantile,
+        probs = ci[2], na.rm = TRUE
+      )
+      pp_df <- data.frame(
+        p = p, model = observed_pp_sorted,
+        lower = lower_pp, upper = upper_pp
+      )
+      res$n_succ_pp <- n_succ_pp
+    }
+    res$pp <- pp_df
+  }
+
+  return(res)
+}
+
 #' @title Plot method for `cecl_marg` objects
 #' @description Generate diagnostic plots for a `cecl_marg` object, including
 #' QQ, PP, histogram, and return level plots.
@@ -1002,9 +1197,9 @@ summary.cecl_marg <- \(object, n, ...) {
 #' density estimate, Default TRUE.
 #' @param return_periods Return periods for return level plot,
 #' Default c(1.5, 2.5, 5, 10, 20, 50, 100, 200).
-#' @param nboot Number of bootstrap samples for return level plot confidence
-#' intervals, Default 200.
-#' @param ci_quantiles Quantiles for confidence intervals in return level plot,
+#' @param nboot Number of bootstrap samples for confidence
+#' intervals, set to NULL for none confidence interval, Default: 200.
+#' @param ci_quantiles Quantiles for confidence intervals,
 #' Default c(0.025, 0.975).
 #' @param log_scale Logical indicating whether to use log scale for return
 #' level plot x-axis, Default TRUE.
@@ -1048,6 +1243,7 @@ plot.cecl_marg <- \(
   plot_dens = TRUE,
   return_periods = c(1.5, 2.5, 5, 10, 20, 50, 100, 200),
   nboot = 200,
+  refit = FALSE,
   ci_quantiles = c(0.025, 0.975),
   log_scale = TRUE,
   ...
@@ -1126,6 +1322,18 @@ plot.cecl_marg <- \(
     transformed <- x$transformed[[loc]][, c(var, cond_var), drop = FALSE]
   }
 
+  # calculate uncertainty for PP and/or QQ plots
+  if (any(which %in% c("pp", "qq"))) {
+    env <- bootstrap_pp_qq(
+      exceedances = exceedances,
+      gpd_params = gpd_params,
+      type = intersect(which, c("pp", "qq")),
+      nboot = nboot,
+      refit = refit,
+      ci_quantiles = ci_quantiles
+    )
+  }
+
   # Ask if multiple plots needed
   mf <- graphics::par("mfrow")
   capacity <- mf[1] * mf[2]
@@ -1144,27 +1352,51 @@ plot.cecl_marg <- \(
         ...
       )
     } else if (w == "qq") {
+      qq_df <- env$qq
       stats::qqplot(
-        qgpd(
-          stats::ppoints(length(residuals)),
-          u = 0, sigma = sigma, xi = xi
-        ),
-        # residuals,
-        sort(exceedances),
-        xlab = "Theoretical Quantiles",
-        ylab = "Sample Quantiles",
+        qq_df$theor,
+        qq_df$sample,
+        xlab = "Theoretical",
+        ylab = "Sample",
         ...
       )
-      graphics::abline(0, 1, col = "red")
+      # add uncertainty
+      if (nboot > 0) {
+        polygon(
+          c(qq_df$theor, rev(qq_df$theor)),
+          c(qq_df$lower, rev(qq_df$upper)),
+          col = rgb(0.7, 0.7, 0.7, 0.4),
+          border = NA
+        )
+      }
+      points(qq_df$theor, qq_df$sample)
+      abline(0, 1, col = "red")
     } else if (w == "pp") {
+      # plot(
+      #   stats::ppoints(length(residuals)),
+      #   sort(residuals),
+      #   xlab = "Theoretical Probabilities",
+      #   ylab = "Sample Probabilities",
+      #   ...
+      # )
+
+      pp_df <- env$pp
       plot(
-        stats::ppoints(length(residuals)),
-        sort(residuals),
-        xlab = "Theoretical Probabilities",
-        ylab = "Sample Probabilities",
-        ...
+        pp_df$p,
+        pp_df$model,
+        xlab = "Theoretical",
+        ylab = "Model"
       )
-      graphics::abline(0, 1, col = "red")
+      if (nboot > 0) {
+        polygon(
+          c(pp_df$p, rev(pp_df$p)),
+          c(pp_df$lower, rev(pp_df$upper)),
+          col = rgb(0.7, 0.7, 0.7, 0.4),
+          border = NA
+        )
+      }
+      points(pp_df$p, pp_df$model)
+      abline(0, 1, col = "red")
     } else if (w == "hist") {
       # if main not specified, set to NULL (hist automatically adds title)
       plot_args <- list(
@@ -1220,6 +1452,11 @@ plot.cecl_marg <- \(
 
       zT_boot <- matrix(NA, nrow = nboot, ncol = length(T_vals))
 
+      # return NULL and exit if uncertainty not requested
+      if (nboot == 0) {
+        next
+      }
+
       for (b in seq_len(nboot)) {
         sim_data <- rgpd(
           n     = nrow(thresh_data),
@@ -1261,6 +1498,7 @@ plot.cecl_marg <- \(
       )
     }
   }
+  return(invisible(NULL))
 }
 
 #' @title CECL ggplot theme
@@ -1344,6 +1582,7 @@ ggplot.cecl_marg <- \(
   plot_dens = TRUE,
   return_periods = c(1.5, 2.5, 5, 10, 20, 50, 100, 200),
   nboot = 200,
+  refit = FALSE,
   ci_quantiles = c(0.025, 0.975),
   log_scale = TRUE,
   ...,
@@ -1433,6 +1672,17 @@ ggplot.cecl_marg <- \(
     transformed <- data$transformed[[loc]][, c(var, cond_var), drop = FALSE]
   }
 
+  if (any(which %in% c("pp", "qq"))) {
+    env <- bootstrap_pp_qq(
+      exceedances = exceedances,
+      gpd_params = gpd_params,
+      type = intersect(which, c("pp", "qq")),
+      nboot = nboot,
+      refit = refit,
+      ci_quantiles = ci_quantiles
+    )
+  }
+
   ret <- vector(mode = "list", length = length(which))
 
   # Generate specified ggplot
@@ -1451,32 +1701,45 @@ ggplot.cecl_marg <- \(
         ) +
         cecl_theme()
     } else if (w == "qq") {
-      gpd_pars <- c(list("u" = 0), stats::setNames(
-        gpd_params[c("sigma", "xi")],
-        c("sigma", "xi")
-      ))
+      qq_df <- env$qq
+      x_min <- min(qq_df$theor, na.rm = TRUE)
+      x_max <- max(qq_df$theor, na.rm = TRUE)
 
-      qfun <- \(p) do.call(qgpd, c(list(p), gpd_pars))
-
-      p <- ggplot2::ggplot(
-        res_df,
-        ggplot2::aes(sample = exceedances)
-      ) +
-        ggplot2::stat_qq(distribution = qfun, ...) +
+      p <- ggplot2::ggplot(qq_df, ggplot2::aes(x = theor, y = sample))
+      if (nboot > 0) {
+        p <- p +
+          ggplot2::geom_ribbon(
+            ggplot2::aes(ymin = lower, ymax = upper),
+            fill = "grey80", alpha = 0.5
+          )
+      }
+      p <- p +
         ggplot2::geom_abline(intercept = 0, slope = 1, colour = "red") +
-        ggplot2::labs(x = "Theoretical Quantiles", y = "Sample Quantiles") +
-        cecl_theme()
+        ggplot2::geom_point() +
+        ggplot2::labs(x = "Theoretical", y = "Sample") +
+        cecl_theme() +
+        ggplot2::scale_x_continuous(
+          limits = c(
+            min(qq_df$theor, na.rm = TRUE),
+            max(qq_df$theor, na.rm = TRUE)
+          ),
+          expand = c(0.01, 0.01)
+        )
     } else if (w == "pp") {
-      p <- ggplot2::ggplot(res_df, ggplot2::aes(
-        x = sort(stats::ppoints(length(residuals))),
-        y = sort(residuals)
-      )) +
-        ggplot2::geom_point(...) +
-        ggplot2::geom_abline(slope = 1, intercept = 0, col = "red") +
-        ggplot2::labs(
-          x = "Theoretical Probabilities",
-          y = "Sample Probabilities"
-        ) +
+      pp_df <- env$pp
+
+      p <- ggplot2::ggplot(pp_df, ggplot2::aes(x = p, y = model))
+      if (nboot > 0) {
+        p <- p +
+          ggplot2::geom_ribbon(
+            ggplot2::aes(ymin = lower, ymax = upper),
+            fill = "grey80", alpha = 0.5
+          )
+      }
+      p <- p +
+        ggplot2::geom_abline(intercept = 0, slope = 1, colour = "red") +
+        ggplot2::geom_point() +
+        ggplot2::labs(x = "Theoretical", y = "Model") +
         cecl_theme()
     } else if (w == "hist") {
       p <- ggplot2::ggplot(res_df, ggplot2::aes(x = residuals)) +
