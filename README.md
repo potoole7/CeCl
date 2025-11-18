@@ -24,7 +24,9 @@ more details of the methodology and usage of the package, please see its
 vignette by running `vignette("CeCl")` after installation. This package
 is in the early stages of development; please report any issues or
 suggestions on the [GitHub issues
-page](https:/github.com/potoole7/CeCl/issues).
+page](https:/github.com/potoole7/CeCl/issues). For fitting the
+conditional extremes model, this package uses code adapted from the
+`texmex` package (2020).
 
 ## Installation
 
@@ -175,6 +177,13 @@ Statistical Society Series B: Statistical Methodology*, *66*(3),
 O’Toole, P., Rohrbeck, C., & Richards, J. (2025). *Clustering of
 multivariate tail dependence using conditional methods*.
 <https://arxiv.org/abs/2510.20424>
+
+</div>
+
+<div id="ref-texmex" class="csl-entry">
+
+Southworth, H., Heffernan, J. E., & Metcalfe, P. D. (2020). *Texmex:
+Statistical modelling of extreme values*.
 
 </div>
 
