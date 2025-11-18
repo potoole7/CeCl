@@ -1126,11 +1126,12 @@ plot.cecl_marg <- \(
     transformed <- x$transformed[[loc]][, c(var, cond_var), drop = FALSE]
   }
 
-  # save original par settings & ensure reset
+  # Ask if multiple plots needed
   mf <- par("mfrow")
   capacity <- mf[1] * mf[2]
-  op <- par(ask = length(which) > capacity)
-  on.exit(par(op))
+  # save original par settings & ensure reset
+  op <- graphics::par(ask = length(which) > capacity)
+  on.exit(graphics::par(op))
 
   # Generate specified plots
   for (w in which) {
@@ -1357,7 +1358,7 @@ ggplot.cecl_marg <- \(
     ))
   }
 
-  which <- match.arg(which)
+  which <- match.arg(which, several.ok = TRUE)
 
   if (missing(loc) || missing(var)) {
     stop("Please specify both 'loc' and 'var' to plot.")
@@ -1370,7 +1371,7 @@ ggplot.cecl_marg <- \(
     stop(paste("Variable", var, "not found in the cecl_marg object."))
   }
 
-  quantile <- lower <- upper <- density <- NULL
+  quantile <- lower <- upper <- density <- x <- NULL
 
   # Extract original and thresholded data for specified location and variable
   orig_data <- data$original[[loc]] |>
@@ -1390,7 +1391,7 @@ ggplot.cecl_marg <- \(
     )
   )
 
-  if (which != "transformed") {
+  if (any(which != "transformed")) {
     gpd_params <- data$marginal[[loc]][[var]]
     if (inherits(data, "cecl_marg_ismev")) {
       exceedances <- thresh_data[[var]] - gpd_params$thresh
@@ -1421,7 +1422,9 @@ ggplot.cecl_marg <- \(
     if (!is.null(cond_var)) {
       message("Ignoring `cond_var` for which != 'transformed'")
     }
-  } else {
+  }
+
+  if (any(which == "transformed")) {
     stopifnot("must specify `cond_var`." = !is.null(cond_var))
     stopifnot("`cond_var` must differ from `var`." = cond_var != var)
     stopifnot(
@@ -1430,180 +1433,188 @@ ggplot.cecl_marg <- \(
     transformed <- data$transformed[[loc]][, c(var, cond_var), drop = FALSE]
   }
 
+  ret <- vector(mode = "list", length = length(which))
+
   # Generate specified ggplot
-  if (which == "transformed") {
-    ggplot2::ggplot(
-      as.data.frame(transformed),
-      ggplot2::aes_string(x = cond_var, y = var)
-    ) +
-      ggplot2::geom_point(...) +
-      ggplot2::labs(
-        x = paste0("F(", cond_var, ")"),
-        y = paste0("F(", var, ")")
+  # for (w in which) {
+  for (i in seq_along(which)) {
+    w <- which[[i]]
+    if (w == "transformed") {
+      p <- ggplot2::ggplot(
+        as.data.frame(transformed),
+        ggplot2::aes_string(x = cond_var, y = var)
       ) +
-      cecl_theme()
-  } else if (which == "qq") {
-    gpd_pars <- c(list("u" = 0), stats::setNames(
-      gpd_params[c("sigma", "xi")],
-      c("sigma", "xi")
-    ))
-
-    qfun <- \(p) do.call(qgpd, c(list(p), gpd_pars))
-
-    ggplot2::ggplot(
-      res_df,
-      ggplot2::aes(sample = exceedances)
-    ) +
-      ggplot2::stat_qq(distribution = qfun, ...) +
-      ggplot2::geom_abline(intercept = 0, slope = 1, colour = "red") +
-      ggplot2::labs(x = "Theoretical Quantiles", y = "Sample Quantiles") +
-      cecl_theme()
-  } else if (which == "pp") {
-    ggplot2::ggplot(res_df, ggplot2::aes(
-      x = sort(stats::ppoints(length(residuals))),
-      y = sort(residuals)
-    )) +
-      ggplot2::geom_point(...) +
-      ggplot2::geom_abline(slope = 1, intercept = 0, col = "red") +
-      ggplot2::labs(
-        x = "Theoretical Probabilities",
-        y = "Sample Probabilities"
-      ) +
-      cecl_theme()
-  } else if (which == "hist") {
-    p <- ggplot2::ggplot(res_df, ggplot2::aes(x = residuals)) +
-      ggplot2::labs(x = "Residuals") +
-      cecl_theme()
-
-    if (plot_dens) {
-      p <- p +
-        ggplot2::geom_histogram(
-          ggplot2::aes(y = ggplot2::after_stat(density)),
-          fill = "grey",
-          colour = "black",
-          ...
+        ggplot2::geom_point(...) +
+        ggplot2::labs(
+          x = paste0("F(", cond_var, ")"),
+          y = paste0("F(", var, ")")
         ) +
-        ggplot2::geom_density(
-          colour = "red",
-          size = 1
-        )
-    } else {
-      p <- p +
-        ggplot2::geom_histogram(
-          fill = "grey",
-          colour = "black",
-          ...
-        )
-    }
-    return(p)
-  } else if (which == "return") {
-    # TODO Add predict method for marginal fits! would make this easier
-    # TODO Add checking for return level arguments if using
+        cecl_theme()
+    } else if (w == "qq") {
+      gpd_pars <- c(list("u" = 0), stats::setNames(
+        gpd_params[c("sigma", "xi")],
+        c("sigma", "xi")
+      ))
 
-    # browser()
+      qfun <- \(p) do.call(qgpd, c(list(p), gpd_pars))
 
-    # Extract parameters
-    gpd_params <- data$marginal[[loc]][[var]]
-    u <- gpd_params$thresh
-    sigma <- gpd_params$sigma
-    xi <- gpd_params$xi
+      p <- ggplot2::ggplot(
+        res_df,
+        ggplot2::aes(sample = exceedances)
+      ) +
+        ggplot2::stat_qq(distribution = qfun, ...) +
+        ggplot2::geom_abline(intercept = 0, slope = 1, colour = "red") +
+        ggplot2::labs(x = "Theoretical Quantiles", y = "Sample Quantiles") +
+        cecl_theme()
+    } else if (w == "pp") {
+      p <- ggplot2::ggplot(res_df, ggplot2::aes(
+        x = sort(stats::ppoints(length(residuals))),
+        y = sort(residuals)
+      )) +
+        ggplot2::geom_point(...) +
+        ggplot2::geom_abline(slope = 1, intercept = 0, col = "red") +
+        ggplot2::labs(
+          x = "Theoretical Probabilities",
+          y = "Sample Probabilities"
+        ) +
+        cecl_theme()
+    } else if (w == "hist") {
+      p <- ggplot2::ggplot(res_df, ggplot2::aes(x = residuals)) +
+        ggplot2::labs(x = "Residuals") +
+        cecl_theme()
 
-    # Exceedance rate
-    n_total <- nrow(orig_data)
-    n_exc <- nrow(thresh_data)
-    lambda_u <- n_exc / n_total
-
-    # Return periods
-    T_vals <- return_periods
-
-    return_level <- \(T, u, sigma, xi, tol = 1e-8) {
-      TT <- T * lambda_u
-      if (abs(xi) > tol) {
-        u + (sigma / xi) * (TT^xi - 1)
+      if (plot_dens) {
+        p <- p +
+          ggplot2::geom_histogram(
+            ggplot2::aes(y = ggplot2::after_stat(density)),
+            fill = "grey",
+            colour = "black",
+            ...
+          ) +
+          ggplot2::geom_density(
+            colour = "red",
+            size = 1
+          )
       } else {
-        u + sigma * log(TT)
+        p <- p +
+          ggplot2::geom_histogram(
+            fill = "grey",
+            colour = "black",
+            ...
+          )
+      }
+    } else if (w == "return") {
+      # TODO Add predict method for marginal fits! would make this easier
+      # TODO Add checking for return level arguments if using
+
+      # Extract parameters
+      gpd_params <- data$marginal[[loc]][[var]]
+      u <- gpd_params$thresh
+      sigma <- gpd_params$sigma
+      xi <- gpd_params$xi
+
+      # Exceedance rate
+      n_total <- nrow(orig_data)
+      n_exc <- nrow(thresh_data)
+      lambda_u <- n_exc / n_total
+
+      # Return periods
+      T_vals <- return_periods
+
+      return_level <- \(T, u, sigma, xi, tol = 1e-8) {
+        TT <- T * lambda_u
+        if (abs(xi) > tol) {
+          u + (sigma / xi) * (TT^xi - 1)
+        } else {
+          u + sigma * log(TT)
+        }
+      }
+
+      # Compute nominal (fitted) return levels
+      z_T <- vapply(
+        T_vals, return_level, numeric(1),
+        u = u, sigma = sigma, xi = xi
+      )
+
+      df <- data.frame(T_vals = T_vals, z_T = z_T)
+
+      # bootstrap CI
+      zT_list <- vector(mode = "list", length = nboot)
+      b_ok <- 0 # count of successful bootstraps
+      for (b in seq_len(nboot)) {
+        sim_exc <- try(
+          rgpd(n = n_exc, u = 0, sigma = sigma, xi = xi),
+          silent = TRUE
+        )
+        if (inherits(sim_exc, "try-error")) {
+          # fallback to inverse cdf
+          sim_exc <- qgpd(stats::runif(n_exc), u = 0, sigma = sigma, xi = xi)
+        }
+        # fit GPD to simulated exceedances
+        fit_b <- try(
+          ismev::gpd.fit(sim_exc, threshold = 0, show = FALSE),
+          silent = TRUE
+        )
+        if (inherits(fit_b, "try-error") || any(is.na(fit_b$mle))) next
+        if (any(is.na(fit_b$mle))) next
+
+        # extract bootstrap MLEs
+        sigma_b <- fit_b$mle[1]
+        xi_b <- fit_b$mle[2]
+
+        # compute return levels using robust formula (handle xi_b ~ 0)
+        zTb <- vapply(T_vals, function(T) {
+          return_level(T, u = u, sigma = sigma_b, xi = xi_b)
+        }, numeric(1))
+
+        b_ok <- b_ok + 1
+        zT_list[[b_ok]] <- zTb
+      }
+
+      # remove unused trailing NULLs if any
+      zT_list <- zT_list[seq_len(b_ok)]
+
+      if (b_ok > 0) {
+        zT_boot <- do.call(rbind, zT_list)
+        df$lower <- apply(zT_boot, 2, stats::quantile, probs = ci_quantiles[1])
+        df$upper <- apply(zT_boot, 2, stats::quantile, probs = ci_quantiles[2])
+      } else {
+        df$lower <- NA_real_
+        df$upper <- NA_real_
+        message("No successful bootstrap fits for CI estimation.")
+      }
+
+      # ggplot
+      p <- ggplot2::ggplot(df, ggplot2::aes(x = T_vals, y = z_T)) +
+        ggplot2::geom_line(...) +
+        ggplot2::geom_point() +
+        ggplot2::labs(x = "Return Period", y = "Return Level") +
+        cecl_theme()
+
+      # Add CI ribbon if available
+      if (!all(is.na(df$lower)) && !all(is.na(df$upper))) {
+        p <- p + ggplot2::geom_ribbon(
+          ggplot2::aes(ymin = lower, ymax = upper),
+          alpha = 0.2,
+          fill = ggsci::pal_nejm()(1)
+        )
+      }
+
+      # convert to natural log scale
+      if (log_scale == TRUE) {
+        p <- p +
+          ggplot2::scale_x_continuous(breaks = T_vals, transform = "log") +
+          ggplot2::annotation_logticks(sides = "b") +
+          ggplot2::labs(x = "Return Period (log)", y = "Return Level")
       }
     }
-
-    # Compute nominal (fitted) return levels
-    z_T <- vapply(
-      T_vals, return_level, numeric(1),
-      u = u, sigma = sigma, xi = xi
-    )
-
-    df <- data.frame(T_vals = T_vals, z_T = z_T)
-
-    # bootstrap CI
-    zT_list <- vector(mode = "list", length = nboot)
-    b_ok <- 0 # count of successful bootstraps
-    for (b in seq_len(nboot)) {
-      sim_exc <- try(
-        rgpd(n = n_exc, u = 0, sigma = sigma, xi = xi),
-        silent = TRUE
-      )
-      if (inherits(sim_exc, "try-error")) {
-        # fallback to inverse cdf
-        sim_exc <- qgpd(stats::runif(n_exc), u = 0, sigma = sigma, xi = xi)
-      }
-      # fit GPD to simulated exceedances
-      fit_b <- try(
-        ismev::gpd.fit(sim_exc, threshold = 0, show = FALSE),
-        silent = TRUE
-      )
-      if (inherits(fit_b, "try-error") || any(is.na(fit_b$mle))) next
-      if (any(is.na(fit_b$mle))) next
-
-      # extract bootstrap MLEs
-      sigma_b <- fit_b$mle[1]
-      xi_b <- fit_b$mle[2]
-
-      # compute return levels using robust formula (handle xi_b ~ 0)
-      zTb <- vapply(T_vals, function(T) {
-        return_level(T, u = u, sigma = sigma_b, xi = xi_b)
-      }, numeric(1))
-
-      b_ok <- b_ok + 1
-      zT_list[[b_ok]] <- zTb
-    }
-
-    # remove unused trailing NULLs if any
-    zT_list <- zT_list[seq_len(b_ok)]
-
-    if (b_ok > 0) {
-      zT_boot <- do.call(rbind, zT_list)
-      df$lower <- apply(zT_boot, 2, stats::quantile, probs = ci_quantiles[1])
-      df$upper <- apply(zT_boot, 2, stats::quantile, probs = ci_quantiles[2])
-    } else {
-      df$lower <- NA_real_
-      df$upper <- NA_real_
-      message("No successful bootstrap fits for CI estimation.")
-    }
-
-    # ggplot
-    p <- ggplot2::ggplot(df, ggplot2::aes(x = T_vals, y = z_T)) +
-      ggplot2::geom_line(...) +
-      ggplot2::geom_point() +
-      ggplot2::labs(x = "Return Period", y = "Return Level") +
-      cecl_theme()
-
-    # Add CI ribbon if available
-    if (!all(is.na(df$lower)) && !all(is.na(df$upper))) {
-      p <- p + ggplot2::geom_ribbon(
-        ggplot2::aes(ymin = lower, ymax = upper),
-        alpha = 0.2,
-        fill = ggsci::pal_nejm()(1)
-      )
-    }
-
-    # convert to natural log scale
-    if (log_scale == TRUE) {
-      p <- p +
-        ggplot2::scale_x_continuous(breaks = T_vals, transform = "log") +
-        ggplot2::annotation_logticks(sides = "b") +
-        ggplot2::labs(x = "Return Period (log)", y = "Return Level")
-    }
-
-    return(p)
+    ret[[i]] <- p
+  }
+  names(ret) <- which
+  if (length(ret) == 1) {
+    return(ret[[1]])
+  } else {
+    return(ret)
   }
 }
 
