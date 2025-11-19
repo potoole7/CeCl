@@ -7,12 +7,15 @@
 \method{ggplot}{cecl_marg}(
   data = NULL,
   mapping = ggplot2::aes(),
-  which = c("qq", "pp", "hist", "return"),
+  which = c("qq", "pp", "hist", "return", "transformed"),
   loc,
   var,
+  cond_var = NULL,
   mult_col = "name",
+  plot_dens = TRUE,
   return_periods = c(1.5, 2.5, 5, 10, 20, 50, 100, 200),
   nboot = 200,
+  refit = FALSE,
   ci_quantiles = c(0.025, 0.975),
   log_scale = TRUE,
   ...,
@@ -25,28 +28,38 @@
 \item{mapping}{Not used.}
 
 \item{which}{Type of plot to generate. Choices are \code{"qq"} for QQ plot,
-\code{"pp"} for PP plot, \code{"hist"} for histogram of residuals, or \code{"return"} for
-return level plot.}
+\code{"pp"} for PP plot, \code{"hist"} for histogram of residuals, \code{"return"} for
+return level plot, and \code{"transformed"} for a plot of the Laplace-scale
+transformed data. Several plots can also be produced.}
 
 \item{loc}{Location name to plot.}
 
 \item{var}{Variable name to plot.}
 
+\item{cond_var}{Optional conditioning variable for plotting Laplace
+transformed data, Default NULL.}
+
 \item{mult_col}{Name of the column representing locations, default \code{"name"}.}
+
+\item{plot_dens}{Logical indicating whether to plot histogram on top of
+density estimate, Default TRUE.}
 
 \item{return_periods}{Return periods for return level plot,
 Default c(1.5, 2.5, 5, 10, 20, 50, 100, 200).}
 
-\item{nboot}{Number of bootstrap samples for return level plot confidence
-intervals, Default 200.}
+\item{nboot}{Number of bootstrap samples for confidence
+intervals, set to NULL for none confidence interval, Default: 200.}
 
-\item{ci_quantiles}{Quantiles for confidence intervals in return level plot,
+\item{refit}{Logical indicating whether to refit GPD for each bootstrap
+sample when calculating uncertainty envelopes, Default FALSE.}
+
+\item{ci_quantiles}{Quantiles for confidence intervals,
 Default c(0.025, 0.975).}
 
 \item{log_scale}{Logical indicating whether to use log scale for return
 level plot x-axis, Default TRUE.}
 
-\item{...}{Additional arguments (not used).}
+\item{...}{Additional arguments for main \code{ggplot2} plotting function.}
 
 \item{environment}{Parent frame environment.}
 }

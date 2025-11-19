@@ -4,7 +4,13 @@
 \alias{plot_image.cecl_dist}
 \title{Image plot for \code{cecl_dist} object}
 \usage{
-\method{plot_image}{cecl_dist}(x, type = c("ggplot", "plot"), ...)
+\method{plot_image}{cecl_dist}(
+  x,
+  type = c("ggplot", "plot"),
+  show_xlab = FALSE,
+  show_ylab = TRUE,
+  ...
+)
 }
 \arguments{
 \item{x}{Object of class \code{cecl_dist}.}
@@ -12,6 +18,10 @@
 \item{type}{Character string specifying which plot to produce.
 Either \code{"ggplot"} for ggplot object, or \code{"plot"} for base R plot.
 Default is \code{"ggplot"}.}
+
+\item{show_xlab}{Logical, whether to show x-axis labels, Default: FALSE.}
+
+\item{show_ylab}{Logical, whether to show y-axis labels, Default: TRUE.}
 
 \item{...}{Additional arguments passed to plotting functions.}
 }

@@ -985,23 +985,223 @@ summary.cecl_marg <- \(object, n, ...) {
   invisible(object)
 }
 
+#' @title Bootstrap QQ/PP envelope for GPD exceedances
+#' @description Generate bootstrap QQ/PP envelopes for GPD exceedances.
+#' @param exceedances Numeric vector of exceedances (data - threshold).
+#' @param gpd_params List with elements `thresh`, `sigma`, `xi`
+#' specifying fitted GPD parameters.
+#' @param type Type of envelope to generate: "qq" for QQ plot,
+#' "pp" for PP plot, or both.
+#' @param nboot Number of bootstrap simulations, set to NULL for no
+#' envelopes, Default 200.
+#' @param refit Logical; if TRUE, refit GPD model for each simulated dataset
+#' (slower, includes parameter uncertainty). If FALSE, use fixed fitted
+#' parameters.
+#' @param ci_quantiles Quantiles for confidence intervals,
+#' Default c(0.025, 0.975).
+#'
+bootstrap_pp_qq <- \(
+  exceedances,
+  gpd_params,
+  type = c("qq", "pp"),
+  nboot = 200,
+  refit = FALSE,
+  ci_quantiles = c(0.025, 0.975)
+) {
+  type <- match.arg(type, several.ok = TRUE)
+  if (!is.numeric(exceedances) || length(exceedances) < 2) {
+    stop("exceedances must be numeric length >= 2")
+  }
+
+  # fitted params
+  u <- gpd_params$thresh
+  sigma <- gpd_params$sigma
+  xi <- gpd_params$xi
+
+  n_exc <- length(exceedances)
+  p <- stats::ppoints(n_exc)
+
+  # observed quantities
+  observed_sample_q <- sort(exceedances)
+  # PITs under fitted model
+  observed_pit <- pgpd(exceedances, u = 0, sigma = sigma, xi = xi)
+  observed_pp_sorted <- sort(observed_pit)
+  # theoretical quantiles for QQ x-axis
+  theor_q <- qgpd(p, u = 0, sigma = sigma, xi = xi)
+
+  # preallocate matrix to hold simulated quantiles/PITs
+  sim_mat_qq <- NULL
+  sim_mat_pp <- NULL
+  ok_qq <- logical(nboot)
+  ok_pp <- logical(nboot)
+  if ("qq" %in% type) {
+    sim_mat_qq <- matrix(NA_real_, nrow = nboot, ncol = n_exc)
+  }
+  if ("pp" %in% type) {
+    sim_mat_pp <- matrix(NA_real_, nrow = nboot, ncol = n_exc)
+  }
+
+  # if nboot = 0, return NA envelopes
+  if (nboot == 0) {
+    res <- list(nboot = nboot, refit = refit, ci_quantiles = ci_quantiles)
+    if ("qq" %in% type) {
+      qq_df <- data.frame(
+        p = p, theor = theor_q, sample = observed_sample_q,
+        lower = NA_real_, upper = NA_real_
+      )
+      res$n_succ_qq <- 0L
+      res$qq <- qq_df
+    }
+    if ("pp" %in% type) {
+      pp_df <- data.frame(
+        p = p, model = observed_pp_sorted,
+        lower = NA_real_, upper = NA_real_
+      )
+      res$n_succ_pp <- 0L
+      res$pp <- pp_df
+    }
+    return(res)
+  }
+  for (b in seq_len(nboot)) {
+    # simulate n_exc raw values from rgpd with threshold = u
+    sim_raw <- try(
+      rgpd(n = n_exc, u = u, sigma = sigma, xi = xi),
+      silent = TRUE
+    )
+    if (inherits(sim_raw, "try-error") || any(is.na(sim_raw))) {
+      next
+    }
+
+    # convert to exceedances (Y = X - u)
+    sim_exc <- sim_raw - u
+
+    if (!refit) {
+      # fixed-parameter envelope: evaluate simulated sample quantiles or PITs
+      # under fitted params
+      if ("qq" %in% type) {
+        sim_mat_qq[b, ] <- sort(sim_exc) # sample quantiles of simulated data
+        ok_qq[b] <- TRUE
+      }
+      if ("pp" %in% type) {
+        sim_pit <- pgpd(sim_exc, u = 0, sigma = sigma, xi = xi)
+        sim_mat_pp[b, ] <- sort(sim_pit)
+        ok_pp[b] <- TRUE
+      }
+    } else {
+      # refit to simulated raw data (threshold = u)
+      fit_b <- try(
+        ismev::gpd.fit(sim_raw, threshold = u, show = FALSE),
+        silent = TRUE
+      )
+      if (inherits(fit_b, "try-error") || any(is.na(fit_b$mle))) {
+        next
+      }
+
+      sigma_b <- fit_b$mle[1]
+      xi_b <- fit_b$mle[2]
+
+      # compute same quantities but using the fitted parameters where needed
+      if ("qq" %in% type) {
+        # Use sample quantiles of simulated exceedances
+        sim_mat_qq[b, ] <- sort(sim_exc)
+        ok_qq[b] <- TRUE
+      }
+      if ("pp" %in% type) {
+        # PIT under the refit params
+        sim_pit_b <- pgpd(sim_exc, u = 0, sigma = sigma_b, xi = xi_b)
+        sim_mat_pp[b, ] <- sort(sim_pit_b)
+        ok_pp[b] <- TRUE
+      }
+    }
+  }
+
+  # prepare result object
+  res <- list(nboot = nboot, refit = refit, ci_quantiles = ci_quantiles)
+
+  # QQ results (if requested)
+  ci <- ci_quantiles
+  if ("qq" %in% type) {
+    if (!any(ok_qq)) {
+      message("bootstrap_pp_qq: no successful QQ simulations")
+      qq_df <- data.frame(
+        p = p, theor = theor_q, sample = observed_sample_q,
+        lower = NA_real_, upper = NA_real_
+      )
+      res$n_succ_qq <- 0L
+    } else {
+      sim_mat_qq_ok <- sim_mat_qq[ok_qq, , drop = FALSE]
+      n_succ_qq <- nrow(sim_mat_qq_ok)
+      lower_qq <- apply(
+        sim_mat_qq_ok, 2, stats::quantile,
+        probs = ci[1], na.rm = TRUE
+      )
+      upper_qq <- apply(
+        sim_mat_qq_ok, 2, stats::quantile,
+        probs = ci[2], na.rm = TRUE
+      )
+      qq_df <- data.frame(
+        p = p, theor = theor_q, sample = observed_sample_q,
+        lower = lower_qq, upper = upper_qq
+      )
+      res$n_succ_qq <- n_succ_qq
+    }
+    res$qq <- qq_df
+  }
+
+  # PP results (if requested)
+  if ("pp" %in% type) {
+    if (!any(ok_pp)) {
+      message("bootstrap_pp_qq: no successful PP simulations")
+      pp_df <- data.frame(
+        p = p, model = observed_pp_sorted,
+        lower = NA_real_, upper = NA_real_
+      )
+      res$n_succ_pp <- 0L
+    } else {
+      sim_mat_pp_ok <- sim_mat_pp[ok_pp, , drop = FALSE]
+      n_succ_pp <- nrow(sim_mat_pp_ok)
+      lower_pp <- apply(
+        sim_mat_pp_ok, 2, stats::quantile,
+        probs = ci[1], na.rm = TRUE
+      )
+      upper_pp <- apply(
+        sim_mat_pp_ok, 2, stats::quantile,
+        probs = ci[2], na.rm = TRUE
+      )
+      pp_df <- data.frame(
+        p = p, model = observed_pp_sorted,
+        lower = lower_pp, upper = upper_pp
+      )
+      res$n_succ_pp <- n_succ_pp
+    }
+    res$pp <- pp_df
+  }
+
+  return(res)
+}
+
 #' @title Plot method for `cecl_marg` objects
 #' @description Generate diagnostic plots for a `cecl_marg` object, including
 #' QQ, PP, histogram, and return level plots.
 #' @param x Object of class `cecl_marg`.
 #' @param which Type of plot to generate. Choices are `"qq"` for QQ plot,
-#' `"pp"` for PP plot, `"hist"` for histogram of residuals, or `"return"` for
-#' return level plot.
+#' `"pp"` for PP plot, `"hist"` for histogram of residuals, `"return"` for
+#' return level plot, and `"transformed"` for a plot of the Laplace-scale
+#' transformed data. Several plots can also be produced.
 #' @param loc Location name to plot.
 #' @param mult_col Name of the column representing locations, default `"name"`.
 #' @param var Variable name to plot.
+#' @param cond_var Optional conditioning variable for plotting Laplace
+#' transformed data, Default NULL.
 #' @param plot_dens Logical indicating whether to plot histogram on top of
 #' density estimate, Default TRUE.
 #' @param return_periods Return periods for return level plot,
 #' Default c(1.5, 2.5, 5, 10, 20, 50, 100, 200).
-#' @param nboot Number of bootstrap samples for return level plot confidence
-#' intervals, Default 200.
-#' @param ci_quantiles Quantiles for confidence intervals in return level plot,
+#' @param nboot Number of bootstrap samples for confidence
+#' intervals, set to NULL for none confidence interval, Default: 200.
+#' @param refit Logical indicating whether to refit GPD for each bootstrap
+#' sample when calculating uncertainty envelopes, Default FALSE.
+#' @param ci_quantiles Quantiles for confidence intervals,
 #' Default c(0.025, 0.975).
 #' @param log_scale Logical indicating whether to use log scale for return
 #' level plot x-axis, Default TRUE.
@@ -1037,32 +1237,33 @@ summary.cecl_marg <- \(object, n, ...) {
 #' plot(marg_fit, which = "qq", loc = "loc_1", var = "X1")
 plot.cecl_marg <- \(
   x,
-  which = c("qq", "pp", "hist", "return"),
+  which = c("qq", "pp", "hist", "return", "transformed"),
   loc,
   mult_col = "name",
   var,
+  cond_var = NULL,
   plot_dens = TRUE,
   return_periods = c(1.5, 2.5, 5, 10, 20, 50, 100, 200),
   nboot = 200,
+  refit = FALSE,
   ci_quantiles = c(0.025, 0.975),
   log_scale = TRUE,
   ...
 ) {
   stopifnot(inherits(x, "cecl_marg"))
 
-  if (inherits(x, "cecl_marg_ecdf")) {
+  if (inherits(x, "cecl_marg_ecdf") && which != "transformed") {
     stop(paste(
-      "No residuals to plot for 'ecdf' marg_method.",
-      "Use 'thresh_only = TRUE' in 'cecl_marg' to only threshold data."
+      "No residuals to plot for 'ecdf' `marg_method`,",
+      "only 'transformed' plot available."
     ))
   }
 
-  which <- match.arg(which)
+  which <- match.arg(which, several.ok = TRUE)
 
   if (missing(loc) || missing(var)) {
     stop("Please specify both 'loc' and 'var' to plot.")
   }
-
   if (!loc %in% names(x$original)) {
     stop(paste("Location", loc, "not found in the cecl_marg object."))
   }
@@ -1089,151 +1290,215 @@ plot.cecl_marg <- \(
   )
 
   # Calculate residuals based on marginal method
-  if (inherits(x, "cecl_marg_ismev")) {
+  if (any(which != "transformed")) {
     gpd_params <- x$marginal[[loc]][[var]]
-    sigma <- gpd_params$sigma
-    xi <- gpd_params$xi
-    # residuals <- (thresh_data[[var]] - gpd_params$thresh) / gpd_params$sigma
-    exceedances <- thresh_data[[var]] - gpd_params$thresh
-    residuals <- resid_fun(exceedances, gpd_params)
-  } else if (inherits(x, "cecl_marg_evgam")) {
-    stop("Plot method not implemented for evgam marg_method yet.")
-    evgam_fit <- x$evgam_fit[[which(x$vars == var)]]
-    pred_row <- evgam_fit$predictions |>
-      dplyr::filter(.data[[x$mult_col]] == loc)
-    sigma <- pred_row$scale
-    xi <- pred_row$shape
-    # residuals <- (thresh_data[[var]] - pred_row$thresh) / sigma
-    exceedances <- thresh_data[[var]] - pred_row$thresh
-    residuals <- resid_fun(exceedances, list(sigma = sigma, xi = xi))
-  } else {
-    stop("Plot method not implemented for this marg_method")
+    if (inherits(x, "cecl_marg_ismev")) {
+      sigma <- gpd_params$sigma
+      xi <- gpd_params$xi
+      exceedances <- thresh_data[[var]] - gpd_params$thresh
+      residuals <- resid_fun(exceedances, gpd_params)
+    } else if (inherits(x, "cecl_marg_evgam")) {
+      # stop("Plot method not implemented for evgam marg_method yet.")
+      evgam_fit <- x$evgam_fit[[which(x$vars == var)]]
+      pred_row <- evgam_fit$predictions |>
+        dplyr::filter(.data[[mult_col]] == loc)
+      sigma <- pred_row$scale
+      xi <- pred_row$shape
+      # exceedances <- thresh_data[[var]] - pred_row$thresh
+      exceedances <- thresh_data[[var]] - gpd_params$thresh
+      residuals <- resid_fun(exceedances, list(sigma = sigma, xi = xi))
+    } else {
+      stop("Plot method not implemented for this marg_method")
+    }
+    if (!is.null(cond_var)) {
+      message("Ignoring `cond_var` for which != 'transformed'")
+    }
+  }
+  # For transformed plot
+  if (any(which == "transformed")) {
+    stopifnot("must specify `cond_var`" = !is.null(cond_var))
+    stopifnot("`cond_var` must differ from `var`." = cond_var != var)
+    stopifnot(
+      "`cond_var` not found in cecl_marg object." = cond_var %in% x$vars
+    )
+    transformed <- x$transformed[[loc]][, c(var, cond_var), drop = FALSE]
   }
 
-  # Generate specified plot
-  if (which == "qq") {
-    stats::qqplot(
-      qgpd(
-        stats::ppoints(length(residuals)),
-        u = 0, sigma = sigma, xi = xi
-      ),
-      # residuals,
-      sort(exceedances),
-      xlab = "Theoretical Quantiles",
-      ylab = "Sample Quantiles",
-      ...
-    )
-    graphics::abline(0, 1, col = "red")
-  } else if (which == "pp") {
-    plot(
-      stats::ppoints(length(residuals)),
-      sort(residuals),
-      xlab = "Theoretical Probabilities",
-      ylab = "Sample Probabilities",
-      ...
-    )
-    graphics::abline(0, 1, col = "red")
-  } else if (which == "hist") {
-    # if main not specified, set to NULL (hist automatically adds title)
-    plot_args <- list(
-      x      = residuals,
-      breaks = 20,
-      xlab   = "Residuals",
-      prob   = ifelse(plot_dens, TRUE, FALSE),
-      ...
-    )
-    if (!"main" %in% names(plot_args)) {
-      plot_args[["main"]] <- list(NULL)
-    }
-    do.call(graphics::hist, plot_args)
-    # add density plot if specified
-    if (plot_dens) {
-      graphics::lines(stats::density(residuals), col = "red", lwd = 2)
-    }
-  } else if (which == "return") {
-    #  Extract fitted parameters
-    gpd_params <- x$marginal[[loc]][[var]]
-    u <- gpd_params$thresh
-    sigma <- gpd_params$sigma
-    xi <- gpd_params$xi
-
-    # Estimate exceedance rate
-    n_total <- nrow(orig_data)
-    n_exc <- nrow(thresh_data)
-    lambda_u <- n_exc / n_total
-
-    # Define return periods
-    T_vals <- return_periods
-    z_T <- if (abs(xi) > 1e-6) {
-      u + (sigma / xi) * ((T_vals * lambda_u)^xi - 1)
-    } else {
-      u + sigma * log(T_vals * lambda_u)
-    }
-
-    if (log_scale) {
-      T_vals_plot <- log(T_vals)
-      ylab <- "Return Level (log)"
-    } else {
-      T_vals_plot <- T_vals
-      ylab <- "Return Level"
-    }
-
-    plot(
-      T_vals_plot, z_T,
-      type = "b", pch = 19,
-      xlab = "Return Period",
-      ylab = ylab,
-      ...
-    )
-
-    zT_boot <- matrix(NA, nrow = nboot, ncol = length(T_vals))
-
-    for (b in seq_len(nboot)) {
-      sim_data <- rgpd(
-        n     = nrow(thresh_data),
-        u     = gpd_params$thresh,
-        sigma = gpd_params$sigma,
-        xi    = gpd_params$xi
-      )
-
-      fit_b <- ismev::gpd.fit(
-        sim_data,
-        threshold = gpd_params$thresh, show = FALSE
-      )
-
-      if (inherits(fit_b, "try-error")) next # skip failed fit
-
-      sigma_b <- fit_b$mle[1]
-      xi_b <- fit_b$mle[2]
-      lambda_u_b <- lambda_u
-
-      # skip if invalid MLEs
-      if (any(is.na(fit_b$mle))) next
-      xi_b <- ifelse(abs(xi_b) < 1e-6, 1e-6, xi_b)
-
-      zT_boot[b, ] <- gpd_params$thresh +
-        (sigma_b / xi_b) * ((T_vals * lambda_u_b)^xi_b - 1)
-    }
-
-    ci <- apply(zT_boot, 2, stats::quantile, probs = ci_quantiles)
-    z_T_lower <- ci[1, ]
-    z_T_upper <- ci[2, ]
-
-    graphics::lines(
-      T_vals_plot, z_T_upper,
-      lty = 2, col = ggsci::pal_nejm()(1)[1]
-    )
-    graphics::lines(
-      T_vals_plot, z_T_lower,
-      lty = 2, col = ggsci::pal_nejm()(1)[1]
+  # calculate uncertainty for PP and/or QQ plots
+  if (any(which %in% c("pp", "qq"))) {
+    env <- bootstrap_pp_qq(
+      exceedances = exceedances,
+      gpd_params = gpd_params,
+      type = intersect(which, c("pp", "qq")),
+      nboot = nboot,
+      refit = refit,
+      ci_quantiles = ci_quantiles
     )
   }
+
+  # Ask if multiple plots needed
+  mf <- graphics::par("mfrow")
+  capacity <- mf[1] * mf[2]
+  # save original par settings & ensure reset
+  op <- graphics::par(ask = length(which) > capacity)
+  on.exit(graphics::par(op))
+
+  # Generate specified plots
+  for (w in which) {
+    if (w == "transformed") {
+      plot(
+        transformed[, cond_var],
+        transformed[, var],
+        xlab = cond_var,
+        ylab = var,
+        ...
+      )
+    } else if (w == "qq") {
+      qq_df <- env$qq
+      stats::qqplot(
+        qq_df$theor,
+        qq_df$sample,
+        xlab = "Theoretical",
+        ylab = "Sample",
+        ...
+      )
+      # add uncertainty
+      if (nboot > 0) {
+        graphics::polygon(
+          c(qq_df$theor, rev(qq_df$theor)),
+          c(qq_df$lower, rev(qq_df$upper)),
+          col = grDevices::rgb(0.7, 0.7, 0.7, 0.4),
+          border = NA
+        )
+      }
+      graphics::points(qq_df$theor, qq_df$sample)
+      graphics::abline(0, 1, col = "red")
+    } else if (w == "pp") {
+      pp_df <- env$pp
+      plot(
+        pp_df$p,
+        pp_df$model,
+        xlab = "Theoretical",
+        ylab = "Model"
+      )
+      if (nboot > 0) {
+        graphics::polygon(
+          c(pp_df$p, rev(pp_df$p)),
+          c(pp_df$lower, rev(pp_df$upper)),
+          col = grDevices::rgb(0.7, 0.7, 0.7, 0.4),
+          border = NA
+        )
+      }
+      graphics::points(pp_df$p, pp_df$model)
+      graphics::abline(0, 1, col = "red")
+    } else if (w == "hist") {
+      # if main not specified, set to NULL (hist automatically adds title)
+      plot_args <- list(
+        x      = residuals,
+        breaks = 20,
+        xlab   = "Residuals",
+        prob   = ifelse(plot_dens, TRUE, FALSE),
+        ...
+      )
+      if (!"main" %in% names(plot_args)) {
+        plot_args[["main"]] <- list(NULL)
+      }
+      do.call(graphics::hist, plot_args)
+      # add density plot if specified
+      if (plot_dens) {
+        graphics::lines(stats::density(residuals), col = "red", lwd = 2)
+      }
+    } else if (w == "return") {
+      #  Extract fitted parameters
+      gpd_params <- x$marginal[[loc]][[var]]
+      u <- gpd_params$thresh
+      sigma <- gpd_params$sigma
+      xi <- gpd_params$xi
+
+      # Estimate exceedance rate
+      n_total <- nrow(orig_data)
+      n_exc <- nrow(thresh_data)
+      lambda_u <- n_exc / n_total
+
+      # Define return periods
+      T_vals <- return_periods
+      z_T <- if (abs(xi) > 1e-6) {
+        u + (sigma / xi) * ((T_vals * lambda_u)^xi - 1)
+      } else {
+        u + sigma * log(T_vals * lambda_u)
+      }
+
+      if (log_scale) {
+        T_vals_plot <- log(T_vals)
+        xlab <- "Return Period (log)"
+      } else {
+        T_vals_plot <- T_vals
+        xlab <- "Return Period"
+      }
+
+      plot(
+        T_vals_plot, z_T,
+        type = "b", pch = 19,
+        xlab = xlab,
+        ylab = "Return Level",
+        ...
+      )
+
+      zT_boot <- matrix(NA, nrow = nboot, ncol = length(T_vals))
+
+      # return NULL and exit if uncertainty not requested
+      if (nboot == 0) {
+        next
+      }
+
+      for (b in seq_len(nboot)) {
+        sim_data <- rgpd(
+          n     = nrow(thresh_data),
+          u     = gpd_params$thresh,
+          sigma = gpd_params$sigma,
+          xi    = gpd_params$xi
+        )
+
+        fit_b <- ismev::gpd.fit(
+          sim_data,
+          threshold = gpd_params$thresh, show = FALSE
+        )
+
+        if (inherits(fit_b, "try-error")) next # skip failed fit
+
+        sigma_b <- fit_b$mle[1]
+        xi_b <- fit_b$mle[2]
+        lambda_u_b <- lambda_u
+
+        # skip if invalid MLEs
+        if (any(is.na(fit_b$mle))) next
+        xi_b <- ifelse(abs(xi_b) < 1e-6, 1e-6, xi_b)
+
+        zT_boot[b, ] <- gpd_params$thresh +
+          (sigma_b / xi_b) * ((T_vals * lambda_u_b)^xi_b - 1)
+      }
+
+      ci <- apply(zT_boot, 2, stats::quantile, probs = ci_quantiles)
+      z_T_lower <- ci[1, ]
+      z_T_upper <- ci[2, ]
+
+      graphics::lines(
+        T_vals_plot, z_T_upper,
+        lty = 2, col = ggsci::pal_nejm()(1)[1]
+      )
+      graphics::lines(
+        T_vals_plot, z_T_lower,
+        lty = 2, col = ggsci::pal_nejm()(1)[1]
+      )
+    }
+  }
+  return(invisible(NULL))
 }
 
 #' @title CECL ggplot theme
 #' @description Custom ggplot theme for CECL plots.
 #' @param legend.position Position of legend in plot, default "bottom".
-#' @param nejm_pal Logical indicating whether to use NEJM color palette,
+#' @param nejm_pal Logical indicating whether to use NEJM colour palette,
 #' default TRUE.
 #' @return List of ggplot theme elements.
 #' @rdname cecl_theme
@@ -1264,7 +1529,7 @@ cecl_theme <- \(legend.position = "bottom", nejm_pal = TRUE) {
 #' @description Generate ggplot diagnostic plots for `cecl_marg` object.
 #' @param data object of class `cecl_marg`.
 #' @param mapping Not used.
-#' @param ... Additional arguments (not used).
+#' @param ... Additional arguments for main `ggplot2` plotting function.
 #' @param environment Parent frame environment.
 #' @inheritParams plot.cecl_marg
 #' @return ggplot diagnostic plot for `cecl_marg` object.
@@ -1303,13 +1568,15 @@ cecl_theme <- \(legend.position = "bottom", nejm_pal = TRUE) {
 ggplot.cecl_marg <- \(
   data = NULL,
   mapping = ggplot2::aes(),
-  which = c("qq", "pp", "hist", "return"),
+  which = c("qq", "pp", "hist", "return", "transformed"),
   loc,
   var,
+  cond_var = NULL,
   mult_col = "name",
   plot_dens = TRUE,
   return_periods = c(1.5, 2.5, 5, 10, 20, 50, 100, 200),
   nboot = 200,
+  refit = FALSE,
   ci_quantiles = c(0.025, 0.975),
   log_scale = TRUE,
   ...,
@@ -1317,14 +1584,14 @@ ggplot.cecl_marg <- \(
 ) {
   stopifnot(inherits(data, "cecl_marg"))
 
-  if (inherits(data, "cecl_marg_ecdf")) {
+  if (inherits(data, "cecl_marg_ecdf") && which != "transformed") {
     stop(paste(
-      "No residuals to plot for 'ecdf' marg_method.",
-      "Use 'thresh_only = TRUE' in 'cecl_marg' to only threshold data."
+      "No residuals to plot for 'ecdf' `marg_method`,",
+      "only 'transformed' plot available."
     ))
   }
 
-  which <- match.arg(which)
+  which <- match.arg(which, several.ok = TRUE)
 
   if (missing(loc) || missing(var)) {
     stop("Please specify both 'loc' and 'var' to plot.")
@@ -1337,7 +1604,7 @@ ggplot.cecl_marg <- \(
     stop(paste("Variable", var, "not found in the cecl_marg object."))
   }
 
-  quantile <- lower <- upper <- NULL
+  quantile <- lower <- upper <- density <- x <- theor <- model <- NULL
 
   # Extract original and thresholded data for specified location and variable
   orig_data <- data$original[[loc]] |>
@@ -1357,199 +1624,254 @@ ggplot.cecl_marg <- \(
     )
   )
 
-  if (inherits(data, "cecl_marg_ismev")) {
+  if (any(which != "transformed")) {
     gpd_params <- data$marginal[[loc]][[var]]
-    exceedances <- thresh_data[[var]] - gpd_params$thresh
-    residuals <- resid_fun(exceedances, gpd_params)
-    # TODO Check if this works as well
-  } else if (inherits(data, "cecl_marg_evgam")) {
-    stop("ggplot method not implemented for evgam marg_method yet.")
-    evgam_fit <- data$evgam_fit[[which(data$vars == var)]]
-    pred_row <- evgam_fit$predictions |>
-      dplyr::filter(.data[[data$mult_col]] == loc)
-    sigma <- pred_row$scale
-    # residuals <- (thresh_data[[var]] - pred_row$thresh) / sigma
-    exceedances <- thresh_data[[var]] - pred_row$thresh
-    residuals <- resid_fun(
-      exceedances, list(sigma = sigma, xi = pred_row$shape)
+    if (inherits(data, "cecl_marg_ismev")) {
+      exceedances <- thresh_data[[var]] - gpd_params$thresh
+      residuals <- resid_fun(exceedances, gpd_params)
+    } else if (inherits(data, "cecl_marg_evgam")) {
+      evgam_fit <- data$evgam_fit[[which(data$vars == var)]]
+      pred_row <- evgam_fit$predictions |>
+        dplyr::filter(.data[[mult_col]] == loc)
+      sigma <- pred_row$scale
+      exceedances <- thresh_data[[var]] - gpd_params$thresh
+      residuals <- resid_fun(
+        exceedances, list(sigma = sigma, xi = pred_row$shape)
+      )
+    } else {
+      stop("ggplot method not implemented for this marg_method")
+    }
+    # check residuals
+    stopifnot(
+      "NA residuals - check pgpd arguments/parameterization" =
+        !any(is.na(residuals))
     )
-  } else {
-    stop("ggplot method not implemented for this marg_method")
-  }
-  # check residuals
-  stopifnot(
-    "NA residuals - check pgpd arguments/parameterization" =
-      !any(is.na(residuals))
-  )
-  stopifnot(
-    "Some residuals are outside [0,1] - check parameterization" =
-      all(residuals >= 0 & residuals <= 1)
-  )
+    stopifnot(
+      "Some residuals are outside [0,1] - check parameterization" =
+        all(residuals >= 0 & residuals <= 1)
+    )
+    res_df <- data.frame(residuals = residuals)
 
-  res_df <- data.frame(residuals = residuals)
+    if (!is.null(cond_var)) {
+      message("Ignoring `cond_var` for which != 'transformed'")
+    }
+  }
+
+  if (any(which == "transformed")) {
+    stopifnot("must specify `cond_var`." = !is.null(cond_var))
+    stopifnot("`cond_var` must differ from `var`." = cond_var != var)
+    stopifnot(
+      "`cond_var` not found in cecl_marg object." = cond_var %in% x$vars
+    )
+    transformed <- data$transformed[[loc]][, c(var, cond_var), drop = FALSE]
+  }
+
+  if (any(which %in% c("pp", "qq"))) {
+    env <- bootstrap_pp_qq(
+      exceedances = exceedances,
+      gpd_params = gpd_params,
+      type = intersect(which, c("pp", "qq")),
+      nboot = nboot,
+      refit = refit,
+      ci_quantiles = ci_quantiles
+    )
+  }
+
+  ret <- vector(mode = "list", length = length(which))
 
   # Generate specified ggplot
-  if (which == "qq") {
-    gpd_pars <- c(list("u" = 0), stats::setNames(
-      gpd_params[c("sigma", "xi")],
-      c("sigma", "xi")
-    ))
-
-
-    qfun <- \(p) do.call(qgpd, c(list(p), gpd_pars))
-
-    ggplot2::ggplot(res_df, ggplot2::aes(
-      sample = exceedances
-    )) +
-      ggplot2::stat_qq(distribution = qfun) +
-      ggplot2::geom_abline(intercept = 0, slope = 1, colour = "red") +
-      ggplot2::labs(x = "Theoretical Quantiles", y = "Sample Quantiles") +
-      cecl_theme()
-  } else if (which == "pp") {
-    ggplot2::ggplot(res_df, ggplot2::aes(
-      x = sort(stats::ppoints(length(residuals))),
-      y = sort(residuals)
-    )) +
-      ggplot2::geom_point() +
-      ggplot2::geom_abline(slope = 1, intercept = 0, col = "red") +
-      ggplot2::labs(
-        x = "Theoretical Probabilities",
-        y = "Sample Probabilities"
+  # for (w in which) {
+  for (i in seq_along(which)) {
+    w <- which[[i]]
+    if (w == "transformed") {
+      p <- ggplot2::ggplot(
+        as.data.frame(transformed),
+        ggplot2::aes_string(x = cond_var, y = var)
       ) +
-      cecl_theme()
-  } else if (which == "hist") {
-    p <- ggplot2::ggplot(res_df, ggplot2::aes(x = residuals)) +
-      ggplot2::labs(x = "Residuals") +
-      cecl_theme()
-
-    if (plot_dens) {
-      p <- p +
-        ggplot2::geom_histogram(
-          aes(y = after_stat(density)),
-          fill = ggsci::pal_nejm()(1)[1],
-          color = "black"
+        ggplot2::geom_point(...) +
+        ggplot2::labs(
+          x = cond_var,
+          y = var,
         ) +
-        ggplot2::geom_density(
-          color = "red",
-          size = 1
-        )
-    } else {
+        cecl_theme()
+    } else if (w == "qq") {
+      qq_df <- env$qq
+      x_min <- min(qq_df$theor, na.rm = TRUE)
+      x_max <- max(qq_df$theor, na.rm = TRUE)
+
+      p <- ggplot2::ggplot(qq_df, ggplot2::aes(x = theor, y = sample))
+      if (nboot > 0) {
+        p <- p +
+          ggplot2::geom_ribbon(
+            ggplot2::aes(ymin = lower, ymax = upper),
+            fill = "grey80", alpha = 0.5
+          )
+      }
       p <- p +
-        ggplot2::geom_histogram(
-          fill = ggsci::pal_nejm()(1)[1],
-          color = "black"
+        ggplot2::geom_abline(intercept = 0, slope = 1, colour = "red") +
+        ggplot2::geom_point() +
+        ggplot2::labs(x = "Theoretical", y = "Sample") +
+        cecl_theme() +
+        ggplot2::scale_x_continuous(
+          limits = c(
+            min(qq_df$theor, na.rm = TRUE),
+            max(qq_df$theor, na.rm = TRUE)
+          ),
+          expand = c(0.01, 0.01)
         )
-    }
-    return(p)
-  } else if (which == "return") {
-    # TODO Add predict method for marginal fits! would make this easier
-    # TODO Add checking for return level arguments if using
+    } else if (w == "pp") {
+      pp_df <- env$pp
 
-    # browser()
+      p <- ggplot2::ggplot(pp_df, ggplot2::aes(x = p, y = model))
+      if (nboot > 0) {
+        p <- p +
+          ggplot2::geom_ribbon(
+            ggplot2::aes(ymin = lower, ymax = upper),
+            fill = "grey80", alpha = 0.5
+          )
+      }
+      p <- p +
+        ggplot2::geom_abline(intercept = 0, slope = 1, colour = "red") +
+        ggplot2::geom_point() +
+        ggplot2::labs(x = "Theoretical", y = "Model") +
+        cecl_theme()
+    } else if (w == "hist") {
+      p <- ggplot2::ggplot(res_df, ggplot2::aes(x = residuals)) +
+        ggplot2::labs(x = "Residuals") +
+        cecl_theme()
 
-    # Extract parameters
-    gpd_params <- data$marginal[[loc]][[var]]
-    u <- gpd_params$thresh
-    sigma <- gpd_params$sigma
-    xi <- gpd_params$xi
-
-    # Exceedance rate
-    n_total <- nrow(orig_data)
-    n_exc <- nrow(thresh_data)
-    lambda_u <- n_exc / n_total
-
-    # Return periods
-    T_vals <- return_periods
-
-    return_level <- \(T, u, sigma, xi, tol = 1e-8) {
-      TT <- T * lambda_u
-      if (abs(xi) > tol) {
-        u + (sigma / xi) * (TT^xi - 1)
+      if (plot_dens) {
+        p <- p +
+          ggplot2::geom_histogram(
+            ggplot2::aes(y = ggplot2::after_stat(density)),
+            fill = "grey",
+            colour = "black",
+            ...
+          ) +
+          ggplot2::geom_density(
+            colour = "red",
+            linewidth = 1
+          )
       } else {
-        u + sigma * log(TT)
+        p <- p +
+          ggplot2::geom_histogram(
+            fill = "grey",
+            colour = "black",
+            ...
+          )
+      }
+    } else if (w == "return") {
+      # TODO Add predict method for marginal fits! would make this easier
+      # TODO Add checking for return level arguments if using
+
+      # Extract parameters
+      gpd_params <- data$marginal[[loc]][[var]]
+      u <- gpd_params$thresh
+      sigma <- gpd_params$sigma
+      xi <- gpd_params$xi
+
+      # Exceedance rate
+      n_total <- nrow(orig_data)
+      n_exc <- nrow(thresh_data)
+      lambda_u <- n_exc / n_total
+
+      # Return periods
+      T_vals <- return_periods
+
+      return_level <- \(T, u, sigma, xi, tol = 1e-8) {
+        TT <- T * lambda_u
+        if (abs(xi) > tol) {
+          u + (sigma / xi) * (TT^xi - 1)
+        } else {
+          u + sigma * log(TT)
+        }
+      }
+
+      # Compute nominal (fitted) return levels
+      z_T <- vapply(
+        T_vals, return_level, numeric(1),
+        u = u, sigma = sigma, xi = xi
+      )
+
+      df <- data.frame(T_vals = T_vals, z_T = z_T)
+
+      # bootstrap CI
+      zT_list <- vector(mode = "list", length = nboot)
+      b_ok <- 0 # count of successful bootstraps
+      for (b in seq_len(nboot)) {
+        sim_exc <- try(
+          rgpd(n = n_exc, u = 0, sigma = sigma, xi = xi),
+          silent = TRUE
+        )
+        if (inherits(sim_exc, "try-error")) {
+          # fallback to inverse cdf
+          sim_exc <- qgpd(stats::runif(n_exc), u = 0, sigma = sigma, xi = xi)
+        }
+        # fit GPD to simulated exceedances
+        fit_b <- try(
+          ismev::gpd.fit(sim_exc, threshold = 0, show = FALSE),
+          silent = TRUE
+        )
+        if (inherits(fit_b, "try-error") || any(is.na(fit_b$mle))) next
+        if (any(is.na(fit_b$mle))) next
+
+        # extract bootstrap MLEs
+        sigma_b <- fit_b$mle[1]
+        xi_b <- fit_b$mle[2]
+
+        # compute return levels using robust formula (handle xi_b ~ 0)
+        zTb <- vapply(T_vals, function(T) {
+          return_level(T, u = u, sigma = sigma_b, xi = xi_b)
+        }, numeric(1))
+
+        b_ok <- b_ok + 1
+        zT_list[[b_ok]] <- zTb
+      }
+
+      # remove unused trailing NULLs if any
+      zT_list <- zT_list[seq_len(b_ok)]
+
+      if (b_ok > 0) {
+        zT_boot <- do.call(rbind, zT_list)
+        df$lower <- apply(zT_boot, 2, stats::quantile, probs = ci_quantiles[1])
+        df$upper <- apply(zT_boot, 2, stats::quantile, probs = ci_quantiles[2])
+      } else {
+        df$lower <- NA_real_
+        df$upper <- NA_real_
+        message("No successful bootstrap fits for CI estimation.")
+      }
+
+      # ggplot
+      p <- ggplot2::ggplot(df, ggplot2::aes(x = T_vals, y = z_T)) +
+        ggplot2::geom_line(...) +
+        ggplot2::geom_point() +
+        ggplot2::labs(x = "Return Period", y = "Return Level") +
+        cecl_theme()
+
+      # Add CI ribbon if available
+      if (!all(is.na(df$lower)) && !all(is.na(df$upper))) {
+        p <- p + ggplot2::geom_ribbon(
+          ggplot2::aes(ymin = lower, ymax = upper),
+          alpha = 0.2,
+          fill = ggsci::pal_nejm()(1)
+        )
+      }
+
+      # convert to natural log scale
+      if (log_scale == TRUE) {
+        p <- p +
+          ggplot2::scale_x_continuous(breaks = T_vals, transform = "log") +
+          ggplot2::annotation_logticks(sides = "b") +
+          ggplot2::labs(x = "Return Period (log)", y = "Return Level")
       }
     }
-
-    # Compute nominal (fitted) return levels
-    z_T <- vapply(
-      T_vals, return_level, numeric(1),
-      u = u, sigma = sigma, xi = xi
-    )
-
-    df <- data.frame(T_vals = T_vals, z_T = z_T)
-
-    # bootstrap CI
-    zT_list <- vector(mode = "list", length = nboot)
-    b_ok <- 0 # count of successful bootstraps
-    for (b in seq_len(nboot)) {
-      sim_exc <- try(
-        rgpd(n = n_exc, u = 0, sigma = sigma, xi = xi),
-        silent = TRUE
-      )
-      if (inherits(sim_exc, "try-error")) {
-        # fallback to inverse cdf
-        sim_exc <- qgpd(stats::runif(n_exc), u = 0, sigma = sigma, xi = xi)
-      }
-      # fit GPD to simulated exceedances
-      fit_b <- try(
-        ismev::gpd.fit(sim_exc, threshold = 0, show = FALSE),
-        silent = TRUE
-      )
-      if (inherits(fit_b, "try-error") || any(is.na(fit_b$mle))) next
-      if (any(is.na(fit_b$mle))) next
-
-      # extract bootstrap MLEs
-      sigma_b <- fit_b$mle[1]
-      xi_b <- fit_b$mle[2]
-
-      # compute return levels using robust formula (handle xi_b ~ 0)
-      zTb <- vapply(T_vals, function(T) {
-        return_level(T, u = u, sigma = sigma_b, xi = xi_b)
-      }, numeric(1))
-
-      b_ok <- b_ok + 1
-      zT_list[[b_ok]] <- zTb
-    }
-
-    # remove unused trailing NULLs if any
-    zT_list <- zT_list[seq_len(b_ok)]
-
-    if (b_ok > 0) {
-      zT_boot <- do.call(rbind, zT_list)
-      df$lower <- apply(zT_boot, 2, stats::quantile, probs = ci_quantiles[1])
-      df$upper <- apply(zT_boot, 2, stats::quantile, probs = ci_quantiles[2])
-    } else {
-      df$lower <- NA_real_
-      df$upper <- NA_real_
-      message("No successful bootstrap fits for CI estimation.")
-    }
-
-    # ggplot
-    p <- ggplot2::ggplot(df, ggplot2::aes(x = T_vals, y = z_T)) +
-      ggplot2::geom_line() +
-      ggplot2::geom_point() +
-      ggplot2::labs(x = "Return Period", y = "Return Level") +
-      cecl_theme()
-
-    # Add CI ribbon if available
-    if (!all(is.na(df$lower)) && !all(is.na(df$upper))) {
-      p <- p + ggplot2::geom_ribbon(
-        ggplot2::aes(ymin = lower, ymax = upper),
-        alpha = 0.2,
-        fill = ggsci::pal_nejm()(1)
-      )
-    }
-
-    # convert to natural log scale
-    if (log_scale == TRUE) {
-      p <- p +
-        # convert to natural log scale
-        ggplot2::scale_x_continuous(breaks = T_vals, transform = "log") +
-        ggplot2::annotation_logticks(sides = "b") +
-        ggplot2::labs(x = "Return Period", y = "Return Level (log)")
-    }
-
-    return(p)
+    ret[[i]] <- p
+  }
+  names(ret) <- which
+  if (length(ret) == 1) {
+    return(ret[[1]])
+  } else {
+    return(ret)
   }
 }
 
