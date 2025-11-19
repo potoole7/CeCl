@@ -1,10 +1,11 @@
 ---
 title: "Clustering multivariate tail dependence with CeCl"
 output: rmarkdown::html_vignette
-bibliography: ../references.bib
-csl: ../apa.csl
+bibliography: lib.bib
+resource_files:
+  - lib.bib
 vignette: >
-  %\VignetteIndexEntry{my-vignette}
+  %\VignetteIndexEntry{Clustering multivariate tail dependence with CeCl}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -38,29 +39,41 @@ TODO (marginal)
   - Fix for evgam output as well (vector of parameter estimates) (done)
   - Allow for multiple marginal plots to be produced at once (done)
 - For user-inputted marginals, fix printing variables (done)
-- Explain that currently only supported for single predictor (location, individual, etc) (also add to package where you can't fit for multiple predictors!!)
+- Explain that currently only supported for single predictor (location, individual, etc) 
+  - also add error to package to stop fitting for multiple predictors!!
 - Allow different `qgam` and `evgam` formulae for each variable (already allowed?)
 - Is the `quantile` thresholding method calculated per location or overall for a single variable?
+  - May want to add both by including either a vector of length var, or a list of length 
+  var with length(locs) entries
 - Add `as_cecl_marg` method that also takes in GPD parameters and performs transformation
   
 TODO (dependence)
+- Add `as_cecl_dep` function and use below
 - Implement bootstrap
 - Allow different starting values for each location
 - Only return n rows of coefs for summary of fits
 - Allow back transformation from standard Laplace to original scale for quantile plots
 - `plot_scatter` for ggplot should have alpha and beta, not a and b as axis labels
+- Allow multiple plots to be generated at once
 - Add a `predict` method
 - Add tests that results from texmex and CeCl match for CE fits (for simulated data)
 - for scatter plot (`ggplot`), ensure alpha plotted between -1 and 1
 - Or else, if min value is > 0, 0 to 1 (for plot and ggplot)
 
 TODO (distance)
-- For image plot, add option to suppress axis labels (x and y separately)
-- For ggplot image, have same colour scale as clustering method uses
+- For ggplot image, have same colour scale as clustering method uses (done)
+- Allow multiple plots in one call
 - Add `lambda` parameter to weigh variables differently in distance calculation
+- For image plot, add option to suppress axis labels (x and y separately) (done)
+  - If you suppress for clustering, still include colour bar beside the plot (done)
+- Allow custom upper bound to colour scale? Large distances may dominate
+- Combine plotting into one function with clustering plots, no need for two
+ methods? (or at least the clustering method can call some of the distance method)
 
 TODO (clustering)
-- For image plot, coloured image plot has y-axis labels too close
+- For image plot, coloured image plot has y-axis labels too close, move out (done)
+- Allow for multiple plots in one call
+- Replace a, b with alpha, beta! 
 
 -->
 
@@ -408,7 +421,11 @@ plot(dist, which = "image")
 And also in `ggplot`:
 ```{r, distance_ggplot}
 ggplot(dist, which = "scree")$plot + 
-  ggplot(dist, which = "image")
+  (ggplot(dist, which = "image") + 
+  theme(
+      axis.text.y = element_text(size = 10),
+      legend.title = element_text(size = 11.5)
+     ))
 ```
 
 Unsurprisingly, the scree plot should show a clear "elbow" at the true number of clusters (3 in this case), and the dissimilarity matrix should show three distinct blocks along the diagonal.
@@ -456,14 +473,16 @@ plot(clust, which = "scatter", var = "X1", cond_var = "X2")
 plot(clust, which = "image")
 ```
 
+Because the x-axis labels are suppressed, a colour bar is included to show 
+cluster membership. 
+
 And also in `ggplot`:
 ```{r, ggplot_clust}
 ggplot(clust, which = "scatter", var = "X1", cond_var = "X2") + 
-  (ggplot(clust, which = "image") + 
+  (ggplot(clust, which = "image") +
      theme(
-      axis.text.x = element_text(size = 10, angle = 45, hjust = 1),
       axis.text.y = element_text(size = 10),
-      legend.title = element_text(size = 12)
+      legend.title = element_text(size = 11.5)
      ))
 ```
 
