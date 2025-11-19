@@ -592,6 +592,54 @@ quantile plots to a PDF, you could run something like:</p>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="va">dep</span>, which <span class="op">=</span> <span class="st">"quantile"</span>, var <span class="op">=</span> <span class="st">"X1"</span>, cond_var <span class="op">=</span> <span class="st">"X2"</span>, loc <span class="op">=</span> <span class="va">loc</span><span class="op">)</span></span>
 <span><span class="op">}</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/grDevices/dev.html" class="external-link">dev.off</a></span><span class="op">(</span><span class="op">)</span></span></code></pre></div>
+<p>Finally, as with our marginal models, users may wish to provide their
+own fitted CE parameters for each location. The <code>CeCl</code>
+package provides the <code>as_cecl_dep</code> function to allow users to
+provide their own CE parameter estimates in a list (with
+<code>data.frame</code>/<code>tibble</code> entries) or
+<code>data.frame</code>/<code>tibble</code> format (matching the output
+of <code>coef(dep)</code>).</p>
+<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="va">dep_df</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/stats/coef.html" class="external-link">coef</a></span><span class="op">(</span><span class="va">dep</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/utils/head.html" class="external-link">head</a></span><span class="op">(</span><span class="va">dep_df</span><span class="op">)</span> </span>
+<span><span class="co">#&gt;    name var cond_var           a         b          m         s       ll</span></span>
+<span><span class="co">#&gt; 1 loc_1  X1       X2  0.65632916 0.3946159 -0.8047117 1.2812492 199.8645</span></span>
+<span><span class="co">#&gt; 2 loc_1  X1       X3 -0.41647639 0.8069403  0.5257057 0.8399368 192.8370</span></span>
+<span><span class="co">#&gt; 3 loc_1  X2       X1 -0.23430053 0.7055356  0.5123284 0.9967373 202.5795</span></span>
+<span><span class="co">#&gt; 4 loc_1  X2       X3 -0.09629775 0.8352500  0.1508311 0.8459299 197.4836</span></span>
+<span><span class="co">#&gt; 5 loc_1  X3       X1 -0.99999965 0.7459580  1.3754470 0.8556436 192.0174</span></span>
+<span><span class="co">#&gt; 6 loc_1  X3       X2 -0.99971991 0.8986208  1.1682555 0.7172376 187.9236</span></span>
+<span><span class="co">#&gt;        dth</span></span>
+<span><span class="co">#&gt; 1 1.601482</span></span>
+<span><span class="co">#&gt; 2 1.601482</span></span>
+<span><span class="co">#&gt; 3 1.601482</span></span>
+<span><span class="co">#&gt; 4 1.601482</span></span>
+<span><span class="co">#&gt; 5 1.601482</span></span>
+<span><span class="co">#&gt; 6 1.601482</span></span>
+<span><span class="va">dep_df</span><span class="op">$</span><span class="va">ll</span> <span class="op">&lt;-</span> <span class="cn">NULL</span> <span class="co"># log-likelihood from optimisation optional</span></span>
+<span><span class="co"># can run on data.frame</span></span>
+<span><span class="va">dep_custom1</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/as_cecl_dep.html">as_cecl_dep</a></span><span class="op">(</span><span class="va">dep_df</span><span class="op">)</span></span>
+<span><span class="co"># can also run on list with data.frame for each location</span></span>
+<span><span class="va">dep_list</span> <span class="op">&lt;-</span> <span class="va">dep_df</span> <span class="op">|&gt;</span></span>
+<span>    <span class="co"># ensures `name` ordering is preserved</span></span>
+<span>    <span class="fu"><a href="https://dplyr.tidyverse.org/reference/mutate.html" class="external-link">mutate</a></span><span class="op">(</span>name <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/factor.html" class="external-link">factor</a></span><span class="op">(</span><span class="va">name</span>, levels <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/unique.html" class="external-link">unique</a></span><span class="op">(</span><span class="va">dep_df</span><span class="op">$</span><span class="va">name</span><span class="op">)</span><span class="op">)</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>    <span class="fu"><a href="https://dplyr.tidyverse.org/reference/group_split.html" class="external-link">group_split</a></span><span class="op">(</span><span class="va">name</span>, .keep <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>    <span class="fu"><a href="https://rdrr.io/r/stats/setNames.html" class="external-link">setNames</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/unique.html" class="external-link">unique</a></span><span class="op">(</span><span class="va">dep_df</span><span class="op">$</span><span class="va">name</span><span class="op">)</span><span class="op">)</span> <span class="op">|&gt;</span></span>
+<span>    <span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">as.list</a></span><span class="op">(</span><span class="op">)</span></span>
+<span><span class="va">dep_custom2</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/as_cecl_dep.html">as_cecl_dep</a></span><span class="op">(</span><span class="va">dep_list</span><span class="op">)</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/base/all.equal.html" class="external-link">all.equal</a></span><span class="op">(</span><span class="va">dep_custom1</span>, <span class="va">dep_custom2</span><span class="op">)</span> <span class="co"># confirm we get the same output</span></span>
+<span><span class="co">#&gt; [1] TRUE</span></span>
+<span><span class="va">dep_custom1</span></span>
+<span><span class="co">#&gt; Call:</span></span>
+<span><span class="co">#&gt; NULL</span></span>
+<span><span class="co">#&gt; </span></span>
+<span><span class="co">#&gt; Number of locations: 12 </span></span>
+<span><span class="co">#&gt; Variables: X1, X2, X3</span></span></code></pre></div>
+<p>Currently, only non-stationarity in a single parameter
+(e.g. location) is supported for user-inputted CE parameters (with
+separate CE models fit at each level, rather than a smooth effect). This
+can be hacked by pasting together multiple variables (e.g. location and
+time), although results may vary.</p>
 </div>
 <div class="section level2">
 <h2 id="clustering">Clustering<a class="anchor" aria-label="anchor" href="#clustering"></a>
@@ -600,7 +648,7 @@ quantile plots to a PDF, you could run something like:</p>
 Jensen-Shannon based dissimilarity measure proposed in <span class="citation">(O’Toole, Rohrbeck, and Richards 2025)</span>. First,
 to calculate the dissimilarity matrix, we can use the
 <code>cecl_dist</code> function:</p>
-<div class="sourceCode" id="cb16"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">dist</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/cecl_dist.html">cecl_dist</a></span><span class="op">(</span><span class="va">dep</span>, <span class="va">marg_ismev</span>, seed <span class="op">=</span> <span class="va">seed</span><span class="op">)</span></span></code></pre></div>
 <p><code>cecl_dist</code> also has several arguments to control the
 distance calculation, including: - <code>laplace_cap</code>: The
@@ -615,7 +663,7 @@ calculation itself, rather than parallelising across conditioning
 variables. Useful when the number of locations is large.</p>
 <p>The <code>cecl_dist</code> function returns an object of class
 <code>cecl_dist</code>, which has several methods available:</p>
-<div class="sourceCode" id="cb17"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">dist</span></span>
 <span><span class="co">#&gt; Distance matrix of class 'cecl_dist'</span></span>
 <span><span class="co">#&gt; Number of locations: 12 </span></span>
@@ -626,13 +674,13 @@ variables. Useful when the number of locations is large.</p>
 <p>We can produce a scree plot of the total within-group sum of squares
 (TWGSS) for different numbers of clusters <code>k</code>, as well as a
 heatmap/image of the dissimilarity matrix:</p>
-<div class="sourceCode" id="cb18"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/par.html" class="external-link">par</a></span><span class="op">(</span>mfrow <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">2</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/base/invisible.html" class="external-link">invisible</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">dist</span>, which <span class="op">=</span> <span class="st">"scree"</span><span class="op">)</span><span class="op">)</span> <span class="co"># normally prints TWGSS for each k</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">dist</span>, which <span class="op">=</span> <span class="st">"image"</span><span class="op">)</span></span></code></pre></div>
 <p><img src="CeCl_files/figure-html/distance_plots-1.png" class="r-plt" width="100%" style="display: block; margin: auto;"></p>
 <p>And also in <code>ggplot</code>:</p>
-<div class="sourceCode" id="cb19"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="va">dist</span>, which <span class="op">=</span> <span class="st">"scree"</span><span class="op">)</span><span class="op">$</span><span class="va">plot</span> <span class="op">+</span> </span>
 <span>  <span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="va">dist</span>, which <span class="op">=</span> <span class="st">"image"</span><span class="op">)</span> <span class="op">+</span> </span>
 <span>  <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/theme.html" class="external-link">theme</a></span><span class="op">(</span></span>
@@ -645,7 +693,7 @@ true number of clusters (3 in this case), and the dissimilarity matrix
 should show three distinct blocks along the diagonal.</p>
 <p>Finally, we can perform clustering using the <code>cecl_clust</code>
 function:</p>
-<div class="sourceCode" id="cb20"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb21"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">clust</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/cecl_clust.html">cecl_clust</a></span><span class="op">(</span></span>
 <span>  <span class="va">dist</span>, </span>
 <span>  k <span class="op">=</span> <span class="fl">3</span>, </span>
@@ -655,7 +703,7 @@ function:</p>
 <p>Optionally, we can also run <code>cecl_clust</code> on the
 <code>cecl_dep</code> and <code>cecl_marg</code> objects directly,
 without needing to calculate the distance matrix first:</p>
-<div class="sourceCode" id="cb21"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb22"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">clust_dep</span> <span class="op">&lt;-</span> <span class="fu"><a href="../reference/cecl_clust.html">cecl_clust</a></span><span class="op">(</span></span>
 <span>  <span class="va">dep</span>,</span>
 <span>  <span class="va">marg_ismev</span>,</span>
@@ -672,7 +720,7 @@ without needing to calculate the distance matrix first:</p>
 inspect it.</p>
 <p>The <code>cecl_clust</code> function returns an object of class
 <code>cecl_clust</code>, which has several methods available:</p>
-<div class="sourceCode" id="cb22"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb23"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="va">clust</span></span>
 <span><span class="co">#&gt; Clustering results of class 'cecl_clust'</span></span>
 <span><span class="co">#&gt; Number of locations: 12 </span></span>
@@ -734,7 +782,7 @@ versions).</p>
 <p>We can also produce the <code>scatter</code> and <code>image</code>
 plots from previous sections, but this time with the locations ordered
 and coloured by their assigned cluster:</p>
-<div class="sourceCode" id="cb23"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb24"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://rdrr.io/r/graphics/par.html" class="external-link">par</a></span><span class="op">(</span>mfrow <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1</span>, <span class="fl">2</span><span class="op">)</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">clust</span>, which <span class="op">=</span> <span class="st">"scatter"</span>, var <span class="op">=</span> <span class="st">"X1"</span>, cond_var <span class="op">=</span> <span class="st">"X2"</span><span class="op">)</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span><span class="va">clust</span>, which <span class="op">=</span> <span class="st">"image"</span><span class="op">)</span></span></code></pre></div>
@@ -742,7 +790,7 @@ and coloured by their assigned cluster:</p>
 <p>Because the x-axis labels are suppressed, a colour bar is included to
 show cluster membership.</p>
 <p>And also in <code>ggplot</code>:</p>
-<div class="sourceCode" id="cb24"><pre class="downlit sourceCode r">
+<div class="sourceCode" id="cb25"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="va">clust</span>, which <span class="op">=</span> <span class="st">"scatter"</span>, var <span class="op">=</span> <span class="st">"X1"</span>, cond_var <span class="op">=</span> <span class="st">"X2"</span><span class="op">)</span> <span class="op">+</span> </span>
 <span>  <span class="op">(</span><span class="fu"><a href="https://ggplot2.tidyverse.org/reference/ggplot.html" class="external-link">ggplot</a></span><span class="op">(</span><span class="va">clust</span>, which <span class="op">=</span> <span class="st">"image"</span><span class="op">)</span> <span class="op">+</span></span>
 <span>     <span class="fu"><a href="https://ggplot2.tidyverse.org/reference/theme.html" class="external-link">theme</a></span><span class="op">(</span></span>
