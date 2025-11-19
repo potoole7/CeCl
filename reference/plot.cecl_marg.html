@@ -58,12 +58,15 @@ QQ, PP, histogram, and return level plots.</p>
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="co"># S3 method for class 'cecl_marg'</span></span>
 <span><span class="fu"><a href="https://rdrr.io/r/graphics/plot.default.html" class="external-link">plot</a></span><span class="op">(</span></span>
 <span>  <span class="va">x</span>,</span>
-<span>  which <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"qq"</span>, <span class="st">"pp"</span>, <span class="st">"hist"</span>, <span class="st">"return"</span><span class="op">)</span>,</span>
+<span>  which <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"qq"</span>, <span class="st">"pp"</span>, <span class="st">"hist"</span>, <span class="st">"return"</span>, <span class="st">"transformed"</span><span class="op">)</span>,</span>
 <span>  <span class="va">loc</span>,</span>
 <span>  mult_col <span class="op">=</span> <span class="st">"name"</span>,</span>
 <span>  <span class="va">var</span>,</span>
+<span>  cond_var <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  plot_dens <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  return_periods <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">1.5</span>, <span class="fl">2.5</span>, <span class="fl">5</span>, <span class="fl">10</span>, <span class="fl">20</span>, <span class="fl">50</span>, <span class="fl">100</span>, <span class="fl">200</span><span class="op">)</span>,</span>
 <span>  nboot <span class="op">=</span> <span class="fl">200</span>,</span>
+<span>  refit <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  ci_quantiles <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0.025</span>, <span class="fl">0.975</span><span class="op">)</span>,</span>
 <span>  log_scale <span class="op">=</span> <span class="cn">TRUE</span>,</span>
 <span>  <span class="va">...</span></span>
@@ -80,8 +83,9 @@ QQ, PP, histogram, and return level plots.</p>
 
 <dt id="arg-which">which<a class="anchor" aria-label="anchor" href="#arg-which"></a></dt>
 <dd><p>Type of plot to generate. Choices are <code>"qq"</code> for QQ plot,
-<code>"pp"</code> for PP plot, <code>"hist"</code> for histogram of residuals, or <code>"return"</code> for
-return level plot.</p></dd>
+<code>"pp"</code> for PP plot, <code>"hist"</code> for histogram of residuals, <code>"return"</code> for
+return level plot, and <code>"transformed"</code> for a plot of the Laplace-scale
+transformed data. Several plots can also be produced.</p></dd>
 
 
 <dt id="arg-loc">loc<a class="anchor" aria-label="anchor" href="#arg-loc"></a></dt>
@@ -96,18 +100,33 @@ return level plot.</p></dd>
 <dd><p>Variable name to plot.</p></dd>
 
 
+<dt id="arg-cond-var">cond_var<a class="anchor" aria-label="anchor" href="#arg-cond-var"></a></dt>
+<dd><p>Optional conditioning variable for plotting Laplace
+transformed data, Default NULL.</p></dd>
+
+
+<dt id="arg-plot-dens">plot_dens<a class="anchor" aria-label="anchor" href="#arg-plot-dens"></a></dt>
+<dd><p>Logical indicating whether to plot histogram on top of
+density estimate, Default TRUE.</p></dd>
+
+
 <dt id="arg-return-periods">return_periods<a class="anchor" aria-label="anchor" href="#arg-return-periods"></a></dt>
 <dd><p>Return periods for return level plot,
 Default c(1.5, 2.5, 5, 10, 20, 50, 100, 200).</p></dd>
 
 
 <dt id="arg-nboot">nboot<a class="anchor" aria-label="anchor" href="#arg-nboot"></a></dt>
-<dd><p>Number of bootstrap samples for return level plot confidence
-intervals, Default 200.</p></dd>
+<dd><p>Number of bootstrap samples for confidence
+intervals, set to NULL for none confidence interval, Default: 200.</p></dd>
+
+
+<dt id="arg-refit">refit<a class="anchor" aria-label="anchor" href="#arg-refit"></a></dt>
+<dd><p>Logical indicating whether to refit GPD for each bootstrap
+sample when calculating uncertainty envelopes, Default FALSE.</p></dd>
 
 
 <dt id="arg-ci-quantiles">ci_quantiles<a class="anchor" aria-label="anchor" href="#arg-ci-quantiles"></a></dt>
-<dd><p>Quantiles for confidence intervals in return level plot,
+<dd><p>Quantiles for confidence intervals,
 Default c(0.025, 0.975).</p></dd>
 
 
