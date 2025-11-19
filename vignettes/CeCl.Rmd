@@ -391,6 +391,34 @@ for (loc in unique(data$name)) {
 dev.off()
 ```
 
+Finally, as with our marginal models, users may wish to provide their own fitted CE parameters for each location.
+The `CeCl` package provides the `as_cecl_dep` function to allow users to
+provide their own CE parameter estimates in a list (with `data.frame`/`tibble` entries) or `data.frame`/`tibble` format
+(matching the output of `coef(dep)`).
+```{r, to_cecl_dep}
+dep_df <- coef(dep)
+head(dep_df) 
+dep_df$ll <- NULL # log-likelihood from optimisation optional
+# can run on data.frame
+dep_custom1 <- as_cecl_dep(dep_df)
+# can also run on list with data.frame for each location
+dep_list <- dep_df |>
+    # ensures `name` ordering is preserved
+    mutate(name = factor(name, levels = unique(dep_df$name))) |>
+    group_split(name, .keep = TRUE) |>
+    setNames(unique(dep_df$name)) |>
+    as.list()
+dep_custom2 <- as_cecl_dep(dep_list)
+all.equal(dep_custom1, dep_custom2) # confirm we get the same output
+dep_custom1
+```
+
+Currently, only non-stationarity in a single parameter (e.g. location) is supported for user-inputted CE parameters
+(with separate CE models fit at each level, rather than a smooth effect).
+This can be hacked by pasting together multiple variables (e.g. location and time), 
+although results may vary.
+
+
 ## Clustering
 
 Finally, we can cluster the fitted CE models using the skew-geometric Jensen-Shannon based dissimilarity measure proposed in [@otoole2025].
