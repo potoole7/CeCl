@@ -15,18 +15,19 @@ status](https://github.com/potoole7/CeCl/workflows/R-CMD-check/badge.svg)](https
 <!-- [![codecov.io](https://codecov.io/github/mrc-ide/CeCl/coverage.svg?branch=main)](https://codecov.io/github/mrc-ide/CeCl?branch=main) -->
 <!-- badges: end -->
 
-`CeCl` (Conditional extremes Clustering, pronounced ‘Cecil’) is an R
-package which implements the method described in [O’Toole et
-al.](https://arxiv.org/abs/2510.20424) (2025) for clustering
-multivariate extreme events based on their tail dependence structures
-using the conditional extremes model of Heffernan and Tawn (2004). For
-more details of the methodology and usage of the package, please see its
-vignette by running `vignette("CeCl")` after installation. This package
-is in the early stages of development; please report any issues or
-suggestions on the [GitHub issues
-page](https:/github.com/potoole7/CeCl/issues). For fitting the
-conditional extremes model, this package uses code adapted from the
-`texmex` package (2020).
+<!-- `CeCl` (Conditional extremes Clustering, pronounced 'Cecil') is an R package which implements the method described in [O'Toole et al.](https://arxiv.org/abs/2510.20424) [-@otoole2025] for clustering multivariate extreme events based on their tail dependence structures using the conditional extremes model of Heffernan and Tawn [-@Heffernan2004]. -->
+
+`CeCl` (Conditional extremes Clustering, pronounced “Cecil”) is an R
+package for clustering multivariate extreme events. It implements the
+method of [O’Toole et al.](https://arxiv.org/abs/2510.20424) (2025),
+which uses the conditional extremes model of Heffernan and Tawn (2004)
+to characterise tail-dependence. For more details of the methodology and
+usage of the package, please see its vignette by running
+`vignette("CeCl")` after installation. This package is in the early
+stages of development; please report any issues or suggestions on the
+[GitHub issues page](https:/github.com/potoole7/CeCl/issues). For
+fitting the conditional extremes model, this package uses code adapted
+from the `texmex` package (Southworth et al., 2020).
 
 ## Installation
 
@@ -40,7 +41,9 @@ pak::pak("potoole7/CeCl")
 
 ## Quick usage
 
-Once installed, you can apply the main `CeCl` workflow in three steps:
+<!-- Once installed, you can apply the main `CeCl` workflow in three steps: -->
+
+Once installed, the main `CeCl` workflow consists of three steps:
 
 ``` r
 marg  <- cecl_marg(data)  # performs marginal transformation
@@ -48,9 +51,7 @@ dep   <- cecl_dep(marg)   # fits conditional extremes models
 clust <- cecl_clust(dep)  # clusters based on tail dependence
 ```
 
-This fits the conditional extremes models to each group/location and
-clusters them based on their tail dependence structure. For detailed
-options, see the function help pages
+For detailed options, see the function help pages
 (`?cecl_marg, ?cecl_dep, ?cecl_clust`) or the vignette
 (`vignette("CeCl")`).
 
@@ -58,7 +59,9 @@ options, see the function help pages
 
 Here’s a basic example of how to use `CeCl` to cluster locations based
 on their tail dependence structures. Note that although we use spatial
-terminology here, the method is applicable to any multivariate data.
+terminology here, the method is applicable to any multivariate data, as,
+for example, individuals in a clinical trial or financial assets in a
+portfolio.
 
 First, let’s generate some example data and visualise it. In this
 example, we want to generate data for 10 “locations” (clustered into 2
