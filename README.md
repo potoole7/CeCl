@@ -21,7 +21,7 @@ status](https://github.com/potoole7/CeCl/workflows/R-CMD-check/badge.svg)](https
 package for clustering multivariate extreme events. It implements the
 method of [O’Toole et al.](https://arxiv.org/abs/2510.20424) (2025),
 which uses the conditional extremes model of Heffernan and Tawn (2004)
-to characterise tail-dependence. For more details of the methodology and
+to characterise tail-dependence. For more details on this method and
 usage of the package, please see its vignette by running
 `vignette("CeCl")` after installation. This package is in the early
 stages of development; please report any issues or suggestions on the
