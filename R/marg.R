@@ -1920,7 +1920,7 @@ as_cecl_marg.data.frame <- \(x, name_col = "name", ...) {
   names(ret) <- levels(x_fact[[name_col]])
   ret <- list(
     "transformed" = ret,
-    "vars"        = names(ret)[names(ret) != name_col]
+    "vars"        = names(x)[names(x) != name_col]
   )
   class(ret) <- c("cecl_marg", "cecl_marg_user")
   ret
