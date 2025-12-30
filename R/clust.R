@@ -660,16 +660,23 @@ plot_image <- \(x, ...) {
 #' Default is `"ggplot"`.
 #' @param show_xlab Logical, whether to show x-axis labels, Default: FALSE.
 #' @param show_ylab Logical, whether to show y-axis labels, Default: TRUE.
+#' @param col_max Optional maximum value for colour scale, Default: NULL,
+#' which uses maximum distance value.
+#' @param col_breaks Optional vector of breaks for colour scale, Default: NULL,
+#' which uses equally spaced breaks between 0 and `col_max`.
 #' @param ... Additional arguments passed to plotting functions.
 #' @return ggplot object or base R plot of distance matrix image/heatmap.
 # #' @rdname plot_image
 # #' @method plot_image cecl_dist
 #' @export
+# TODO Add colour bar for base R plot
 plot_image.cecl_dist <- \(
   x,
   type = c("ggplot", "plot"),
   show_xlab = FALSE,
   show_ylab = TRUE,
+  col_max = NULL,
+  col_breaks = NULL,
   ...
 ) {
   stopifnot(inherits(x, "cecl_dist"))
@@ -682,17 +689,43 @@ plot_image.cecl_dist <- \(
   # extract row and column tick labels
   x_names <- rownames(dist_matrix)
   y_names <- rev(colnames(dist_matrix))
+
+  # set colour max if not provided
+  if (is.null(col_max)) {
+    col_max <- max(dist_matrix)
+  }
+
   if (type == "plot") {
     n <- length(x_names)
+    if (n == 0) stop("no names / empty matrix")
 
     dist_plt <- t(dist_matrix[x_names, y_names])
 
-    # plot
+    # By default, set colour limit to max of distance matrix
+    col_lims <- c(0, col_max) # ensure 0 included
+
+    # colour scheme (matching ggplot viridis)
+    if (is.null(col_breaks)) {
+      ncol <- 256
+      breaks <- seq(col_lims[[1]], col_lims[[2]], length.out = ncol + 1)
+    } else {
+      stopifnot(
+        "col_breaks must cover range from 0 to col_max" =
+          min(col_breaks) <= 0 && max(col_breaks) >= col_max
+      )
+      ncol <- length(col_breaks) - 1
+      breaks <- col_breaks
+    }
+    cols <- grDevices::hcl.colors(ncol, "viridis")
+
     graphics::image(
       1:n, 1:n, dist_plt,
       axes = FALSE,
-      zlim = c(0, max(dist_matrix)), # ensure 0 included
-      xlab = "", ylab = "",
+      col = cols,
+      xlab = "",
+      ylab = "",
+      breaks = breaks,
+      zlim = col_lims,
       ...
     )
 
@@ -704,8 +737,9 @@ plot_image.cecl_dist <- \(
       graphics::axis(2, at = 1:n, labels = y_names, las = 2)
     }
     graphics::box()
-    # ggplot
-  } else {
+
+    invisible(NULL)
+  } else if (type == "ggplot") {
     # build heatmap dataframe
     df <- as.data.frame(as.table(dist_matrix)) |>
       # ensure factor order is the current matrix order
@@ -771,7 +805,9 @@ plot_image.cecl_dist <- \(
     p <- p +
       ggplot2::scale_fill_viridis_c(
         option = "A",
-        direction = -1
+        direction = -1,
+        limits = c(0, col_max),
+        breaks = col_breaks
       )
 
     return(p)
