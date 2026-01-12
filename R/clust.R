@@ -802,13 +802,23 @@ plot_image.cecl_dist <- \(
     }
 
     # colour based on if colours are binned or not
+    fill_args <- list(
+      option = "A",
+      direction = -1,
+      limits = c(0, col_max),
+      breaks = col_breaks
+    )
+    # remove breaks if NULL
+    if (is.null(col_breaks)) {
+      fill_args <- fill_args[-which(names(fill_args) == "breaks")]
+    } else {
+      # ensure limits cover breaks
+      if (max(col_breaks) > col_max) {
+        fill_args$limits[2] <- max(col_breaks)
+      }
+    }
     p <- p +
-      ggplot2::scale_fill_viridis_c(
-        option = "A",
-        direction = -1,
-        limits = c(0, col_max),
-        breaks = col_breaks
-      )
+      do.call(ggplot2::scale_fill_viridis_c, fill_args)
 
     return(p)
   }
