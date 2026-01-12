@@ -1956,7 +1956,7 @@ as_cecl_marg.list <- \(x, ...) {
 
     cecl_marg_obj <- list(
       "transformed" = lapply(x, as.matrix), # TODO: Add optional var names
-      "vars"        = names(x)
+      "vars"        = names(x[[1]])
     )
   } else {
     stop("Input list must contain only matrices or dataframes/tibbles.")
