@@ -660,8 +660,6 @@ plot_image <- \(x, ...) {
 #' Default is `"ggplot"`.
 #' @param show_xlab Logical, whether to show x-axis labels, Default: FALSE.
 #' @param show_ylab Logical, whether to show y-axis labels, Default: TRUE.
-#' @param col_max Optional maximum value for colour scale, Default: NULL,
-#' which uses maximum distance value.
 #' @param col_breaks Optional vector of breaks for colour scale, Default: NULL,
 #' which uses equally spaced breaks between 0 and `col_max`.
 #' @param ... Additional arguments passed to plotting functions.
@@ -675,7 +673,6 @@ plot_image.cecl_dist <- \(
   type = c("ggplot", "plot"),
   show_xlab = FALSE,
   show_ylab = TRUE,
-  col_max = NULL,
   col_breaks = NULL,
   ...
 ) {
@@ -690,9 +687,14 @@ plot_image.cecl_dist <- \(
   x_names <- rownames(dist_matrix)
   y_names <- rev(colnames(dist_matrix))
 
-  # set colour max if not provided
-  if (is.null(col_max)) {
-    col_max <- max(dist_matrix)
+  # set colour max
+  col_max <- max(dist_matrix)
+  # reset to max value of col_breaks if provided
+  if (!is.null(col_breaks)) {
+    col_max <- max(col_breaks)
+  }
+  if (any(dist_matrix > col_max)) {
+    message("Some distances exceed colour scale maximum; consider adjusting.")
   }
 
   if (type == "plot") {
@@ -709,10 +711,6 @@ plot_image.cecl_dist <- \(
       ncol <- 256
       breaks <- seq(col_lims[[1]], col_lims[[2]], length.out = ncol + 1)
     } else {
-      stopifnot(
-        "col_breaks must cover range from 0 to col_max" =
-          min(col_breaks) <= 0 && max(col_breaks) >= col_max
-      )
       ncol <- length(col_breaks) - 1
       breaks <- col_breaks
     }
@@ -811,11 +809,6 @@ plot_image.cecl_dist <- \(
     # remove breaks if NULL
     if (is.null(col_breaks)) {
       fill_args <- fill_args[-which(names(fill_args) == "breaks")]
-    } else {
-      # ensure limits cover breaks
-      if (max(col_breaks) > col_max) {
-        fill_args$limits[2] <- max(col_breaks)
-      }
     }
     p <- p +
       do.call(ggplot2::scale_fill_viridis_c, fill_args)
