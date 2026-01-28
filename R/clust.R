@@ -196,6 +196,8 @@ cecl_dist <- \(
   marg_obj,
   var = NULL,
   laplace_cap = 0.99,
+  laplace_cap_val = NULL,
+  laplace_sample = NULL,
   n_mc = 500,
   ncores = 1,
   par_dist = FALSE,
@@ -205,10 +207,29 @@ cecl_dist <- \(
   stopifnot(inherits(dep_obj, "cecl_dep"))
   stopifnot(inherits(marg_obj, "cecl_marg"))
 
+  # must be one of laplace_cap or laplace_cap_val provided
+  # TODO Change to also allow laplace_sample on its own!
+  if (is.null(laplace_cap) && is.null(laplace_cap_val) ||
+    sum(!is.null(c(laplace_cap, laplace_cap_val))) > 1) {
+    stop("Must provide either `laplace_cap` or `laplace_cap_val`.")
+  }
+
   n <- NULL
 
   # Only want a single variable, if provided
   stopifnot(is.null(var) || length(var == 1))
+
+  # check that laplace_sample is correct, if provided
+  if (!is.null(laplace_sample)) {
+    stopifnot(
+      "`laplace_sample` must be a numeric vector." =
+        is.vector(laplace_sample) && is.numeric(laplace_sample)
+    )
+    stopifnot(
+      "`laplace_sample` must be a numeric vector of length `n_mc`." =
+        length(laplace_sample) == n_mc
+    )
+  }
 
   # pull transformed data
   trans <- marg_obj$transformed
@@ -235,9 +256,14 @@ cecl_dist <- \(
 
   # TODO Move calculating y values to separate function? As above
   # TODO Move this to separate function anyway!
-  rlaplace_trunc <- \(n, thresh_max, trans_x, upper_quant = 0.99) {
+  rlaplace_trunc <- \(n, thresh_max, trans_x, upper_quant = 0.99, y_max) {
     # get maximum point
-    y_max <- stats::quantile(trans_x, upper_quant, na.rm = TRUE)
+    if (is.null(y_max)) {
+      y_max <- stats::quantile(
+        trans_x, upper_quant,
+        na.rm = TRUE, names = FALSE
+      )
+    }
     stopifnot(
       "y_max must be greater than thresh_max" = y_max > thresh_max
     )
@@ -247,6 +273,13 @@ cecl_dist <- \(
     U <- stats::runif(n, min = 0, max = p_max) # min=0 as we push up by thresh
     # inversion sampling from exponential distribution
     W <- -log(1 - U)
+
+    # print("test!")
+    # print(paste("thresh_max =", thresh_max))
+    # print(paste("y_max =", y_max))
+    # print(paste("p_max =", p_max))
+    # print(paste("mean(W) = ", mean(W)))
+
     # shift to the right by the threshold to get samples from truncated Laplace
     return(list(
       "y"     = thresh_max + W,
@@ -256,34 +289,62 @@ cecl_dist <- \(
 
   # optionally set seed to ensure reproducibility
   if (!is.null(seed)) {
+    if (exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)) {
+      old_seed <- get(".Random.seed", envir = .GlobalEnv)
+      has_seed <- TRUE
+    } else {
+      has_seed <- FALSE
+    }
+
     set.seed(seed)
+
+    on.exit(
+      {
+        if (has_seed) {
+          assign(".Random.seed", old_seed, envir = .GlobalEnv)
+        } else {
+          rm(".Random.seed", envir = .GlobalEnv)
+        }
+      },
+      add = TRUE
+    )
   }
+
   # loop through variables
   y <- lapply(seq_along(thresh_max), \(i) {
     # get transformed data for this variable
     trans_x <- unlist(lapply(trans, \(x) x[, i, drop = TRUE]))
-    # sample from truncated Laplace distribution
-    res <- rlaplace_trunc(
-      n_mc, thresh_max[[i]], trans_x,
-      upper_quant = laplace_cap
-    )
+    # sample from truncated Laplace distribution, if not provided
+    if (is.null(laplace_sample)) {
+      res <- rlaplace_trunc(
+        n_mc, thresh_max[[i]], trans_x,
+        upper_quant = laplace_cap,
+        y_max = laplace_cap_val # if NULL, computed with quantile function
+      )
 
-    # check if y_max exceeds any site-wise maxima
-    # If so, will be performing extrapolation, may want to warn user
-    site_max <- vapply(trans, \(x) max(x[, i], na.rm = TRUE), numeric(1))
-    n_above <- sum(res$y_max > site_max)
-    if (n_above > 0) {
-      message(paste0(
-        "Extrapolation performed for ",
-        n_above,
-        " groups for variable ",
-        names(thresh_max)[i],
-        ". Consider using a lower `laplace_cap`, ",
-        " or 'minima of site-wise maxima' approach."
-      ))
+      # check if y_max exceeds any site-wise maxima
+      # If so, will be performing extrapolation, may want to warn user
+      site_max <- vapply(trans, \(x) max(x[, i], na.rm = TRUE), numeric(1))
+      n_above <- sum(res$y_max > site_max)
+      if (n_above > 0) {
+        message(paste0(
+          "Extrapolation performed for ",
+          n_above,
+          " groups for variable ",
+          names(thresh_max)[i],
+          ". Consider using a lower `laplace_cap`, ",
+          " or 'minima of site-wise maxima' approach."
+        ))
+      }
+
+      # print(paste("thresh_max =", thresh_max[[i]]))
+      # print(paste("mean(laplace_sample) =", mean(res$y)))
+      return(res$y)
+    } else {
+      # print(paste("thresh_max =", thresh_max[[i]]))
+      # print(paste("mean(laplace_sample) =", mean(laplace_sample)))
+      return(laplace_sample)
     }
-
-    res$y
   })
   names(y) <- names(params)
 
