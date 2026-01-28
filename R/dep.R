@@ -23,7 +23,8 @@
 #' @export
 cecl_dep <- \(
   obj,
-  cond_prob,
+  cond_prob = NULL,
+  cond_val = NULL,
   vars = NULL,
   cond_var = NULL,
   start = c("a" = 0.01, "b" = 0.01),
@@ -34,6 +35,13 @@ cecl_dep <- \(
   fit_no_keef = FALSE
 ) {
   stopifnot(inherits(obj, "cecl_marg"))
+
+  # must have one of cond_prob or cond_val
+  if (is.null(cond_prob) && is.null(cond_val) ||
+    sum(!is.null(cond_prob), !is.null(cond_val)) > 1
+  ) {
+    stop("Must specify one of cond_prob or cond_val")
+  }
 
   # Parallel setup
   # TODO Functionalise, used in multiple places
@@ -130,11 +138,18 @@ cecl_dep <- \(
     if (length(cond_prob) == length(cond_var)) {
       cond_prob_spec <- cond_prob[i]
     }
+    # same for cond_val
+    cond_val_spec <- cond_val
+    if (length(cond_val) == length(cond_var)) {
+      cond_val_spec <- cond_val[i]
+    }
+
 
     # fit dependence model
     o <- ce_optim(
       Y         = marginal_trans[[i]],
       dqu       = cond_prob_spec,
+      dth       = cond_val_spec,
       cond_var  = cond_var,
       control   = list(maxit = 1e6),
       constrain = !fit_no_keef,
@@ -295,7 +310,8 @@ Qpos_fixed_b <- \(param, yex, ydep, constrain, v, aLow, b) {
 # fit CE for all pairs of variables
 ce_optim <- \(
   Y,
-  dqu,
+  dqu = NULL,
+  dth = NULL,
   cond_var = NULL,
   start = c("a" = 0.01, "b" = 0.01),
   control = list(maxit = 1e6),
@@ -307,6 +323,12 @@ ce_optim <- \(
 ) {
   # check if start is a list (of start values for each location and variable)
   is_list_start <- is.list(start)
+
+  # must specify either dqu or dth
+  if (is.null(dqu) && is.null(dth) ||
+    sum(!is.null(dqu), !is.null(dth)) > 1) {
+    stop("Must specify either dependence quantile (dqu) or threshold (dth)")
+  }
 
   # check that Y has names; if not give dummy names
   names_y <- colnames(Y)
@@ -322,9 +344,13 @@ ce_optim <- \(
   }
 
   # optimise for a single variable vs another
-  single_optim <- \(yex, ydep, start, dqu) {
+  single_optim <- \(yex, ydep, start, dqu, dth) {
     # threshold data
-    thresh <- stats::quantile(yex, dqu)
+    thresh <- dth # if threshold value provided, use that
+    # otherwise, threshold at quantile
+    if (is.null(dth)) {
+      thresh <- stats::quantile(yex, dqu)
+    }
     wch <- yex > thresh
 
     # object to return if an error is found
@@ -337,6 +363,11 @@ ce_optim <- \(
 
     if (any(is.infinite(yex))) {
       message("Inf values in Laplace transformed data, optimisation failed")
+      return(err_obj)
+    }
+
+    if (sum(wch) == 0) {
+      message("No exceedances above threshold, optimisation failed")
       return(err_obj)
     }
 
@@ -402,10 +433,14 @@ ce_optim <- \(
 
   # loop through variables, fit CE model against other variables
   ret <- lapply(seq_along(cond_var), \(i) {
-    # can have different depenendence quantiles for each variable
+    # can have different dependence quantiles/values for each variable
     dqu_spec <- dqu
     if (length(dqu) > 1) {
       dqu_spec <- dqu[i]
+    }
+    dth_spec <- dth
+    if (length(dth) > 1) {
+      dth_spec <- dth[i]
     }
 
     # loop through conditioning variables
@@ -423,7 +458,7 @@ ce_optim <- \(
       if (is_list_start) {
         start_spec <- start[[i]][, j, drop = TRUE]
       }
-      o <- single_optim(yex, ydep, start_spec, dqu_spec)
+      o <- single_optim(yex, ydep, start_spec, dqu_spec, dth_spec)
 
       # check if optimisation failed
       if (all(is.na(o$params))) {
@@ -434,7 +469,7 @@ ce_optim <- \(
       if (nruns > 1) {
         for (i in seq_len(nruns) - 1) {
           start_spec <- o$params[1:2]
-          o <- single_optim(yex, ydep, start_spec, dqu_spec)
+          o <- single_optim(yex, ydep, start_spec, dqu_spec, dth_spec)
         }
       }
       o
