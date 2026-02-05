@@ -76,8 +76,7 @@ cecl_dep <- \(
   is_df_start <- FALSE
   # for vector start values, check that they are named and have correct names
   if (is.vector(start)) {
-    "`start` vector must have names a and b" <-
-      stopifnot(names(start) == c("a", "b"))
+    stopifnot("`start` vector must have names a and b" = all(c("a", "b") %in% names(start)))
     # check for data.frame/coef.cecl_dep
     # } else if (is.data.frame(start) && !"coef.cecl_dep" %in% class(start)) {
   } else if (is.data.frame(start)) { # will pass this if `coef.cecl_dep`
