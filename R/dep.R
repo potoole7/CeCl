@@ -25,8 +25,11 @@ cecl_dep <- \(
   obj,
   cond_prob = NULL,
   cond_val = NULL,
+  # TODO Need to add more checking, can add unwanted cols (same in marg)
   vars = NULL,
   cond_var = NULL,
+  # TODO Need to be able to have vector of length vars here though!
+  # TODO Allow start values for m and s as well?
   start = c("a" = 0.01, "b" = 0.01),
   ncores = 1,
   nruns = 1,
@@ -68,71 +71,36 @@ cecl_dep <- \(
   }
   stopifnot("cond_var not in variables, check again" = cond_var %in% vars)
 
-  # test_start <- \(start, marginal) {
-  #   # check same locations
-  #   test_loc <- length(start) == length(marginal)
-  #   # check same variables
-  #   test_var <- all(unlist(lapply(seq_along(start), \(i) {
-  #     length(start[[i]]) == length(marginal[[i]]) &&
-  #       all(names(start[[i]]) == names(marginal[[i]]))
-  #   })))
-  #   # check start values for each variable against each conditioning variable
-  #   test_dim <- all(unlist(lapply(seq_along(start), \(i) {
-  #     lapply(seq_along(start[[i]]), \(j) {
-  #       all(colnames(start[[i]][[j]]) == names(marginal[[i]])[-j]) &&
-  #         nrow(start[[i]][[j]]) == 2
-  #     })
-  #   })))
-  #   stopifnot(
-  #     "Start values not correct" = all(c(test_loc, test_var, test_dim))
-  #   )
-  # }
-
-  # Test start values for dependence parameters (a and b)
-  test_start <- \(start, cond_var, vars) {
-    if (is.list(start)) {
-      test_loc <- length(start) > 0
-      test_var <- all(unlist(lapply(seq_along(start), \(i) {
-        all(names(start[[i]]) %in% cond_var)
-      })))
-      test_params <- all(unlist(lapply(seq_along(start), \(i) {
-        all(unlist(lapply(start[[i]], \(x) {
-          all(rownames(x) == c("a", "b"))
-        })))
-      })))
-      stopifnot(
-        "Start values for dependence parameters not correct" =
-          all(c(test_loc, test_var, test_params))
+  # start values must either be named vector or dataframe from `coef(dep)`
+  # TODO Change argument documentation above
+  is_df_start <- FALSE
+  # for vector start values, check that they are named and have correct names
+  if (is.vector(start)) {
+    stopifnot("`start` vector must have names a and b" = all(c("a", "b") %in% names(start)))
+    # check for data.frame/coef.cecl_dep
+    # } else if (is.data.frame(start) && !"coef.cecl_dep" %in% class(start)) {
+  } else if (is.data.frame(start)) { # will pass this if `coef.cecl_dep`
+    is_df_start <- TRUE
+    rq_cols <- c("name", "var", "cond_var", "a", "b")
+    if (!all(rq_cols %in% colnames(start))) {
+      msg <- paste0(
+        "`start` data.frame must have columns: ",
+        paste(rq_cols, collapse = ", "),
+        ", consider using `coef.cecl_dep` to extract dependence parameters",
+        " from fitted model"
       )
-    } else {
-      stopifnot(
-        "Start values for dependence parameters must be named vector" =
-          is.numeric(start) && !is.null(names(start)) &&
-            all(c("a", "b") %in% names(start))
-      )
+      stop(msg)
     }
-  }
-
-
-  # check if start values for dependence is a list
-  is_list_start <- FALSE
-  if (is.list(start)) {
-    is_list_start <- TRUE
-    test_start(start, cond_var, vars)
-    # keep start values only for conditioned variables
-    if (all(cond_var == vars) == FALSE) {
-      start <- lapply(start, \(x) {
-        x[names(x) %in% cond_var]
-      })
-    }
+  } else {
+    msg <- paste0(
+      "`start` must be either a named vector names a and b, or a data.frame",
+      " with columns name, var, cond_var, a and b (e.g. from `coef.cecl_dep`)"
+    )
+    stop(msg)
   }
 
   # fit dependence model to transformed data for each location
   dependence <- loop_fun(seq_along(marginal_trans), \(i) {
-    start_spec <- start
-    if (is_list_start) {
-      start_spec <- start[[i]] # pull specific start vals, if required
-    }
     # if multiple dependence quantiles are specified
     cond_prob_spec <- cond_prob
     if (length(cond_prob) == length(cond_var)) {
@@ -144,6 +112,17 @@ cecl_dep <- \(
       cond_val_spec <- cond_val[i]
     }
 
+    # pull start values
+    start_spec <- start # if a vector, just use these
+    if (is_df_start) {
+      start_spec <- start |>
+        dplyr::filter(
+          name == locs_keep[i],
+          var %in% vars,
+          cond_var %in% cond_var
+        ) |>
+        dplyr::select(a, b, var, cond_var)
+    }
 
     # fit dependence model
     o <- ce_optim(
@@ -172,8 +151,10 @@ cecl_dep <- \(
     stats::setNames(pull_element(dependence, x), locs_keep)
   })
   names(ret) <- c("residual", "dependence")
+  # add other information to return object
   ret$call <- match.call()
   ret$transformed <- obj$transformed
+  ret$start <- start
 
   # check that all dependence models have run successfully, message if not
   locs_fail <- locs_keep[
@@ -321,9 +302,6 @@ ce_optim <- \(
   fixed_b = FALSE,
   nruns = 2
 ) {
-  # check if start is a list (of start values for each location and variable)
-  is_list_start <- is.list(start)
-
   # must specify either dqu or dth
   if (is.null(dqu) && is.null(dth) ||
     sum(!is.null(dqu), !is.null(dth)) > 1) {
@@ -443,20 +421,39 @@ ce_optim <- \(
       dth_spec <- dth[i]
     }
 
-    # loop through conditioning variables
+    # loop through conditioning/dependent variables
+    # TODO Very hard to follow which variable is which! change `cond_var` name
     o_yex <- lapply(seq_len(ncol_y - 1), \(j) {
       # conditioning variable (Y_{i}/LHS in CE model)
-      yex <- Y[, which(colnames(Y) == cond_var[i])]
+      which_cond <- which(colnames(Y) == cond_var[i])
+      # yex <- Y[, which(colnames(Y) == cond_var[i])]
+      yex <- Y[, which_cond, drop = TRUE]
       # j'th conditioned variable (single vec in Y_{-i}/RHS of model)
-      ydep <- Y[, -which(colnames(Y) == cond_var[i]), drop = FALSE][
+      # ydep <- Y[, -which(colnames(Y) == cond_var[i]), drop = FALSE][
+      #   , j,
+      #   drop = FALSE
+      # ]
+      ydep <- Y[, -which_cond, drop = FALSE][
         , j,
         drop = FALSE
       ]
 
-      # extract specific start values
+      # extract specific start values (if data.frame)
       start_spec <- start
-      if (is_list_start) {
-        start_spec <- start[[i]][, j, drop = TRUE]
+      # TODO Change
+      # is_list_start <- FALSE
+      # if (is_list_start) {
+      #   start_spec <- start[[i]][, j, drop = TRUE]
+      # }
+      start_spec <- start
+      if (is.data.frame(start_spec)) {
+        start_spec <- start_spec |>
+          filter(
+            var == !!cond_var[[which_cond]],
+            cond_var == !!cond_var[-which_cond][j]
+          ) |>
+          select(a, b) |>
+          as.matrix()
       }
       o <- single_optim(yex, ydep, start_spec, dqu_spec, dth_spec)
 
@@ -549,10 +546,11 @@ coef.cecl_dep <- \(object, ...) {
     params_loc_wide
   }))
 
-  ret <- dplyr::relocate(
+  ret <- as.data.frame(dplyr::relocate(
     dep_params_df, name, var, cond_var, dplyr::everything()
-  )
-  as.data.frame(ret)
+  ))
+  class(ret) <- c("coef.cecl_dep", class(ret))
+  return(ret)
 }
 
 #' @title Extract residuals from `cecl_dep` object
