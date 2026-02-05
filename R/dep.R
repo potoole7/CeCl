@@ -29,7 +29,6 @@ cecl_dep <- \(
   vars = NULL,
   cond_var = NULL,
   # TODO Need to be able to have vector of length vars here though!
-  # TODO Allow start values for m and s as well?
   start = c("a" = 0.01, "b" = 0.01),
   ncores = 1,
   nruns = 1,
@@ -73,10 +72,15 @@ cecl_dep <- \(
 
   # start values must either be named vector or dataframe from `coef(dep)`
   # TODO Change argument documentation above
+  # TODO Expand to also allow starting values for m nd s
   is_df_start <- FALSE
   # for vector start values, check that they are named and have correct names
   if (is.vector(start)) {
-    stopifnot("`start` vector must have names a and b" = all(c("a", "b") %in% names(start)))
+    cond <- is.numeric(start) && !is.null(names(start)) &&
+      all(names(start) == c("a", "b"))
+    stopifnot(
+      "`start` vector must have names a and b" = cond
+    )
     # check for data.frame/coef.cecl_dep
     # } else if (is.data.frame(start) && !"coef.cecl_dep" %in% class(start)) {
   } else if (is.data.frame(start)) { # will pass this if `coef.cecl_dep`
@@ -93,7 +97,7 @@ cecl_dep <- \(
     }
   } else {
     msg <- paste0(
-      "`start` must be either a named vector names a and b, or a data.frame",
+      "`start` must be either a vector with names a and b, or a data.frame",
       " with columns name, var, cond_var, a and b (e.g. from `coef.cecl_dep`)"
     )
     stop(msg)
@@ -122,6 +126,24 @@ cecl_dep <- \(
           cond_var %in% cond_var
         ) |>
         dplyr::select(a, b, var, cond_var)
+
+      # validate that filtering produced at least one row of start values
+      if (nrow(start_spec) == 0L) {
+        stop(
+          sprintf(
+            paste0(
+              "No starting values found in `start` for location '%s' ",
+              "with vars '%s' and cond_var '%s'. ",
+              "Please check that `start` specifies rows matching ",
+              "`name`, `var`, and `cond_var`."
+            ),
+            locs_keep[i],
+            paste(vars, collapse = ", "),
+            paste(cond_var, collapse = ", ")
+          ),
+          call. = FALSE
+        )
+      }
     }
 
     # fit dependence model
@@ -134,7 +156,7 @@ cecl_dep <- \(
       constrain = !fit_no_keef,
       aLow      = aLow,
       start     = start_spec,
-      nruns     = nruns,
+      nruns     = nruns
     )
     o
   })
@@ -426,13 +448,8 @@ ce_optim <- \(
     o_yex <- lapply(seq_len(ncol_y - 1), \(j) {
       # conditioning variable (Y_{i}/LHS in CE model)
       which_cond <- which(colnames(Y) == cond_var[i])
-      # yex <- Y[, which(colnames(Y) == cond_var[i])]
       yex <- Y[, which_cond, drop = TRUE]
       # j'th conditioned variable (single vec in Y_{-i}/RHS of model)
-      # ydep <- Y[, -which(colnames(Y) == cond_var[i]), drop = FALSE][
-      #   , j,
-      #   drop = FALSE
-      # ]
       ydep <- Y[, -which_cond, drop = FALSE][
         , j,
         drop = FALSE
@@ -440,20 +457,14 @@ ce_optim <- \(
 
       # extract specific start values (if data.frame)
       start_spec <- start
-      # TODO Change
-      # is_list_start <- FALSE
-      # if (is_list_start) {
-      #   start_spec <- start[[i]][, j, drop = TRUE]
-      # }
-      start_spec <- start
       if (is.data.frame(start_spec)) {
         start_spec <- start_spec |>
-          filter(
+          dplyr::filter(
             var == !!cond_var[[which_cond]],
             cond_var == !!cond_var[-which_cond][j]
           ) |>
-          select(a, b) |>
-          as.matrix()
+          dplyr::select(a, b) |>
+          unlist()
       }
       o <- single_optim(yex, ydep, start_spec, dqu_spec, dth_spec)
 
