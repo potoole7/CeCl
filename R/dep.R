@@ -73,13 +73,14 @@ cecl_dep <- \(
   # start values must either be named vector or dataframe from `coef(dep)`
   # TODO Change argument documentation above
   # TODO Expand to also allow starting values for m nd s
+  # TODO Make it's own function? Would make things cleaner maybe ..
   is_df_start <- FALSE
   # for vector start values, check that they are named and have correct names
   if (is.vector(start)) {
     cond <- is.numeric(start) && !is.null(names(start)) &&
       all(names(start) == c("a", "b"))
     stopifnot(
-      "`start` vector must have names a and b" = cond
+      "`start` vector must be numeric and have names a and b" = cond
     )
     # check for data.frame/coef.cecl_dep
     # } else if (is.data.frame(start) && !"coef.cecl_dep" %in% class(start)) {
@@ -95,6 +96,16 @@ cecl_dep <- \(
       )
       stop(msg)
     }
+    # filter to only relevant rows of start data, if cond_var specified
+    start <- start |>
+      dplyr::filter(cond_var %in% !!cond_var)
+
+    if (nrow(start) == 0) {
+      stop(
+        "No rows of `start` data.frame match specified `cond_var`, check that ",
+        "start has rows matching cond_var or adjust cond_var argument"
+      )
+    }
   } else {
     msg <- paste0(
       "`start` must be either a vector with names a and b, or a data.frame",
@@ -105,17 +116,6 @@ cecl_dep <- \(
 
   # fit dependence model to transformed data for each location
   dependence <- loop_fun(seq_along(marginal_trans), \(i) {
-    # if multiple dependence quantiles are specified
-    cond_prob_spec <- cond_prob
-    if (length(cond_prob) == length(cond_var)) {
-      cond_prob_spec <- cond_prob[i]
-    }
-    # same for cond_val
-    cond_val_spec <- cond_val
-    if (length(cond_val) == length(cond_var)) {
-      cond_val_spec <- cond_val[i]
-    }
-
     # pull start values
     start_spec <- start # if a vector, just use these
     if (is_df_start) {
@@ -149,8 +149,8 @@ cecl_dep <- \(
     # fit dependence model
     o <- ce_optim(
       Y         = marginal_trans[[i]],
-      dqu       = cond_prob_spec,
-      dth       = cond_val_spec,
+      dqu       = cond_prob,
+      dth       = cond_val,
       cond_var  = cond_var,
       control   = list(maxit = 1e6),
       constrain = !fit_no_keef,
@@ -338,9 +338,9 @@ ce_optim <- \(
     colnames(Y) <- names_y
   }
 
-  # check that dqu is a single value or vector
+  var <- names_y
   if (is.null(cond_var)) {
-    cond_var <- names_y
+    cond_var <- names_y # by default, condition on all variables
   }
 
   # optimise for a single variable vs another
@@ -431,8 +431,10 @@ ce_optim <- \(
     list("resid" = matrix(Z), "params" = o_single$par)
   }
 
-  # loop through variables, fit CE model against other variables
+  # loop through conditioning variables, fit CE model against other variables
+  # TODO Can we fit models with multiple conditioning and/or conditioned vars?
   ret <- lapply(seq_along(cond_var), \(i) {
+    # ret <- lapply(seq_along(var), \(i) {
     # can have different dependence quantiles/values for each variable
     dqu_spec <- dqu
     if (length(dqu) > 1) {
@@ -443,25 +445,40 @@ ce_optim <- \(
       dth_spec <- dth[i]
     }
 
-    # loop through conditioning/dependent variables
+    # i'th conditioning variable (single vec in Y_{-i}/RHS of model)
+    which_cond <- which(names_y == cond_var[[i]])
+    ydep <- Y[, which_cond, drop = FALSE]
+
+    # Loop through conditioned variables
     # TODO Very hard to follow which variable is which! change `cond_var` name
+    # TODO Does this logic still follow for > 2 variables?
     o_yex <- lapply(seq_len(ncol_y - 1), \(j) {
-      # conditioning variable (Y_{i}/LHS in CE model)
-      which_cond <- which(colnames(Y) == cond_var[i])
-      yex <- Y[, which_cond, drop = TRUE]
-      # j'th conditioned variable (single vec in Y_{-i}/RHS of model)
-      ydep <- Y[, -which_cond, drop = FALSE][
-        , j,
-        drop = FALSE
-      ]
+      # conditioned variable (Y_{j}/LHS in CE model)
+      # which_cond <- which(names_y == cond_var[i])
+      # which_var <- which(names_y == var[i])
+      # yex <- Y[, which_cond, drop = TRUE]
+      # yex <- Y[, which_var, drop = TRUE]
+      yex <- Y[, -which_cond, drop = FALSE][, j, drop = TRUE]
+
+      # j'th conditioning variable (single vec in Y_{-i}/RHS of model)
+      # ydep <- Y[, -which_cond, drop = FALSE][
+      #   , j,
+      #   drop = FALSE
+      # ]
+      # ydep <- Y[, -which_var, drop = FALSE][
+      #   , j,
+      #   drop = FALSE
+      # ]
 
       # extract specific start values (if data.frame)
       start_spec <- start
       if (is.data.frame(start_spec)) {
         start_spec <- start_spec |>
           dplyr::filter(
-            var == !!cond_var[[which_cond]],
-            cond_var == !!cond_var[-which_cond][j]
+            # var == !!cond_var[[which_cond]],
+            # cond_var == !!cond_var[-which_cond][j]
+            var == names_y[-which_cond][j],
+            cond_var == names_y[which_cond]
           ) |>
           dplyr::select(a, b) |>
           unlist()
@@ -489,10 +506,12 @@ ce_optim <- \(
       "params" = do.call(cbind, lapply(o_yex, `[[`, "params"))
     )
 
+    # name columns by conditioned variable (i.e. LHS of model), if possible
     if (!is.null(names_y)) {
-      names_other <- names_y[names_y != cond_var[[i]]]
-      colnames(o_yex$resid) <- names_other
-      colnames(o_yex$params) <- names_other
+      names_ex <- names_y[names_y != cond_var[[i]]]
+      # names_ex <- names_y[names_y != var[[i]]]
+      colnames(o_yex$resid) <- names_ex
+      colnames(o_yex$params) <- names_ex
     }
     o_yex
   })
@@ -528,7 +547,8 @@ coef.cecl_dep <- \(object, ...) {
     params_loc_wide <- tidyr::pivot_longer(
       params_loc,
       cols = -c("name", "parameter"),
-      names_to = "cond_var",
+      # names_to = "cond_var",
+      names_to = "var",
       values_to = "value"
     ) |>
       tidyr::pivot_wider(
@@ -537,8 +557,10 @@ coef.cecl_dep <- \(object, ...) {
       )
 
     # split column name, if required
+    # TODO Why/when does this happen? Need a better comment here!
     if (ncol(params_loc) > 4) {
-      var_names <- stringr::str_split(params_loc_wide$cond_var, "\\.", n = 2)
+      # var_names <- stringr::str_split(params_loc_wide$cond_var, "\\.", n = 2)
+      var_names <- stringr::str_split(params_loc_wide$var, "\\.", n = 2)
       params_loc_wide$var <- vapply(
         var_names,
         \(x) x[[1]],
@@ -550,8 +572,9 @@ coef.cecl_dep <- \(object, ...) {
         character(1)
       )
     } else {
-      # opposite to cond_var
-      params_loc_wide$var <- names(dep_params[[loc]])
+      # conditioning variables
+      # params_loc_wide$var <- names(dep_params[[loc]])
+      params_loc_wide$cond_var <- names(dep_params[[loc]])
     }
 
     params_loc_wide
@@ -589,14 +612,10 @@ print.cecl_dep <- \(x, ...) {
   cat("Call:\n")
   print(x$call)
   cat("\nNumber of locations:", length(x$dependence), "\n")
-  n_vars <- colnames(x$transformed[[1]])
-  # fail safe for user-specified dependence object with no trans data
-  if (is.null(n_vars)) {
-    n_vars <- names(x$dependence[[1]])
-  }
-  cat(
-    "Variables:", paste(n_vars, collapse = ", "), "\n"
-  )
+  vars <- colnames(x$dependence[[1]][[1]])
+  cond_vars <- names(x$dependence[[1]])
+  cat("Dependent Variables:", paste(vars, collapse = ", "), "\n")
+  cat("Conditioning Variables:", paste(cond_vars, collapse = ", "), "\n")
 
   invisible(x)
 }
