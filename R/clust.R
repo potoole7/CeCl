@@ -194,7 +194,7 @@ summary.cecl_clust <- \(object, ...) {
 cecl_dist <- \(
   dep_obj,
   marg_obj,
-  var = NULL,
+  cond_var = NULL,
   laplace_cap = 0.99,
   laplace_cap_val = NULL,
   laplace_sample = NULL,
@@ -217,7 +217,7 @@ cecl_dist <- \(
   n <- NULL
 
   # Only want a single variable, if provided
-  stopifnot(is.null(var) || length(var == 1))
+  stopifnot(is.null(cond_var) || length(cond_var == 1))
 
   # check that laplace_sample is correct, if provided
   if (!is.null(laplace_sample)) {
@@ -245,10 +245,10 @@ cecl_dist <- \(
   # list of locs containing vars -> list of vars, each containing all locs
   params <- purrr::transpose(params)
 
-  # If only want a single *conditioning* variable
-  if (!is.null(var)) {
-    params <- params[var]
-    thresh <- thresh[var]
+  # If only want specific dependent variables
+  if (!is.null(cond_var)) {
+    params <- params[cond_var]
+    thresh <- lapply(thresh, \(x) x[cond_var])
   }
 
   # take maximum Laplace thresholds; want to generate points above this
