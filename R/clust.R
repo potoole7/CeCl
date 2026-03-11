@@ -195,6 +195,7 @@ cecl_dist <- \(
   dep_obj,
   marg_obj,
   cond_var = NULL,
+  dth = NULL, # optionally specify thresholds directly, rather than pulling
   laplace_cap = 0.99,
   laplace_cap_val = NULL,
   laplace_sample = NULL,
@@ -239,20 +240,32 @@ cecl_dist <- \(
   # pull parameter values for each location
   params <- lapply(dep_obj$dependence, pull_params)
 
-  # pull Laplace-scale threshold values for each location
-  thresh <- lapply(dep_obj$dependence, pull_thresh_trans)
-
   # list of locs containing vars -> list of vars, each containing all locs
   params <- purrr::transpose(params)
+
+  # pull Laplace-scale threshold values for each location
+  if (is.null(dth)) {
+    thresh <- lapply(dep_obj$dependence, pull_thresh_trans)
+  } else {
+    thresh <- dth
+  }
 
   # If only want specific dependent variables
   if (!is.null(cond_var)) {
     params <- params[cond_var]
-    thresh <- lapply(thresh, \(x) x[cond_var])
+    if (is.null(dth)) {
+      thresh <- lapply(thresh, \(x) x[[cond_var]])
+    } else {
+      thresh <- thresh[[cond_var]]
+    }
   }
 
   # take maximum Laplace thresholds; want to generate points above this
-  thresh_max <- lapply(dplyr::bind_rows(thresh), max)
+  if (is.null(dth)) {
+    thresh_max <- lapply(dplyr::bind_rows(thresh), max)
+  } else {
+    thresh_max <- dth
+  }
 
   # TODO Move calculating y values to separate function? As above
   # TODO Move this to separate function anyway!
