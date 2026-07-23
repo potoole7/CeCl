@@ -4,9 +4,12 @@
 #' @param obj Object of class `cecl_marg` containing transformed data.
 #' @param cond_prob Numeric vector of quantiles to use for conditioning
 #' variables.
+#' @param cond_val Numeric vector of thresholds on the Laplace scale to use
+#' for conditioning variables. Exactly one of `cond_prob` and `cond_val`
+#' must be supplied.
 #' @param vars Character vector of variable names to fit dependence model for.
 #' If `NULL`, all variables are used.
-#' @param cond_var Character vector of variable names to condition on.
+#' @param cond_vars Character vector of variable names to condition on.
 #' If `NULL`, all variables are used.
 #' @param start Named numeric vector or list of named numeric matrices
 #' with starting values for dependence parameters `a` and `b`.
@@ -27,7 +30,7 @@ cecl_dep <- \(
   cond_val = NULL,
   # TODO Need to add more checking, can add unwanted cols (same in marg)
   vars = NULL,
-  cond_var = NULL,
+  cond_vars = NULL,
   # TODO Need to be able to have vector of length vars here though!
   start = c("a" = 0.01, "b" = 0.01),
   ncores = 1,
@@ -37,14 +40,14 @@ cecl_dep <- \(
   fit_no_keef = FALSE
 ) {
   stopifnot(inherits(obj, "cecl_marg"))
-
+  
   # must have one of cond_prob or cond_val
   if (is.null(cond_prob) && is.null(cond_val) ||
-    sum(!is.null(cond_prob), !is.null(cond_val)) > 1
+      sum(!is.null(cond_prob), !is.null(cond_val)) > 1
   ) {
     stop("Must specify one of cond_prob or cond_val")
   }
-
+  
   # Parallel setup
   # TODO Functionalise, used in multiple places
   apply_fun <- ifelse(ncores == 1, lapply, parallel::mclapply)
@@ -55,7 +58,7 @@ cecl_dep <- \(
   loop_fun <- \(...) {
     do.call(apply_fun, c(list(...), ext_args))
   }
-
+  
   # extract relative information from obj
   marginal_trans <- obj$transformed
   locs_keep <- names(marginal_trans)
@@ -63,17 +66,25 @@ cecl_dep <- \(
     vars <- obj$vars
   }
   stopifnot("vars not in data, check again" = !is.null(vars))
-
+  
   # conditioning variables default to all
-  if (is.null(cond_var)) {
-    cond_var <- vars
+  if (is.null(cond_vars)) {
+    cond_vars <- vars
   }
-  stopifnot("cond_var not in variables, check again" = cond_var %in% vars)
-
+  stopifnot(
+    "cond_vars not in variables, check again" = all(cond_vars %in% vars)
+  )
+  
+  # only keep variables of interest from marginal object
+  marginal_trans <- lapply(marginal_trans, \(x) {
+    x[, unique(c(vars, cond_vars))]
+  })
+  
   # start values must either be named vector or dataframe from `coef(dep)`
   # TODO Change argument documentation above
   # TODO Expand to also allow starting values for m nd s
   is_df_start <- FALSE
+  
   # for vector start values, check that they are named and have correct names
   if (is.vector(start)) {
     cond <- is.numeric(start) && !is.null(names(start)) &&
@@ -81,9 +92,7 @@ cecl_dep <- \(
     stopifnot(
       "`start` vector must have names a and b" = cond
     )
-    # check for data.frame/coef.cecl_dep
-    # } else if (is.data.frame(start) && !"coef.cecl_dep" %in% class(start)) {
-  } else if (is.data.frame(start)) { # will pass this if `coef.cecl_dep`
+  } else if (is.data.frame(start)) {
     is_df_start <- TRUE
     rq_cols <- c("name", "var", "cond_var", "a", "b")
     if (!all(rq_cols %in% colnames(start))) {
@@ -95,6 +104,32 @@ cecl_dep <- \(
       )
       stop(msg)
     }
+    
+    # <<<<<<< Updated upstream
+    # =======
+    #     # filter to only relevant rows of start data, if cond_var specified
+    #     start <- start |>
+    #       dplyr::filter(cond_var %in% cond_vars)
+    #
+    #     if (nrow(start) == 0) {
+    #       stop(
+    #         "No rows of `start` data.frame match specified `cond_vars`, check that",
+    #         " start has rows matching `cond_vars` or adjust `cond_vars` argument"
+    #       )
+    #     }
+    # >>>>>>> Stashed changes
+    
+    # filter to only relevant rows of start data, if cond_vars specified
+    start <- start |>
+      dplyr::filter(cond_var %in% cond_vars)
+    
+    if (nrow(start) == 0L) {
+      stop(
+        "No rows of `start` data.frame match specified `cond_vars`; ",
+        "check that `start` contains matching rows or adjust `cond_vars`.",
+        call. = FALSE
+      )
+    }
   } else {
     msg <- paste0(
       "`start` must be either a vector with names a and b, or a data.frame",
@@ -102,65 +137,80 @@ cecl_dep <- \(
     )
     stop(msg)
   }
-
+  
   # fit dependence model to transformed data for each location
   dependence <- loop_fun(seq_along(marginal_trans), \(i) {
-    # if multiple dependence quantiles are specified
+    # if location-specific dependence quantiles are specified
     cond_prob_spec <- cond_prob
-    if (length(cond_prob) == length(cond_var)) {
-      cond_prob_spec <- cond_prob[i]
+    if (length(cond_prob) == length(locs_keep)) {
+      cond_prob_spec <- cond_prob[[i]]
     }
+    
     # same for cond_val
     cond_val_spec <- cond_val
-    if (length(cond_val) == length(cond_var)) {
-      cond_val_spec <- cond_val[i]
+    if (length(cond_val) == length(locs_keep)) {
+      cond_val_spec <- cond_val[[i]]
     }
-
+    
     # pull start values
-    start_spec <- start # if a vector, just use these
+    start_spec <- start
     if (is_df_start) {
       start_spec <- start |>
         dplyr::filter(
           name == locs_keep[i],
           var %in% vars,
-          cond_var %in% cond_var
+          cond_var %in% cond_vars
         ) |>
         dplyr::select(a, b, var, cond_var)
-
-      # validate that filtering produced at least one row of start values
+      
       if (nrow(start_spec) == 0L) {
         stop(
           sprintf(
             paste0(
               "No starting values found in `start` for location '%s' ",
-              "with vars '%s' and cond_var '%s'. ",
+              "with vars '%s' and cond_vars '%s'. ",
               "Please check that `start` specifies rows matching ",
               "`name`, `var`, and `cond_var`."
             ),
             locs_keep[i],
             paste(vars, collapse = ", "),
-            paste(cond_var, collapse = ", ")
+            paste(cond_vars, collapse = ", ")
           ),
           call. = FALSE
         )
       }
     }
-
+    
+    # <<<<<<< Updated upstream
+    #     o <- ce_optim(
+    #       Y         = marginal_trans[[i]],
+    #       dqu       = cond_prob_spec,
+    #       dth       = cond_val_spec,
+    #       cond_var  = cond_var,
+    # =======
+    #     o <- ce_optim(
+    #       Y         = marginal_trans[[i]],
+    #       # dqu       = cond_prob,
+    #       # dth       = cond_val,
+    #       cond_vars = cond_vars,
+    # >>>>>>> Stashed changes
+    
     # fit dependence model
     o <- ce_optim(
       Y         = marginal_trans[[i]],
       dqu       = cond_prob_spec,
       dth       = cond_val_spec,
-      cond_var  = cond_var,
+      cond_vars = cond_vars,
       control   = list(maxit = 1e6),
       constrain = !fit_no_keef,
       aLow      = aLow,
+      fixed_b   = fixed_b,
       start     = start_spec,
       nruns     = nruns
     )
     o
   })
-
+  
   # recursively pull dependence parameters and residuals out separately
   pull_element <- \(x, element) {
     if (element %in% names(x)) {
@@ -173,11 +223,12 @@ cecl_dep <- \(
     stats::setNames(pull_element(dependence, x), locs_keep)
   })
   names(ret) <- c("residual", "dependence")
+  
   # add other information to return object
   ret$call <- match.call()
   ret$transformed <- obj$transformed
   ret$start <- start
-
+  
   # check that all dependence models have run successfully, message if not
   locs_fail <- locs_keep[
     vapply(ret$dependence, \(x) any(is.na(unlist(x))), logical(1))
@@ -189,9 +240,9 @@ cecl_dep <- \(
       paste(locs_fail, collapse = ", ")
     ))
   }
-
+  
   # set class and return
-  class(ret) <- class(ret) <- c(
+  class(ret) <- c(
     "cecl_dep",
     class(ret)
   )
@@ -206,35 +257,35 @@ constraints_satisfied <- \(a, b, z, zpos, zneg, v) {
     a <= min(
       1, 1 - b * max(z) * v^(b - 1), 1 - v^(b - 1) * max(z) + max(zpos) / v
     )
-
+  
   C1o <- a <= 1 &
     a > 1 - b * min(z) * v^(b - 1) &
     a > 1 - b * max(z) * v^(b - 1) &
     (1 - 1 / b) * (b * min(z))^(1 / (1 - b)) *
-      (1 - a)^(-b / (1 - b)) + min(zpos) > 0 &
+    (1 - a)^(-b / (1 - b)) + min(zpos) > 0 &
     (1 - 1 / b) * (b * max(z))^(1 / (1 - b)) *
-      (1 - a)^(-b / (1 - b)) + max(zpos) > 0
-
+    (1 - a)^(-b / (1 - b)) + max(zpos) > 0
+  
   C2e <- -a <= min(
     1, 1 + b * v^(b - 1) * min(z), 1 + v^(b - 1) * min(z) - min(zneg) / v
   ) &
     -a <= min(
       1, 1 + b * v^(b - 1) * max(z), 1 + v^(b - 1) * max(z) - max(zneg) / v
     )
-
+  
   C2o <- -a <= 1 &
     -a > 1 + b * v^(b - 1) * min(z) &
     -a > 1 + b * v^(b - 1) * max(z) &
     (1 - 1 / b) * (-b * min(z))^(1 / (1 - b)) *
-      (1 + a)^(-b / (1 - b)) - min(zneg) > 0 &
+    (1 + a)^(-b / (1 - b)) - min(zneg) > 0 &
     (1 - 1 / b) * (-b * max(z))^(1 / (1 - b)) *
-      (1 + a)^(-b / (1 - b)) - max(zneg) > 0
-
+    (1 + a)^(-b / (1 - b)) - max(zneg) > 0
+  
   if (any(is.na(c(C1e, C1o, C2e, C2o)))) {
     message("Strayed into impossible area of parameter space")
     C1e <- C1o <- C2e <- C2o <- FALSE
   }
-
+  
   (C1e | C1o) && (C2e | C2o)
 }
 
@@ -242,7 +293,7 @@ constraints_satisfied <- \(a, b, z, zpos, zneg, v) {
 laplace_nll <- \(yex, ydep, a, b, m, s, constrain, v, aLow) {
   BigNumber <- 10^40
   WeeNumber <- 10^(-10)
-
+  
   # give large value if parameters are out of bounds
   if (a < aLow || s < WeeNumber || a > 1 - WeeNumber || b > 1 - WeeNumber) {
     return(BigNumber)
@@ -250,10 +301,10 @@ laplace_nll <- \(yex, ydep, a, b, m, s, constrain, v, aLow) {
     # Assuming normal distribution for excesses, calculate mean & sd
     mu <- a * yex + m * yex^b
     sig <- s * yex^b
-
+    
     # calculate log likelihood
     res <- sum(0.5 * log(2 * pi) + log(sig) + 0.5 * ((ydep - mu) / sig)^2)
-
+    
     if (is.infinite(res)) {
       if (res < 0) {
         return(-BigNumber)
@@ -261,12 +312,11 @@ laplace_nll <- \(yex, ydep, a, b, m, s, constrain, v, aLow) {
         return(BigNumber)
       }
       warning("Infinite value of Q in mexDependence")
-      # Apply Keef, Papastathopoulos constraints if specified
     } else if (constrain) {
-      zpos <- range(ydep - yex) # q0 and q1
-      z <- range((ydep - yex * a) / (yex^b)) # q0 and q1
-      zneg <- range(ydep + yex) # q0 and q1
-
+      zpos <- range(ydep - yex)
+      z <- range((ydep - yex * a) / (yex^b))
+      zneg <- range(ydep + yex)
+      
       if (!constraints_satisfied(a, b, z, zpos, zneg, v)) {
         return(BigNumber)
       }
@@ -277,29 +327,25 @@ laplace_nll <- \(yex, ydep, a, b, m, s, constrain, v, aLow) {
 
 # function to evaluate (negative) profile (log) likelihood and optimise over
 laplace_npll <- \(yex, ydep, a, b, constrain, v, aLow) {
-  # first, estimate Z by rearranging the conditional extremes equation
   Z <- (ydep - yex * a) / (yex^b)
   stopifnot(
     "NaNs in Z, conditional quantile may be negative" = all(!is.nan(Z))
   )
-  # estimate nuisance parameters
+  
   m <- mean(Z)
   s <- stats::sd(Z)
-
-  # now estimate a and b
+  
   res <- laplace_nll(
     yex, ydep, a, b,
     m = m, s = s, constrain, v, aLow = aLow
   )
-  res <- list(profLik = res, m = m, s = s)
-  res
+  list(profLik = res, m = m, s = s)
 }
 
 # function to evaluate profile likelihood and optimise over
 Qpos <- \(param, yex, ydep, constrain, v, aLow) {
   a <- param[1]
   b <- param[2]
-
   res <- laplace_npll(yex, ydep, a, b, constrain, v, aLow)
   res$profLik
 }
@@ -315,7 +361,7 @@ ce_optim <- \(
   Y,
   dqu = NULL,
   dth = NULL,
-  cond_var = NULL,
+  cond_vars = NULL,
   start = c("a" = 0.01, "b" = 0.01),
   control = list(maxit = 1e6),
   constrain = TRUE,
@@ -326,10 +372,20 @@ ce_optim <- \(
 ) {
   # must specify either dqu or dth
   if (is.null(dqu) && is.null(dth) ||
-    sum(!is.null(dqu), !is.null(dth)) > 1) {
+      sum(!is.null(dqu), !is.null(dth)) > 1
+  ) {
     stop("Must specify either dependence quantile (dqu) or threshold (dth)")
   }
-
+  
+  if (!is.data.frame(start)) {
+    stopifnot(
+      "`start` must be a named numeric vector with elements 'a' and 'b'" =
+        is.numeric(start) &&
+        is.vector(start) &&
+        identical(names(start), c("a", "b"))
+    )
+  }
+  
   # check that Y has names; if not give dummy names
   names_y <- colnames(Y)
   ncol_y <- ncol(Y)
@@ -337,49 +393,84 @@ ce_optim <- \(
     names_y <- paste0("var_", seq_len(ncol_y))
     colnames(Y) <- names_y
   }
-
-  # check that dqu is a single value or vector
-  if (is.null(cond_var)) {
-    cond_var <- names_y
+  
+  # <<<<<<< Updated upstream
+  #   # check that dqu is a single value or vector
+  #   if (is.null(cond_var)) {
+  #     cond_var <- names_y
+  # =======
+  #   var <- names_y
+  #   if (is.null(cond_vars)) {
+  #     cond_vars <- names_y # by default, condition on all variables
+  # >>>>>>> Stashed changes
+  #   }
+  
+  # conditioning variables default to all variables
+  if (is.null(cond_vars)) {
+    cond_vars <- names_y
   }
-
+  
+  if (!all(cond_vars %in% names_y)) {
+    stop(
+      "All `cond_vars` must be columns of `Y`.",
+      call. = FALSE
+    )
+  }
+  
+  if (anyDuplicated(cond_vars)) {
+    stop(
+      "`cond_vars` must not contain duplicates.",
+      call. = FALSE
+    )
+  }
+  
+  if (!is.null(dqu) && !length(dqu) %in% c(1L, length(cond_vars))) {
+    stop(
+      "`dqu` must have length 1 or one value per conditioning variable.",
+      call. = FALSE
+    )
+  }
+  
+  if (!is.null(dth) && !length(dth) %in% c(1L, length(cond_vars))) {
+    stop(
+      "`dth` must have length 1 or one value per conditioning variable.",
+      call. = FALSE
+    )
+  }
+  
   # optimise for a single variable vs another
   single_optim <- \(yex, ydep, start, dqu, dth) {
     # threshold data
-    thresh <- dth # if threshold value provided, use that
-    # otherwise, threshold at quantile
+    thresh <- dth
     if (is.null(dth)) {
       thresh <- stats::quantile(yex, dqu)
     }
     wch <- yex > thresh
-
-    # object to return if an error is found
+    
     err_obj <- list(
-      "resid" = matrix(NA, nrow = max(sum(wch), 1)), # can't be 0
+      "resid" = matrix(NA, nrow = max(sum(wch), 1)),
       "params" = c(
         "a" = NA, "b" = NA, "m" = NA, "s" = NA, "ll" = NA, "dth" = NA
       )
     )
-
+    
     if (any(is.infinite(yex))) {
       message("Inf values in Laplace transformed data, optimisation failed")
       return(err_obj)
     }
-
+    
     if (sum(wch) == 0) {
       message("No exceedances above threshold, optimisation failed")
       return(err_obj)
     }
-
-    # if fixing b, do 1D optimisation on a only
+    
     if (fixed_b == TRUE) {
-      # TODO May have to change to work with list??
       b <- start[[2]]
       start <- start[1]
       o_single <- try(stats::optim(
         par       = start,
         fn        = Qpos_fixed_b,
-        method    = "Brent", # 1D optimisation
+        method    = "Brent",
         lower     = -1,
         upper     = 1,
         control   = control,
@@ -393,7 +484,6 @@ ce_optim <- \(
       if (!inherits(o_single, "try-error")) {
         o_single$par <- c(o_single$par, b)
       }
-      # else optimise a and b together, as normal
     } else {
       o_single <- try(stats::optim(
         par       = start,
@@ -406,17 +496,17 @@ ce_optim <- \(
         aLow      = aLow
       ), silent = TRUE)
     }
-
+    
     if (inherits(o_single, "try-error")) {
       message(paste("optimisation failed for constrain =", constrain))
       return(err_obj)
     }
-    # set to NA if no change from (default!) starting values
+    
     if (all(o_single$par[1:2] == start) && all(start == 0.01)) {
       message("No change from starting values, optimisation failed")
       return(err_obj)
     }
-    # back-calculate residuals and nuisance parameters from a and b estimates
+    
     if (all(!is.na(o_single$par))) {
       Z <- (ydep[wch] - yex[wch] * o_single$par[1]) /
         (yex[wch]^o_single$par[2])
@@ -424,80 +514,196 @@ ce_optim <- \(
     } else {
       o_single$par <- c(o_single$par, NA, NA)
     }
-    # add LL and numerical (Laplace scale) threshold, label appropriately
+    
     o_single$par <- c(o_single$par, o_single$value, thresh[[1]])
     names(o_single$par) <- names(err_obj$params)
-    # TODO Add checks afterwards on o
+    
     list("resid" = matrix(Z), "params" = o_single$par)
   }
-
-  # loop through variables, fit CE model against other variables
-  ret <- lapply(seq_along(cond_var), \(i) {
-    # can have different dependence quantiles/values for each variable
+  
+  # <<<<<<< Updated upstream
+  #   # loop through variables, fit CE model against other variables
+  #   ret <- lapply(seq_along(cond_var), \(i) {
+  # =======
+  #   # loop through conditioning variables, fit CE model against other variables
+  #   # TODO Can we fit models with multiple conditioning and/or conditioned vars?
+  #   ret <- lapply(seq_along(cond_vars), \(i) {
+  #     # ret <- lapply(seq_along(var), \(i) {
+  # >>>>>>> Stashed changes
+  
+  # loop through RHS conditioning variables
+  ret <- lapply(seq_along(cond_vars), \(i)) {
+    cond_var_i <- cond_vars[[i]]
+    which_cond <- match(cond_var_i, names_y)
+    names_conditioned <- names_y[-which_cond]
+    
+    # can have different dependence quantiles/values for each conditioning var
     dqu_spec <- dqu
-    if (length(dqu) > 1) {
-      dqu_spec <- dqu[i]
+    if (length(dqu) > 1L) {
+      dqu_spec <- dqu[[i]]
     }
+    
     dth_spec <- dth
-    if (length(dth) > 1) {
-      dth_spec <- dth[i]
+    if (length(dth) > 1L) {
+      dth_spec <- dth[[i]]
     }
-
-    # loop through conditioning/dependent variables
-    # TODO Very hard to follow which variable is which! change `cond_var` name
-    o_yex <- lapply(seq_len(ncol_y - 1), \(j) {
-      # conditioning variable (Y_{i}/LHS in CE model)
-      which_cond <- which(colnames(Y) == cond_var[i])
-      yex <- Y[, which_cond, drop = TRUE]
-      # j'th conditioned variable (single vec in Y_{-i}/RHS of model)
-      ydep <- Y[, -which_cond, drop = FALSE][
-        , j,
-        drop = FALSE
-      ]
-
+    
+    # <<<<<<< Updated upstream
+    #     # loop through conditioning/dependent variables
+    #     # TODO Very hard to follow which variable is which! change `cond_var` name
+    #     o_yex <- lapply(seq_len(ncol_y - 1), \(j) {
+    #       # conditioning variable (Y_{i}/LHS in CE model)
+    #       which_cond <- which(colnames(Y) == cond_var[i])
+    #       yex <- Y[, which_cond, drop = TRUE]
+    #       # j'th conditioned variable (single vec in Y_{-i}/RHS of model)
+    #       ydep <- Y[, -which_cond, drop = FALSE][
+    #         , j,
+    #         drop = FALSE
+    #       ]
+    # =======
+    #     # i'th conditioning variable (single vec in Y_{-i}/RHS of model)
+    #     which_cond <- which(names_y == cond_vars[[i]])
+    #     ydep <- Y[, which_cond, drop = FALSE]
+    #
+    #     # Loop through conditioned variables
+    #     # TODO Very hard to follow which variable is which! change `cond_vars` name
+    #     # TODO Does this logic still follow for > 2 variables?
+    #     o_yex <- lapply(seq_len(ncol_y - 1), \(j) {
+    #       # conditioned variable (Y_{j}/LHS in CE model)
+    #       # which_cond <- which(names_y == cond_vars[i])
+    #       # which_var <- which(names_y == var[i])
+    #       # yex <- Y[, which_cond, drop = TRUE]
+    #       # yex <- Y[, which_var, drop = TRUE]
+    #       yex <- Y[, -which_cond, drop = FALSE][, j, drop = TRUE]
+    #
+    #       # j'th conditioning variable (single vec in Y_{-i}/RHS of model)
+    #       # ydep <- Y[, -which_cond, drop = FALSE][
+    #       #   , j,
+    #       #   drop = FALSE
+    #       # ]
+    #       # ydep <- Y[, -which_var, drop = FALSE][
+    #       #   , j,
+    #       #   drop = FALSE
+    #       # ]
+    # >>>>>>> Stashed changes
+    
+    # RHS of the CE equation: conditioning variable
+    yex <- Y[, which_cond, drop = TRUE]
+    
+    # loop through LHS conditioned variables
+    o_yex <- lapply(seq_along(names_conditioned), \(j) {
+      conditioned_var_j <- names_conditioned[[j]]
+      which_conditioned <- match(conditioned_var_j, names_y)
+      
+      # LHS of the CE equation: conditioned variable
+      ydep <- Y[, which_conditioned, drop = TRUE]
+      
       # extract specific start values (if data.frame)
       start_spec <- start
       if (is.data.frame(start_spec)) {
+        # <<<<<<< Updated upstream
+        #         start_spec <- start_spec |>
+        #           dplyr::filter(
+        #             var == !!cond_var[[which_cond]],
+        #             cond_var == !!cond_var[-which_cond][j]
+        # =======
+        #         start_spec <- start_spec |>
+        #           dplyr::filter(
+        #             # var == !!cond_vars[[which_cond]],
+        #             # cond_var == !!cond_vars[-which_cond][j]
+        #             var == names_y[-which_cond][j],
+        #             cond_var == names_y[which_cond]
+        # >>>>>>> Stashed changes
+        #           ) |>
+        #           dplyr::select(a, b) |>
+        #           unlist()
+        
         start_spec <- start_spec |>
           dplyr::filter(
-            var == !!cond_var[[which_cond]],
-            cond_var == !!cond_var[-which_cond][j]
+            var == conditioned_var_j,
+            cond_var == cond_var_i
           ) |>
           dplyr::select(a, b) |>
-          unlist()
+          unlist(use.names = TRUE)
+        
+        if (!identical(names(start_spec), c("a", "b"))) {
+          stop(
+            sprintf(
+              paste0(
+                "No unique starting values found for conditioned variable ",
+                "'%s' and conditioning variable '%s'."
+              ),
+              conditioned_var_j,
+              cond_var_i
+            ),
+            call. = FALSE
+          )
+        }
       }
-      o <- single_optim(yex, ydep, start_spec, dqu_spec, dth_spec)
-
+      
+      o <- single_optim(
+        yex = yex,
+        ydep = ydep,
+        start = start_spec,
+        dqu = dqu_spec,
+        dth = dth_spec
+      )
+      
       # check if optimisation failed
       if (all(is.na(o$params))) {
         return(o)
       }
-
-      # perform multiple runs with prev estimates as start values, if desired
-      if (nruns > 1) {
-        for (i in seq_len(nruns) - 1) {
-          start_spec <- o$params[1:2]
-          o <- single_optim(yex, ydep, start_spec, dqu_spec, dth_spec)
+      
+      # perform multiple runs with previous estimates as start values
+      if (nruns > 1L) {
+        for (run in seq_len(nruns - 1L)) {
+          start_spec <- o$params[c("a", "b")]
+          o <- single_optim(
+            yex = yex,
+            ydep = ydep,
+            start = start_spec,
+            dqu = dqu_spec,
+            dth = dth_spec
+          )
+          
+          if (all(is.na(o$params))) {
+            break
+          }
         }
       }
       o
     })
-
-    # join matrices from lists (each column will be for each conditioning var)
+    
+    # join matrices from lists
     o_yex <- list(
-      "resid"  = do.call(cbind, lapply(o_yex, `[[`, "resid")),
+      "resid" = do.call(cbind, lapply(o_yex, `[[`, "resid")),
       "params" = do.call(cbind, lapply(o_yex, `[[`, "params"))
     )
-
-    if (!is.null(names_y)) {
-      names_other <- names_y[names_y != cond_var[[i]]]
-      colnames(o_yex$resid) <- names_other
-      colnames(o_yex$params) <- names_other
-    }
+    
+    # <<<<<<< Updated upstream
+    #     if (!is.null(names_y)) {
+    #       names_other <- names_y[names_y != cond_var[[i]]]
+    #       colnames(o_yex$resid) <- names_other
+    #       colnames(o_yex$params) <- names_other
+    # =======
+    #     if (!is.null(names_y)) {
+    #       names_ex <- names_y[names_y != cond_vars[[i]]]
+    #       # names_ex <- names_y[names_y != var[[i]]]
+    #       colnames(o_yex$resid) <- names_ex
+    #       colnames(o_yex$params) <- names_ex
+    # >>>>>>> Stashed changes
+    #     }
+    
+    # Columns are named after the LHS conditioned variables.
+    colnames(o_yex$resid) <- names_conditioned
+    colnames(o_yex$params) <- names_conditioned
+    
     o_yex
   })
-  names(ret) <- cond_var
-  ret
+
+# Outer list elements are named after RHS conditioning variables.
+names(ret) <- cond_vars
+ret
 }
 
 #' @title Extract dependence parameters from `cecl_dep` object
@@ -512,19 +718,16 @@ ce_optim <- \(
 #' @method coef cecl_dep
 coef.cecl_dep <- \(object, ...) {
   stopifnot(inherits(object, "cecl_dep"))
-
-  name <- var <- cond_var <- NULL # to appease R CMD check
-
-  # extract dependence parameters
+  
+  name <- var <- cond_var <- NULL
+  
   dep_params <- object$dependence
-  # convert to data.frame for easier viewing
   dep_params_df <- do.call(rbind, lapply(names(dep_params), \(loc) {
     params_loc <- as.data.frame(dep_params[[loc]])
     params_loc$parameter <- rownames(params_loc)
     params_loc$name <- loc
     rownames(params_loc) <- NULL
-
-    # convert to wide to match coef.cecl_marg output
+    
     params_loc_wide <- tidyr::pivot_longer(
       params_loc,
       cols = -c("name", "parameter"),
@@ -535,8 +738,7 @@ coef.cecl_dep <- \(object, ...) {
         names_from = "parameter",
         values_from = "value"
       )
-
-    # split column name, if required
+    
     if (ncol(params_loc) > 4) {
       var_names <- stringr::str_split(params_loc_wide$cond_var, "\\.", n = 2)
       params_loc_wide$var <- vapply(
@@ -550,13 +752,12 @@ coef.cecl_dep <- \(object, ...) {
         character(1)
       )
     } else {
-      # opposite to cond_var
       params_loc_wide$var <- names(dep_params[[loc]])
     }
-
+    
     params_loc_wide
   }))
-
+  
   ret <- as.data.frame(dplyr::relocate(
     dep_params_df, name, var, cond_var, dplyr::everything()
   ))
@@ -589,564 +790,32 @@ print.cecl_dep <- \(x, ...) {
   cat("Call:\n")
   print(x$call)
   cat("\nNumber of locations:", length(x$dependence), "\n")
-  n_vars <- colnames(x$transformed[[1]])
-  # fail safe for user-specified dependence object with no trans data
-  if (is.null(n_vars)) {
-    n_vars <- names(x$dependence[[1]])
-  }
-  cat(
-    "Variables:", paste(n_vars, collapse = ", "), "\n"
-  )
-
+  
+  # <<<<<<< Updated upstream
+  #   n_vars <- colnames(x$transformed[[1]])
+  #   # fail safe for user-specified dependence object with no trans data
+  #   if (is.null(n_vars)) {
+  #     n_vars <- names(x$dependence[[1]])
+  #   }
+  #   cat(
+  #     "Variables:", paste(n_vars, collapse = ", "), "\n"
+  #   )
+  # =======
+  #   vars <- sort(unname(colnames(x$dependence[[1]][[1]])))
+  #   cond_vars <- sort(names(x$dependence[[1]]))
+  #   cat("Dependent Variables:", paste(vars, collapse = ", "), "\n")
+  #   cat("Conditioning Variables:", paste(cond_vars, collapse = ", "), "\n")
+  # >>>>>>> Stashed changes
+  
+  vars <- sort(unique(unlist(lapply(
+    x$dependence[[1]],
+    colnames,
+    use.names = FALSE
+  ))))
+  cond_vars <- sort(names(x$dependence[[1]]))
+  
+  cat("Dependent Variables:", paste(vars, collapse = ", "), "\n")
+  cat("Conditioning Variables:", paste(cond_vars, collapse = ", "), "\n")
+  
   invisible(x)
-}
-
-#' @title Summary of `cecl_dep` object
-#' @description Summarise a fitted `cecl_dep` object.
-#' @param object Object of class `cecl_dep`.
-#' @param ... Additional arguments (not used).
-#' @return Data frame summarising dependence parameters for each location
-#' and conditioned variable.
-#' @rdname summary.cecl_dep
-#' @export
-#' @method summary cecl_dep
-summary.cecl_dep <- \(object, ...) {
-  stopifnot(inherits(object, "cecl_dep"))
-  dep_params <- stats::coef(object)
-  dep_params
-}
-
-#' @title Generic scatter plot function
-#' @description Generic scatter plot function for different object classes.
-#' @param x Object to plot.
-#' @param ... Additional arguments passed to methods.
-#' @return Plot of object.
-#' @rdname plot_scatter
-#' @keywords internal
-plot_scatter <- \(x, ...) {
-  UseMethod("plot_scatter")
-}
-
-#' @title Plot scatter plot from `cecl_dep` object
-#' @description Plot scatter plot of dependence parameters from a fitted
-#' `cecl_dep` object.
-#' @param x Object of class `cecl_dep`.
-#' @param var Conditioned variable name to plot.
-#' @param cond_var Conditioning variable name to plot against.
-#' @param labels List mapping variable names to plot labels, e.g.,
-#' `list("rain" = "Precipitation", "wind" = "Wind Speed")`, for use in axis
-#' labels. Default is `NULL`, which uses variable names as is.
-#' @param type Type of plot to return. Either `"ggplot"` (default) or `"plot"`.
-#' @param ... Additional arguments to pass to plotting functions.
-#' @return ggplot object of scatter plot.
-#' @rdname plot_scatter
-#' @export
-#' @method plot_scatter cecl_dep
-plot_scatter.cecl_dep <- \(
-  x, var, cond_var, labels = NULL, type = c("ggplot", "plot"), ...
-) {
-  stopifnot(inherits(x, "cecl_dep"))
-  type <- match.arg(type)
-
-  a <- b <- name <- NULL
-
-  # pull dependence parameters for all locations
-  dep_params <- stats::coef(x)
-  # pull for specific var/cond_var
-  dep_params_spec <- dep_params[
-    dep_params$var == var & dep_params$cond_var == cond_var,
-  ]
-
-  # For plotting, tidy up variable names
-  var_lab <- var
-  cond_var_lab <- cond_var
-  if (!is.null(labels)) {
-    var_lab <- labels[[var]]
-    cond_var_lab <- labels[[cond_var]]
-  }
-  dep_params_spec$facet_lab <- paste0(var_lab, " | ", cond_var_lab)
-
-  if (type == "ggplot") {
-    plot <- dep_params_spec |>
-      ggplot2::ggplot(ggplot2::aes(x = a, y = b)) +
-      ggplot2::geom_point(...) +
-      ggplot2::facet_wrap(~facet_lab) +
-      cecl_theme() +
-      ggplot2::labs(
-        x = expression(a),
-        y = expression(b),
-      )
-
-    # add labels if ggrepel is installed
-    if (requireNamespace("ggrepel", quietly = TRUE)) {
-      plot <- plot +
-        ggrepel::geom_text_repel(ggplot2::aes(label = name))
-    } else {
-      plot <- plot +
-        ggplot2::geom_text(ggplot2::aes(label = name), vjust = -0.5)
-    }
-
-    return(plot)
-  } else {
-    plot(
-      dep_params_spec$a,
-      dep_params_spec$b,
-      xlab = expression(alpha),
-      ylab = expression(beta),
-      main = paste0(var_lab, " | ", cond_var_lab),
-      pch = 16,
-      col = grDevices::rgb(0, 0, 0, 0.5),
-      xlim = c(-1, 1),
-      ylim = c(min(dep_params_spec$b) - 0.1, max(dep_params_spec$b) + 0.1),
-      ...
-    )
-
-    graphics::text(
-      dep_params_spec$a,
-      dep_params_spec$b,
-      labels = dep_params_spec$name,
-      pos = 3
-    )
-  }
-  return(invisible(NULL))
-}
-
-#' @title Plot residuals from `cecl_dep` object
-#' @description Plot residuals from a fitted `cecl_dep` object.
-#' @param obj Object of class `cecl_dep`.
-#' @param loc Location name to plot residuals for.
-#' @param var Conditioned variable name to plot residuals for.
-#' @param cond_var Conditioning variable name to plot residuals against.
-#' @param labels List mapping variable names to plot labels, e.g.,
-#' `list("rain" = "Precipitation", "wind" = "Wind Speed")`, for use in axis
-#' labels.
-#' Default is `NULL`, which uses variable names as is.
-#' @return ggplot object of residuals plot.
-#' @rdname plot_resid
-#' @keywords internal
-plot_resid <- \(
-  obj, loc, var, cond_var, labels = NULL, type = c("ggplot", "plot")
-) {
-  stopifnot(inherits(obj, "cecl_dep"))
-  type <- match.arg(type)
-  # pull specific residuals
-  Z <- obj$residual[[loc]][[var]][, cond_var, drop = FALSE]
-  # pull specific dependence quantile
-  dqu <- obj$dependence[[loc]][[var]]["dth", cond_var, drop = TRUE]
-
-  # For plotting, tidy up variable names
-  cond_var_plt <- cond_var
-  lhs_var_plt <- var
-  if (!is.null(labels)) {
-    cond_var_plt <- labels[[cond_var]]
-    lhs_var_plt <- labels[[var]]
-  }
-
-  if (all(is.na(Z))) {
-    return(NA)
-  }
-
-  n <- length(Z)
-
-  p <- seq(dqu, 1 - (1 / n), length = n)
-
-  if (type == "ggplot") {
-    plot <- data.frame(p, "resid" = Z) |>
-      ggplot2::ggplot(ggplot2::aes(x = p, y = Z)) +
-      ggplot2::geom_point(alpha = 0.7) +
-      ggplot2::geom_smooth() +
-      cecl_theme() +
-      ggplot2::labs(
-        x = paste0("F(", cond_var_plt, ")"),
-        y = paste0("Z ", lhs_var_plt, " | ", cond_var_plt)
-      )
-    return(plot)
-  } else {
-    plot(
-      p, Z,
-      xlab = paste0("F(", cond_var_plt, ")"),
-      ylab = paste0("Z ", lhs_var_plt, " | ", cond_var_plt),
-      # TODO Do I want to use a different colour set?
-      pch = 16, col = grDevices::rgb(0, 0, 0, 0.5)
-    )
-    graphics::lines(
-      stats::loess.smooth(p, Z),
-      col = "blue", lwd = 2
-    )
-  }
-  return(invisible(NULL))
-}
-
-# plot quantiles of conditional expectation at single location (for single var)
-plot_quantile <- \(
-  obj,
-  loc,
-  var,
-  cond_var,
-  quantiles = seq(0.1, by = 0.2, len = 5),
-  labels = NULL,
-  type = c("ggplot", "plot")
-) {
-  type <- match.arg(type)
-  stopifnot(inherits(obj, "cecl_dep"))
-
-  x <- y <- NULL # to appease R CMD check
-
-  # take out data for one location
-  dep_fit_spec <- list(
-    "residual" = obj$residual[[loc]][[var]][, cond_var, drop = FALSE],
-    "dependence" = obj$dependence[[loc]][[var]][, cond_var, drop = FALSE],
-    "transformed" = obj$transformed[[loc]][, c(var, cond_var), drop = FALSE]
-  )
-
-  n <- nrow(dep_fit_spec$residual)
-
-  # dependence parameters for conditioning variables
-  dep <- dep_fit_spec$dependence
-  # dependence quantiles and thresholds (on laplace scale)
-  dth <- dep["dth", ]
-  # calculate dependence quantile by reversing dth for transformed data
-  # TODO Maybe supply from outside???
-  dqu <- stats::ecdf(dep_fit_spec$transformed[, cond_var, drop = TRUE])(dth)
-  # Determine x-axis values to estimate CE quantiles at along conditioned var
-  xmax <- max(dep_fit_spec$transformed[, cond_var])
-  dif <- xmax - dth
-  xlim <- c(dth - 0.1 * dif, dth + 1.5 * dif)
-
-  # Upper limit of x-axis
-  plim <- 1
-  # CDF probabilities to plot at
-  p <- seq(dqu, 1 - 1 / n, length = n)
-  # take out largest point to avoid Inf in CDF transform
-  len <- 501
-  plotp <- seq(dqu, plim, len = len)[-len]
-  # transform to Laplace scale; these will be x-values in plot
-  plotx <- as.vector(dlaplace(plotp))
-
-  # convert probs to Laplace scale (these are values to calculate CE line at)
-  xq <- dlaplace(plotp)
-
-  # pull dependence coefficients and quantiles of residuals
-  co <- dep_fit_spec$dependence
-  zq <- stats::quantile(dep_fit_spec$residual, quantiles)
-
-  # calculates regression lines from quantiles of residuals
-  yq <- sapply(zq, \(z, xq) {
-    (co["a", ] * xq) + ((xq^co["b", ]) * z)
-  }, xq = xq)
-
-  # Previously transformed to original margins; now keep on Laplace scale
-  ploty <- yq
-  dth_spec <- dth
-
-  # For plotting, tidy up variable names
-  if (!is.null(labels)) {
-    labels <- labels(c(cond_var, var))
-  } else {
-    labels <- c(cond_var, var)
-  }
-
-  if (type == "ggplot") {
-    base_plot <- data.frame(dep_fit_spec$transformed) |>
-      stats::setNames(c("x", "y")) |>
-      ggplot2::ggplot(ggplot2::aes(x, y)) +
-      ggplot2::geom_point() +
-      cecl_theme() +
-      # add vertical line at threshold
-      ggplot2::geom_vline(xintercept = dth) +
-      ggplot2::labs(x = labels[[1]], y = labels[[2]])
-
-    # plot CE quantiles recursively
-    add_line_ggplot <- \(p, ploty) {
-      if (length(ploty) == 0) {
-        p
-      } else {
-        add_line_ggplot(
-          p +
-            ggplot2::geom_line(
-              data     = data.frame(x = plotx, y = ploty[, 1]),
-              mapping  = ggplot2::aes(x = plotx, y = ploty[, 1]),
-              linetype = 2,
-              col      = "blue"
-            ),
-          ploty[, -1, drop = FALSE]
-        )
-      }
-    }
-    p <- add_line_ggplot(base_plot, ploty)
-    return(p)
-  } else {
-    plot(
-      dep_fit_spec$transformed[, cond_var, drop = TRUE],
-      dep_fit_spec$transformed[, var, drop = TRUE],
-      xlab = labels[[1]],
-      ylab = labels[[2]],
-      pch = 16,
-      col = grDevices::rgb(0, 0, 0, 0.5)
-    )
-    graphics::abline(v = dth, lty = 2)
-
-    # plot CE quantiles recursively
-    add_line_plot <- \(ploty) {
-      if (length(ploty) == 0) {
-        NULL
-      } else {
-        graphics::lines(
-          plotx,
-          ploty[, 1],
-          lty = 2,
-          col = "blue"
-        )
-        add_line_plot(ploty[, -1, drop = FALSE])
-      }
-    }
-    add_line_plot(ploty)
-  }
-  return(invisible(NULL))
-}
-
-#' @title Plot from `cecl_dep` object
-#' @description Plot residuals or conditional quantiles from a fitted
-#' `cecl_dep` object.
-#' @param x Object of class `cecl_dep`.
-#' @param which Character string specifying which plot to produce.
-#' Either `"residual"` for residuals plot, `"quantile"` for conditional
-#' quantiles plot, or `"scatter"` for dependence parameters scatter plot.
-#' @param loc Location name to plot for.
-#' @param var Conditioned variable name to plot for.
-#' @param cond_var Conditioning variable name to plot against.
-#' @param quantiles Numeric vector of quantiles to plot for conditional
-#' quantiles plot. Default is `seq(0.1, by = 0.2, len = 5)`.
-#' @param labels List mapping variable names to plot labels, e.g.,
-#' `list("rain" = "Precipitation", "wind" = "Wind Speed")`, for use in axis
-#' labels.
-#' Default is `NULL`, which uses variable names as is.
-#' @param ... Additional arguments passed to plotting functions.
-#' @return ggplot object of specified plot.
-#' @rdname plot.cecl_dep
-#' @export
-#' @method plot cecl_dep
-plot.cecl_dep <- \(
-  x,
-  which = c("residual", "quantile", "scatter"),
-  loc,
-  var,
-  cond_var,
-  quantiles = seq(0.1, by = 0.2, len = 5),
-  labels = NULL,
-  ...
-) {
-  stopifnot(inherits(x, "cecl_dep"))
-  which <- match.arg(which)
-
-  if (which == "residual") {
-    plot_resid(
-      obj      = x,
-      loc      = loc,
-      var      = var,
-      cond_var = cond_var,
-      labels   = labels,
-      type     = "plot"
-    )
-  } else if (which == "quantile") {
-    plot_quantile(
-      obj       = x,
-      loc       = loc,
-      var       = var,
-      cond_var  = cond_var,
-      quantiles = quantiles,
-      labels    = labels,
-      type      = "plot"
-    )
-  } else if (which == "scatter") {
-    plot_scatter(
-      x        = x,
-      var      = var,
-      cond_var = cond_var,
-      labels   = labels,
-      type     = "plot"
-    )
-  }
-}
-
-#' @title ggplot from `cecl_dep` object
-#' @description Create ggplot of residuals or conditional quantiles from a
-#' fitted `cecl_dep` object.
-#' @param data Object of class `cecl_dep`.
-#' @param mapping Not used.
-#' @param which Character string specifying which plot to produce.
-#' Either `"residual"` for residuals plot or `"quantile"` for conditional
-#' quantiles plot.
-#' @inheritParams plot.cecl_dep
-#' @param ... Additional arguments passed to plotting functions.
-#' @param environment Not used.
-#' @return ggplot object of specified plot.
-#' @rdname ggplot.cecl_dep
-#' @export
-#' @method ggplot cecl_dep
-ggplot.cecl_dep <- \(
-  data = NULL,
-  mapping = ggplot2::aes(),
-  which = c("residual", "quantile", "scatter"),
-  loc,
-  var,
-  cond_var,
-  quantiles = seq(0.1, by = 0.2, len = 5),
-  labels = NULL,
-  ...,
-  environment = parent.frame()
-) {
-  stopifnot(inherits(data, "cecl_dep"))
-  which <- match.arg(which)
-
-  if (which == "residual") {
-    p <- plot_resid(
-      obj      = data,
-      loc      = loc,
-      var      = var,
-      cond_var = cond_var,
-      labels   = labels,
-      type     = "ggplot",
-      ...
-    )
-  } else if (which == "quantile") {
-    p <- plot_quantile(
-      obj       = data,
-      loc       = loc,
-      var       = var,
-      cond_var  = cond_var,
-      quantiles = quantiles,
-      labels    = labels,
-      type      = "ggplot",
-      ...
-    )
-  } else if (which == "scatter") {
-    p <- plot_scatter(
-      x        = data,
-      var      = var,
-      cond_var = cond_var,
-      labels   = labels,
-      type     = "ggplot",
-      ...
-    )
-  }
-  return(p)
-}
-
-# TODO Be more detailed with description, make it clear that the user can
-# supply their own method as long as it has a, b, m, s and dth values
-#' @title Generic function to convert to `cecl_dep` object
-#' @description Generic function to convert an object to class `cecl_dep`.
-#' @param x Object to convert.
-#' @param ... Additional arguments passed to methods.
-#' @return Object of class `cecl_dep`.
-#' @rdname as_cecl_dep
-#' @export
-as_cecl_dep <- \(x, ...) {
-  UseMethod("as_cecl_dep")
-}
-
-#' @title Convert data.frame to `cecl_dep` object
-#' @description Convert a data.frame of dependence parameters to class
-#' `cecl_dep`.
-#' @param x Data frame of dependence parameters.
-#' @param name_col Name of column in `x` containing location names.
-#' Default is `"name"`.
-#' @param add_obj Additional named list object to add to returned
-#' `cecl_dep` object. Default is `NULL`.
-#' @param ... Additional arguments (not used).
-#' @return Object of class `cecl_dep`.
-#' @rdname as_cecl_dep
-#' @export
-#' @method as_cecl_dep data.frame
-as_cecl_dep.data.frame <- \(
-  x,
-  name_col = "name",
-  add_obj = NULL,
-  ...
-) {
-  stopifnot(inherits(x, "data.frame"))
-  stopifnot(
-    "name_col, var and cond_var columns must be present in data.frame" =
-      all(c(name_col, "var", "cond_var") %in% colnames(x))
-  )
-  stopifnot(
-    all(c("a", "b", "m", "s", "dth") %in% colnames(x))
-  )
-
-  # first split into a list with one element per group/location
-  x_lst <- x |>
-    dplyr::mutate(dplyr::across(
-      dplyr::all_of(name_col), \(y) factor(y, levels = unique(x[[name_col]]))
-    )) |>
-    dplyr::group_split(.data[[name_col]], .keep = FALSE)
-
-  # next, convert each to a matrix of parameters
-  vars <- unique(x$var)
-  ret <- lapply(x_lst, \(y) {
-    # create list objects for each variable
-    params_list <- lapply(vars, \(v) {
-      y_var <- y[y$var == v, ]
-      # add dummy ll if not in data
-      if (!"ll" %in% colnames(y_var)) {
-        y_var$ll <- NA
-      }
-      params_mat <- t(as.matrix(
-        y_var[, c("a", "b", "m", "s", "ll", "dth")]
-      ))
-      colnames(params_mat) <- y_var$cond_var
-      params_mat
-    })
-    names(params_list) <- vars
-    params_list
-  })
-  names(ret) <- unique(x[[name_col]])
-  ret <- list("dependence" = ret)
-  if (!is.null(add_obj)) {
-    ret <- c(ret, add_obj)
-  }
-  class(ret) <- "cecl_dep"
-  ret
-}
-
-
-#' @title Convert list to `cecl_dep` object
-#' @description Convert a list of data.frames of dependence parameters to class
-#' `cecl_dep`.
-#' @param x List of data frames of dependence parameters.
-#' @param name_col Name of column in each data.frame in `x` containing
-#' location names. Default is `"name"`.
-#' @param add_obj Additional named list object to add to returned
-#' `cecl_dep` object. Default is `NULL`.
-#' @param ... Additional arguments (not used).
-#' @return Object of class `cecl_dep`.
-#' @rdname as_cecl_dep
-#' @export
-#' @method as_cecl_dep list
-as_cecl_dep.list <- \(
-  x,
-  name_col = "name",
-  add_obj = NULL,
-  ...
-) {
-  stopifnot(inherits(x, "list"))
-  stopifnot(
-    all(sapply(x, \(y) {
-      inherits(y, "data.frame")
-    }))
-  )
-
-  # if x is unnamed, assume name column is present in each data.frame
-  if (is.null(names(x))) {
-    x_df <- dplyr::bind_rows(x)
-  } else {
-    x_df <- dplyr::bind_rows(x, .id = name_col)
-  }
-
-  # call data.frame method
-  as_cecl_dep.data.frame(
-    x = x_df,
-    name_col = name_col,
-    add_obj = add_obj
-  )
 }
