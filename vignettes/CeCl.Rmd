@@ -290,6 +290,7 @@ with(
 Unsurprisingly, since we specified GP margins when simulating the data, the GPD fits appear to be quite good, for `r n_per_loc * 0.1`
 observations in the tail (10% of `r n_per_loc` observations per location).
 
+<!-- TODO: Can't we just use to_cecl_marg directly, without rescaling?? -->
 However, We also recognise that marginal fitting in extremes can be a complex task, and users may wish to use their own preferred methods for marginal fitting.
 Therefore, the `CeCl` package also provides the `to_cecl_marg` function to allow users to provide their own marginally transformed data in standard Laplace margins.
 Since we know the parameter values of our GPD margins, we can cheat a little and provide standard Laplace transformed data directly, using the fact that the rescaled scale parameter is given by $\sigma_{\nu} = \sigma_u + \xi (\nu - u)$, where $\nu$ and $u$ are the new and old thresholds, respectively.

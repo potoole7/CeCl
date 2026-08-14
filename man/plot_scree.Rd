@@ -4,7 +4,7 @@
 \alias{plot_scree}
 \title{Scree plot for \code{cecl_dist} object}
 \usage{
-plot_scree(dist_mat, scree_k = 1:5, type = c("ggplot", "plot"), ...)
+plot_scree(dist_mat, scree_k = 1:5, type = c("ggplot", "plot", "none"), ...)
 }
 \arguments{
 \item{dist_mat}{Distance matrix of class \code{dist}.}

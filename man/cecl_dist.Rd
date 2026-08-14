@@ -8,8 +8,11 @@ for the conditional extremes model.}
 cecl_dist(
   dep_obj,
   marg_obj,
-  var = NULL,
+  cond_var = NULL,
+  dth = NULL,
   laplace_cap = 0.99,
+  laplace_cap_val = NULL,
+  laplace_sample = NULL,
   n_mc = 500,
   ncores = 1,
   par_dist = FALSE,
@@ -21,9 +24,6 @@ cecl_dist(
 \item{dep_obj}{Object of class \code{cecl_dep}.}
 
 \item{marg_obj}{Object of class \code{cecl_marg}.}
-
-\item{var}{Optional conditioning variable name to calculate distance matrix
-for, if not all variables, Default: NULL.}
 
 \item{laplace_cap}{Upper quantile to sample Laplace distribution
 truncation point from, Default: 0.99.}
@@ -41,6 +41,9 @@ high number of locations, but has significant overheads, Default: FALSE.}
 for reproducibility.}
 
 \item{...}{Additional arguments passed to \code{proxy::dist()}.}
+
+\item{var}{Optional conditioning variable name to calculate distance matrix
+for, if not all variables, Default: NULL.}
 }
 \value{
 List of distance matrices for each variable.

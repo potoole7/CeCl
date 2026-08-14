@@ -6,9 +6,10 @@
 \usage{
 cecl_dep(
   obj,
-  cond_prob,
+  cond_prob = NULL,
+  cond_val = NULL,
   vars = NULL,
-  cond_var = NULL,
+  cond_vars = NULL,
   start = c(a = 0.01, b = 0.01),
   ncores = 1,
   nruns = 1,
@@ -26,7 +27,7 @@ variables.}
 \item{vars}{Character vector of variable names to fit dependence model for.
 If \code{NULL}, all variables are used.}
 
-\item{cond_var}{Character vector of variable names to condition on.
+\item{cond_vars}{Character vector of variable names to condition on.
 If \code{NULL}, all variables are used.}
 
 \item{start}{Named numeric vector or list of named numeric matrices
