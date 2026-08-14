@@ -203,6 +203,12 @@ summary.cecl_clust <- \(object, ...) {
 #' for, if not all variables, Default: NULL.
 #' @param laplace_cap Upper quantile to sample Laplace distribution
 #' truncation point from, Default: 0.99.
+#' @param laplace_cap_val Optional specific truncation point for Laplace
+#' distibution, which can be used to ensure the same truncation point is used
+#' for each variable, Default: NULL.
+#' @param laplace_sample Optional specific sample from truncated Laplace
+#' distribution, which can be used to ensure the same sample is used for
+#' each variable, Default: NULL.
 #' @param n_mc Number of Monte Carlo samples to use in distance
 #' calculation, Default: 500.
 #' @param ncores Number of cores to use for parallel computation, Default: 1.

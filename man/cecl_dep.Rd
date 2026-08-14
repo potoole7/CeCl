@@ -24,6 +24,10 @@ cecl_dep(
 \item{cond_prob}{Numeric vector of quantiles to use for conditioning
 variables.}
 
+\item{cond_val}{Numeric vector of thresholds on the Laplace scale to use
+for conditioning variables. Exactly one of \code{cond_prob} and \code{cond_val}
+must be supplied.}
+
 \item{vars}{Character vector of variable names to fit dependence model for.
 If \code{NULL}, all variables are used.}
 

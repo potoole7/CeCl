@@ -15,7 +15,6 @@ Depends: R (>= 4.5.0)
 Imports:
   stats,
   dplyr,
-  tidyr,
   evgam,
   rlang,
   purrr,
@@ -28,7 +27,9 @@ Imports:
   ggsci,
   ismev,
   qgam,
-  forcats
+  forcats,
+  scales, 
+  viridisLite
 Suggests:
     copula,
     ggrepel,

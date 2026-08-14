@@ -41,6 +41,8 @@ cecl_dep <- \(
 ) {
   stopifnot(inherits(obj, "cecl_marg"))
 
+  cond_var <- var <- name <- a <- b <- NULL
+
   # must have one of cond_prob or cond_val
   if (is.null(cond_prob) && is.null(cond_val) ||
     sum(!is.null(cond_prob), !is.null(cond_val)) > 1
@@ -340,6 +342,11 @@ ce_optim <- \(
   fixed_b = FALSE,
   nruns = 2
 ) {
+
+  # set objects to NULL to appease R CMD check
+  var <- cond_var <- a <- b <- NULL
+
+
   # must specify either dqu or dth
   if (is.null(dqu) && is.null(dth) ||
     sum(!is.null(dqu), !is.null(dth)) > 1) {
