@@ -38,8 +38,9 @@ to_matrix <- \(F_hat) {
 #' @param F_hat Matrix of CDF values.
 #' @param tol Tolerance to avoid issues at 0 and 1.
 #' @return Matrix of Laplace-transformed values.
-#' @rdname plaplace
+#' @rdname dlaplace
 #' @export
+# TODO Possibly need to rename???
 dlaplace <- \(F_hat, tol = .Machine$double.eps) {
   apply(to_matrix(F_hat), 2, \(x) {
     y <- pmin(pmax(x, tol), 1 - tol)
@@ -66,6 +67,7 @@ plaplace <- \(F_hat) {
 #' @rdname qlaplace
 #' @export
 qlaplace <- \(p) {
+  p <- pmin(pmax(p, .Machine$double.eps), 1 - .Machine$double.eps)
   ifelse(p < 0.5, log(2 * p), -log(2 * (1 - p)))
 }
 
