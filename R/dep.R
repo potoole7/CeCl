@@ -643,8 +643,7 @@ print.cecl_dep <- \(x, ...) {
   vars <- sort(unique(unlist(lapply(
     x$dependence[[1]],
     colnames,
-    use.names = FALSE
-  ))))
+  ), use.names = FALSE)))
   cond_vars <- sort(names(x$dependence[[1]]))
   cat("Dependent Variables:", paste(vars, collapse = ", "), "\n")
   cat("Conditioning Variables:", paste(cond_vars, collapse = ", "), "\n")
