@@ -12,7 +12,7 @@ cecl_clust(x, ...)
   x,
   marg_obj,
   k,
-  var = NULL,
+  cond_var = NULL,
   cluster_mem = NULL,
   laplace_cap = 0.99,
   n_mc = 500,
@@ -22,7 +22,7 @@ cecl_clust(x, ...)
   ...
 )
 
-\method{cecl_clust}{cecl_dist}(x, k, var = NULL, cluster_mem = NULL, ...)
+\method{cecl_clust}{cecl_dist}(x, k, cond_var = NULL, cluster_mem = NULL, ...)
 }
 \arguments{
 \item{x}{Object of class \code{cecl_dist}.}
@@ -33,7 +33,7 @@ cecl_clust(x, ...)
 
 \item{k}{Number of clusters.}
 
-\item{var}{Optional conditioning variable name to cluster
+\item{cond_var}{Optional conditioning variable name to cluster
 on, if not all variables, Default: NULL.}
 
 \item{cluster_mem}{Optional vector of true cluster memberships

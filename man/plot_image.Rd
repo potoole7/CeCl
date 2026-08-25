@@ -14,6 +14,10 @@ plot_image(x, ...)
   show_ylab = TRUE,
   order_by_cluster = TRUE,
   label_colours = NULL,
+  fill_limits = NULL,
+  fill_breaks = ggplot2::waiver(),
+  fill_colours = NULL,
+  fill_name = "Dissimilarity",
   ...
 )
 }

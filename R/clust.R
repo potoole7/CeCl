@@ -26,7 +26,7 @@ cecl_clust <- \(x, ...) {
 #' @param x Object of class `cecl_dep`.
 #' @param marg_obj Object of class `cecl_marg`.
 #' @param k Number of clusters.
-#' @param var Optional conditioning variable name to cluster
+#' @param cond_var Optional conditioning variable name to cluster
 #' on, if not all variables, Default: NULL.
 #' @param cluster_mem Optional vector of true cluster memberships
 #' to evaluate clustering solution, Default: NULL.
@@ -40,7 +40,7 @@ cecl_clust.cecl_dep <- \(
   x,
   marg_obj,
   k,
-  var = NULL,
+  cond_var = NULL,
   cluster_mem = NULL,
   laplace_cap = 0.99,
   n_mc = 500,
@@ -56,7 +56,7 @@ cecl_clust.cecl_dep <- \(
   dist_obj <- cecl_dist(
     dep_obj     = x,
     marg_obj    = marg_obj,
-    var         = var,
+    var         = cond_var,
     laplace_cap = laplace_cap,
     n_mc        = n_mc,
     ncores      = ncores,
@@ -98,15 +98,15 @@ cecl_clust.cecl_dep <- \(
 cecl_clust.cecl_dist <- \(
   x,
   k,
-  var = NULL,
+  cond_var = NULL,
   cluster_mem = NULL,
   ...
 ) {
   stopifnot(inherits(x, "cecl_dist"))
 
   dist_mat <- x$dist_mat
-  if (!is.null(var)) {
-    dist_mat <- x$dist_mats[[var]]
+  if (!is.null(cond_var)) {
+    dist_mat <- x$dist_mats[[cond_var]]
   }
 
   # fit clustering
@@ -151,6 +151,31 @@ print.cecl_clust <- \(x, ...) {
   invisible(x)
 }
 
+# TODO Add model/matrix used in clustering to cecl_clust object
+# TODO Change `pam` name in cluster object to `cluster` (to be more abstract)
+#' @title Extract clustering solution from `cecl_clust` object
+#' @description Extract clustering solution from a fitted
+#' `cecl_clust` object.
+#' @param object Object of class `cecl_clustp`.
+#' @param ... Additional arguments (not used).
+#' @return Data frame of cluster allocations for each location and
+#' conditioned variable.
+#' @rdname coef.cecl_clust
+#' @export
+#' @method coef cecl_clust
+coef.cecl_clust <- \(object, ...) {
+  stopifnot(inherits(object, "cecl_clust"))
+
+  # name <- var <- cond_var <- NULL # to appease R CMD check
+  ret <- data.frame(object$pam$clustering)
+  ret$name <- row.names(ret)
+  names(ret)[1] <- "cluster"
+  rownames(ret) <- NULL
+
+  class(ret) <- c("coef.cecl_clust", class(ret))
+  return(ret)
+}
+
 #' @title Summary of `cecl_clust` object
 #' @description Summarise a fitted `cecl_clust` object.
 #' @param object Object of class `cecl_clust`.
@@ -178,6 +203,12 @@ summary.cecl_clust <- \(object, ...) {
 #' for, if not all variables, Default: NULL.
 #' @param laplace_cap Upper quantile to sample Laplace distribution
 #' truncation point from, Default: 0.99.
+#' @param laplace_cap_val Optional specific truncation point for Laplace
+#' distibution, which can be used to ensure the same truncation point is used
+#' for each variable, Default: NULL.
+#' @param laplace_sample Optional specific sample from truncated Laplace
+#' distribution, which can be used to ensure the same sample is used for
+#' each variable, Default: NULL.
 #' @param n_mc Number of Monte Carlo samples to use in distance
 #' calculation, Default: 500.
 #' @param ncores Number of cores to use for parallel computation, Default: 1.
@@ -196,6 +227,8 @@ cecl_dist <- \(
   marg_obj,
   var = NULL,
   laplace_cap = 0.99,
+  laplace_cap_val = NULL,
+  laplace_sample = NULL,
   n_mc = 500,
   ncores = 1,
   par_dist = FALSE,
@@ -205,39 +238,89 @@ cecl_dist <- \(
   stopifnot(inherits(dep_obj, "cecl_dep"))
   stopifnot(inherits(marg_obj, "cecl_marg"))
 
-  n <- NULL
+  # must be one of laplace_cap or laplace_cap_val provided
+  # TODO Change to also allow laplace_sample on its own!
+  if (sum(c(
+    !is.null(laplace_cap),
+    !is.null(laplace_cap_val)
+  )) != 1L) {
+    stop("Must provide either `laplace_cap` or `laplace_cap_val`.")
+  }
 
   # Only want a single variable, if provided
-  stopifnot(is.null(var) || length(var == 1))
+  stopifnot(
+    "`var` must be NULL or a single conditioning-variable name." =
+      is.null(var) || length(var) == 1L
+  )
+
+  # check that laplace_sample is correct, if provided
+  if (!is.null(laplace_sample)) {
+    stopifnot(
+      "`laplace_sample` must be a numeric vector." =
+        is.vector(laplace_sample) && is.numeric(laplace_sample)
+    )
+    stopifnot(
+      "`laplace_sample` must be a numeric vector of length `n_mc`." =
+        length(laplace_sample) == n_mc
+    )
+  }
 
   # pull transformed data
   trans <- marg_obj$transformed
 
-  dependence <- dep_obj$dependence
+  # The CE storage invariant is:
+  # dependence[[location]][[conditioning variable]][, conditioned variable].
+  # Pull by location first, then transpose to conditioning variable -> location.
+  params_by_loc <- lapply(dep_obj$dependence, pull_params)
+  thresh_by_loc <- lapply(dep_obj$dependence, pull_thresh_trans)
+  params <- purrr::transpose(params_by_loc)
+  thresh <- purrr::transpose(thresh_by_loc)
 
-  # pull parameter values for each location
-  params <- lapply(dep_obj$dependence, pull_params)
+  if (length(params) == 0L || is.null(names(params))) {
+    stop(
+      "`dep_obj` does not contain fits named by conditioning variable.",
+      call. = FALSE
+    )
+  }
 
-  # pull Laplace-scale threshold values for each location
-  thresh <- lapply(dep_obj$dependence, pull_thresh_trans)
-
-  # list of locs containing vars -> list of vars, each containing all locs
-  params <- purrr::transpose(params)
-
-  # If only want a single *conditioning* variable
+  # If only one RHS conditioning variable is requested, retain its outer item.
   if (!is.null(var)) {
+    if (!var %in% names(params)) {
+      stop(
+        sprintf(
+          "Conditioning variable '%s' is not available in `dep_obj`.",
+          var
+        ),
+        call. = FALSE
+      )
+    }
     params <- params[var]
     thresh <- thresh[var]
   }
 
-  # take maximum Laplace thresholds; want to generate points above this
-  thresh_max <- lapply(dplyr::bind_rows(thresh), max)
+  # Generate common conditioning values above the largest fitted threshold
+  # across locations and LHS conditioned-variable columns.
+  thresh_max <- lapply(thresh, \(thresholds_i) {
+    threshold_values <- unlist(thresholds_i, use.names = FALSE)
+    if (length(threshold_values) == 0L || all(is.na(threshold_values))) {
+      stop(
+        "No non-missing thresholds found for a conditioning variable.",
+        call. = FALSE
+      )
+    }
+    max(threshold_values, na.rm = TRUE)
+  })
 
   # TODO Move calculating y values to separate function? As above
   # TODO Move this to separate function anyway!
-  rlaplace_trunc <- \(n, thresh_max, trans_x, upper_quant = 0.99) {
+  rlaplace_trunc <- \(n, thresh_max, trans_x, upper_quant = 0.99, y_max) {
     # get maximum point
-    y_max <- stats::quantile(trans_x, upper_quant, na.rm = TRUE)
+    if (is.null(y_max)) {
+      y_max <- stats::quantile(
+        trans_x, upper_quant,
+        na.rm = TRUE, names = FALSE
+      )
+    }
     stopifnot(
       "y_max must be greater than thresh_max" = y_max > thresh_max
     )
@@ -247,6 +330,13 @@ cecl_dist <- \(
     U <- stats::runif(n, min = 0, max = p_max) # min=0 as we push up by thresh
     # inversion sampling from exponential distribution
     W <- -log(1 - U)
+
+    # print("test!")
+    # print(paste("thresh_max =", thresh_max))
+    # print(paste("y_max =", y_max))
+    # print(paste("p_max =", p_max))
+    # print(paste("mean(W) = ", mean(W)))
+
     # shift to the right by the threshold to get samples from truncated Laplace
     return(list(
       "y"     = thresh_max + W,
@@ -256,48 +346,96 @@ cecl_dist <- \(
 
   # optionally set seed to ensure reproducibility
   if (!is.null(seed)) {
-    set.seed(seed)
-  }
-  # loop through variables
-  y <- lapply(seq_along(thresh_max), \(i) {
-    # get transformed data for this variable
-    trans_x <- unlist(lapply(trans, \(x) x[, i, drop = TRUE]))
-    # sample from truncated Laplace distribution
-    res <- rlaplace_trunc(
-      n_mc, thresh_max[[i]], trans_x,
-      upper_quant = laplace_cap
-    )
-
-    # check if y_max exceeds any site-wise maxima
-    # If so, will be performing extrapolation, may want to warn user
-    site_max <- vapply(trans, \(x) max(x[, i], na.rm = TRUE), numeric(1))
-    n_above <- sum(res$y_max > site_max)
-    if (n_above > 0) {
-      message(paste0(
-        "Extrapolation performed for ",
-        n_above,
-        " groups for variable ",
-        names(thresh_max)[i],
-        ". Consider using a lower `laplace_cap`, ",
-        " or 'minima of site-wise maxima' approach."
-      ))
+    if (exists(".Random.seed", envir = .GlobalEnv, inherits = FALSE)) {
+      old_seed <- get(".Random.seed", envir = .GlobalEnv)
+      has_seed <- TRUE
+    } else {
+      has_seed <- FALSE
     }
 
-    res$y
+    set.seed(seed)
+
+    on.exit(
+      {
+        if (has_seed) {
+          assign(".Random.seed", old_seed, envir = .GlobalEnv)
+        } else {
+          rm(".Random.seed", envir = .GlobalEnv)
+        }
+      },
+      add = TRUE
+    )
+  }
+
+  # loop through RHS conditioning variables
+  y <- lapply(seq_along(thresh_max), \(i) {
+    cond_var_i <- names(thresh_max)[[i]]
+    if (!all(vapply(
+      trans,
+      \(x) cond_var_i %in% colnames(x),
+      logical(1)
+    ))) {
+      stop(
+        sprintf(
+          "Conditioning variable '%s' is absent from transformed data.",
+          cond_var_i
+        ),
+        call. = FALSE
+      )
+    }
+    # get transformed data for this conditioning variable
+    trans_x <- unlist(
+      lapply(trans, \(x) x[, cond_var_i, drop = TRUE]),
+      use.names = FALSE
+    )
+    # sample from truncated Laplace distribution, if not provided
+    if (is.null(laplace_sample)) {
+      res <- rlaplace_trunc(
+        n_mc, thresh_max[[i]], trans_x,
+        upper_quant = laplace_cap,
+        y_max = laplace_cap_val # if NULL, computed with quantile function
+      )
+
+      # check if y_max exceeds any site-wise maxima
+      # If so, will be performing extrapolation, may want to warn user
+      site_max <- vapply(
+        trans,
+        \(x) max(x[, cond_var_i, drop = TRUE], na.rm = TRUE),
+        numeric(1)
+      )
+      n_above <- sum(res$y_max > site_max)
+      if (n_above > 0) {
+        message(paste0(
+          "Extrapolation performed for ",
+          n_above,
+          " groups for conditioning variable ",
+          cond_var_i,
+          ". Consider using a lower `laplace_cap`, ",
+          " or 'minima of site-wise maxima' approach."
+        ))
+      }
+
+      # print(paste("thresh_max =", thresh_max[[i]]))
+      # print(paste("mean(laplace_sample) =", mean(res$y)))
+      return(res$y)
+    } else {
+      # print(paste("thresh_max =", thresh_max[[i]]))
+      # print(paste("mean(laplace_sample) =", mean(laplace_sample)))
+      return(laplace_sample)
+    }
   })
   names(y) <- names(params)
 
   # also want to return maximum value in y for each variable
   y_max <- vapply(y, max, numeric(1))
 
-  # calculate distance matrices for each variable
-  dist_chunk <- \(chunk_idx, lst, thresh_max, n, y_spec) {
+  # calculate distance matrices for each conditioning variable
+  dist_chunk <- \(chunk_idx, lst, thresh_max, y_spec) {
     proxy::dist(
       lst[chunk_idx],
       lst,
       method     = jsg_div,
       thresh_max = thresh_max,
-      n          = n,
       y_spec     = y_spec,
       upper      = TRUE,
       ...        = ...
@@ -322,9 +460,7 @@ cecl_dist <- \(
         seq_len(length(params[[i]])), # don't chunk
         params[[i]],
         thresh_max[[i]],
-        n = n,
-        y_spec = y[[i]],
-        ... = ...
+        y_spec = y[[i]]
       )
       # convert from crossidst to dist object
       class(mat) <- "matrix"
@@ -336,7 +472,7 @@ cecl_dist <- \(
     # Export cluster objects
     parallel::clusterExport(
       cl,
-      varlist = c("dist_chunk", "jsg_div"),
+      varlist = c("dist_chunk", "jsg_div", "jsg_gauss"),
       envir = environment()
     )
     parallel::clusterEvalQ(cl, library(proxy))
@@ -354,8 +490,7 @@ cecl_dist <- \(
           chunk_idx,
           lst = params[[i]],
           thresh_max = thresh_max[[i]],
-          n,
-          y_spec = y
+          y_spec = y[[i]]
         )
       }))
       # convert from cross.dist to dist
@@ -366,6 +501,7 @@ cecl_dist <- \(
   }
 
   # average distance matrices over different variables together
+  # TODO May have to not do this by default, or add option for it in args!
   dist_mat <- Reduce(`+`, dist_mats) / length(dist_mats)
 
   # name distance matrices
@@ -597,7 +733,9 @@ plot_scatter.cecl_clust <- \(
 #' @rdname plot_scree
 #' @keywords internal
 # plot_scree <- \(dist_obj, scree_k = 1:5, type = c("ggplot", "plot"), ...) {
-plot_scree <- \(dist_mat, scree_k = 1:5, type = c("ggplot", "plot"), ...) {
+plot_scree <- \(
+  dist_mat, scree_k = 1:5, type = c("ggplot", "plot", "none"), ...
+) {
   # stopifnot(inherits(dist_obj, "cecl_dist"))
   type <- match.arg(type)
 
@@ -620,7 +758,7 @@ plot_scree <- \(dist_mat, scree_k = 1:5, type = c("ggplot", "plot"), ...) {
       ...
     )
     return(total_within_ss)
-  } else {
+  } else if (type == "ggplot") {
     df <- data.frame(
       "k"     = scree_k,
       "twgss" = total_within_ss
@@ -637,6 +775,8 @@ plot_scree <- \(dist_mat, scree_k = 1:5, type = c("ggplot", "plot"), ...) {
       "plot" = p,
       "twgss" = total_within_ss
     ))
+  } else {
+    return(total_within_ss)
   }
 }
 
@@ -660,16 +800,21 @@ plot_image <- \(x, ...) {
 #' Default is `"ggplot"`.
 #' @param show_xlab Logical, whether to show x-axis labels, Default: FALSE.
 #' @param show_ylab Logical, whether to show y-axis labels, Default: TRUE.
+#' @param col_breaks Optional vector of breaks for colour scale, Default: NULL,
+#' which uses equally spaced breaks between 0 and `col_max`.
 #' @param ... Additional arguments passed to plotting functions.
 #' @return ggplot object or base R plot of distance matrix image/heatmap.
 # #' @rdname plot_image
 # #' @method plot_image cecl_dist
 #' @export
+# TODO Add colour bar for base R plot
+# TODO Allow specifying breaks and limits like with the `cecl_clust` method
 plot_image.cecl_dist <- \(
   x,
   type = c("ggplot", "plot"),
   show_xlab = FALSE,
   show_ylab = TRUE,
+  col_breaks = NULL,
   ...
 ) {
   stopifnot(inherits(x, "cecl_dist"))
@@ -682,17 +827,44 @@ plot_image.cecl_dist <- \(
   # extract row and column tick labels
   x_names <- rownames(dist_matrix)
   y_names <- rev(colnames(dist_matrix))
+
+  # set colour max
+  col_max <- max(dist_matrix)
+  # reset to max value of col_breaks if provided
+  if (!is.null(col_breaks)) {
+    col_max <- max(col_breaks)
+  }
+  if (any(dist_matrix > col_max)) {
+    message("Some distances exceed colour scale maximum; consider adjusting.")
+  }
+
   if (type == "plot") {
     n <- length(x_names)
+    if (n == 0) stop("no names / empty matrix")
 
     dist_plt <- t(dist_matrix[x_names, y_names])
 
-    # plot
+    # By default, set colour limit to max of distance matrix
+    col_lims <- c(0, col_max) # ensure 0 included
+
+    # colour scheme (matching ggplot viridis)
+    if (is.null(col_breaks)) {
+      ncol <- 256
+      breaks <- seq(col_lims[[1]], col_lims[[2]], length.out = ncol + 1)
+    } else {
+      ncol <- length(col_breaks) - 1
+      breaks <- col_breaks
+    }
+    cols <- grDevices::hcl.colors(ncol, "viridis")
+
     graphics::image(
       1:n, 1:n, dist_plt,
       axes = FALSE,
-      zlim = c(0, max(dist_matrix)), # ensure 0 included
-      xlab = "", ylab = "",
+      col = cols,
+      xlab = "",
+      ylab = "",
+      breaks = breaks,
+      zlim = col_lims,
       ...
     )
 
@@ -704,8 +876,9 @@ plot_image.cecl_dist <- \(
       graphics::axis(2, at = 1:n, labels = y_names, las = 2)
     }
     graphics::box()
-    # ggplot
-  } else {
+
+    invisible(NULL)
+  } else if (type == "ggplot") {
     # build heatmap dataframe
     df <- as.data.frame(as.table(dist_matrix)) |>
       # ensure factor order is the current matrix order
@@ -768,11 +941,18 @@ plot_image.cecl_dist <- \(
     }
 
     # colour based on if colours are binned or not
+    fill_args <- list(
+      option = "A",
+      direction = -1,
+      limits = c(0, col_max),
+      breaks = col_breaks
+    )
+    # remove breaks if NULL
+    if (is.null(col_breaks)) {
+      fill_args <- fill_args[-which(names(fill_args) == "breaks")]
+    }
     p <- p +
-      ggplot2::scale_fill_viridis_c(
-        option = "A",
-        direction = -1
-      )
+      do.call(ggplot2::scale_fill_viridis_c, fill_args)
 
     return(p)
   }
@@ -798,6 +978,12 @@ plot_image.cecl_clust <- \(
   show_ylab = TRUE,
   order_by_cluster = TRUE,
   label_colours = NULL,
+  # TODO Write argument help
+  fill_limits = NULL,
+  # fill_breaks = NULL,
+  fill_breaks = ggplot2::waiver(),
+  fill_colours = NULL,
+  fill_name = "Dissimilarity",
   ...
 ) {
   type <- match.arg(type)
@@ -1001,6 +1187,21 @@ plot_image.cecl_clust <- \(
     diag_df <- dplyr::filter(df, Var1 == Var2)
     off_diag_df <- dplyr::filter(df, Var1 != Var2)
 
+    # default colours
+    if (is.null(fill_colours)) {
+      fill_colours <- viridisLite::viridis(256, option = "A", direction = -1)
+    }
+
+    # setup fill with optional custom limits and values
+    fill_scale <- ggplot2::scale_fill_gradientn(
+      colours  = fill_colours,
+      limits   = fill_limits,
+      breaks   = fill_breaks,
+      name     = fill_name,
+      na.value = "grey80",
+      oob      = scales::squish
+    )
+
     # main heatmap
     # TODO Optionally allow binning of colours here
     p <- ggplot2::ggplot(
@@ -1014,8 +1215,12 @@ plot_image.cecl_clust <- \(
         show.legend = FALSE
       ) +
       ggplot2::coord_fixed() +
-      ggplot2::scale_fill_viridis_c(option = "A", direction = -1) +
-      ggplot2::labs(x = "", y = "", fill = "Dissimilarity") +
+      fill_scale +
+      # ggplot2::scale_fill_viridis_c(
+      #   option = "A",
+      #   direction = -1
+      # ) +
+      ggplot2::labs(x = "", y = "") +
       ggplot2::theme(
         panel.background = ggplot2::element_blank(),
         panel.grid.major = ggplot2::element_blank(),

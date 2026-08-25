@@ -9,6 +9,7 @@
   type = c("ggplot", "plot"),
   show_xlab = FALSE,
   show_ylab = TRUE,
+  col_breaks = NULL,
   ...
 )
 }
@@ -22,6 +23,9 @@ Default is \code{"ggplot"}.}
 \item{show_xlab}{Logical, whether to show x-axis labels, Default: FALSE.}
 
 \item{show_ylab}{Logical, whether to show y-axis labels, Default: TRUE.}
+
+\item{col_breaks}{Optional vector of breaks for colour scale, Default: NULL,
+which uses equally spaced breaks between 0 and \code{col_max}.}
 
 \item{...}{Additional arguments passed to plotting functions.}
 }

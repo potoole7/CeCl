@@ -1920,7 +1920,7 @@ as_cecl_marg.data.frame <- \(x, name_col = "name", ...) {
   names(ret) <- levels(x_fact[[name_col]])
   ret <- list(
     "transformed" = ret,
-    "vars"        = names(ret)[names(ret) != name_col]
+    "vars"        = names(x)[names(x) != name_col]
   )
   class(ret) <- c("cecl_marg", "cecl_marg_user")
   ret
@@ -1956,7 +1956,7 @@ as_cecl_marg.list <- \(x, ...) {
 
     cecl_marg_obj <- list(
       "transformed" = lapply(x, as.matrix), # TODO: Add optional var names
-      "vars"        = names(x)
+      "vars"        = names(x[[1]])
     )
   } else {
     stop("Input list must contain only matrices or dataframes/tibbles.")
