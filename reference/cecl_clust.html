@@ -29,7 +29,7 @@ extremes model.'><!-- mathjax --><script src="https://cdnjs.cloudflare.com/ajax/
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">CeCl</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.1.2</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.1.3</span>
       </span>
     </div>
 
@@ -84,7 +84,7 @@ extremes model.</p>
 <span>  <span class="va">x</span>,</span>
 <span>  <span class="va">marg_obj</span>,</span>
 <span>  <span class="va">k</span>,</span>
-<span>  var <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  cond_var <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  cluster_mem <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  laplace_cap <span class="op">=</span> <span class="fl">0.99</span>,</span>
 <span>  n_mc <span class="op">=</span> <span class="fl">500</span>,</span>
@@ -95,7 +95,7 @@ extremes model.</p>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="co"># S3 method for class 'cecl_dist'</span></span>
-<span><span class="fu">cecl_clust</span><span class="op">(</span><span class="va">x</span>, <span class="va">k</span>, var <span class="op">=</span> <span class="cn">NULL</span>, cluster_mem <span class="op">=</span> <span class="cn">NULL</span>, <span class="va">...</span><span class="op">)</span></span></code></pre></div>
+<span><span class="fu">cecl_clust</span><span class="op">(</span><span class="va">x</span>, <span class="va">k</span>, cond_var <span class="op">=</span> <span class="cn">NULL</span>, cluster_mem <span class="op">=</span> <span class="cn">NULL</span>, <span class="va">...</span><span class="op">)</span></span></code></pre></div>
     </div>
 
     <div id="arguments">
@@ -118,7 +118,7 @@ extremes model.</p>
 <dd><p>Number of clusters.</p></dd>
 
 
-<dt id="arg-var">var<a class="anchor" aria-label="anchor" href="#arg-var"></a></dt>
+<dt id="arg-cond-var">cond_var<a class="anchor" aria-label="anchor" href="#arg-cond-var"></a></dt>
 <dd><p>Optional conditioning variable name to cluster
 on, if not all variables, Default: NULL.</p></dd>
 
@@ -174,7 +174,7 @@ provided, the adjusted Rand index.</p>
 </div>
 
 <div class="pkgdown">
-  <p></p><p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
+  <p></p><p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
 </div>
 
       </footer></div>

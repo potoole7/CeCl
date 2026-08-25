@@ -19,7 +19,7 @@ extremes model."><!-- mathjax --><script src="https://cdnjs.cloudflare.com/ajax/
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">CeCl</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.1.2</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.1.3</span>
       </span>
     </div>
 
@@ -62,6 +62,8 @@ extremes model.</p>
 <span>  <span class="va">marg_obj</span>,</span>
 <span>  var <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  laplace_cap <span class="op">=</span> <span class="fl">0.99</span>,</span>
+<span>  laplace_cap_val <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  laplace_sample <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  n_mc <span class="op">=</span> <span class="fl">500</span>,</span>
 <span>  ncores <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  par_dist <span class="op">=</span> <span class="cn">FALSE</span>,</span>
@@ -90,6 +92,18 @@ for, if not all variables, Default: NULL.</p></dd>
 <dt id="arg-laplace-cap">laplace_cap<a class="anchor" aria-label="anchor" href="#arg-laplace-cap"></a></dt>
 <dd><p>Upper quantile to sample Laplace distribution
 truncation point from, Default: 0.99.</p></dd>
+
+
+<dt id="arg-laplace-cap-val">laplace_cap_val<a class="anchor" aria-label="anchor" href="#arg-laplace-cap-val"></a></dt>
+<dd><p>Optional specific truncation point for Laplace
+distibution, which can be used to ensure the same truncation point is used
+for each variable, Default: NULL.</p></dd>
+
+
+<dt id="arg-laplace-sample">laplace_sample<a class="anchor" aria-label="anchor" href="#arg-laplace-sample"></a></dt>
+<dd><p>Optional specific sample from truncated Laplace
+distribution, which can be used to ensure the same sample is used for
+each variable, Default: NULL.</p></dd>
 
 
 <dt id="arg-n-mc">n_mc<a class="anchor" aria-label="anchor" href="#arg-n-mc"></a></dt>
@@ -133,7 +147,7 @@ for reproducibility.</p></dd>
 </div>
 
 <div class="pkgdown">
-  <p></p><p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
+  <p></p><p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
 </div>
 
       </footer></div>

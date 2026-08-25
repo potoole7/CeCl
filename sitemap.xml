@@ -14,9 +14,11 @@
 <url><loc>/reference/cecl_dist.html</loc></url>
 <url><loc>/reference/cecl_marg.html</loc></url>
 <url><loc>/reference/cecl_theme.html</loc></url>
+<url><loc>/reference/coef.cecl_clust.html</loc></url>
 <url><loc>/reference/coef.cecl_dep.html</loc></url>
 <url><loc>/reference/coef.cecl_marg.html</loc></url>
 <url><loc>/reference/dgpd.html</loc></url>
+<url><loc>/reference/dlaplace.html</loc></url>
 <url><loc>/reference/fit_evgam.html</loc></url>
 <url><loc>/reference/fit_marg.html</loc></url>
 <url><loc>/reference/ggplot.cecl_clust.html</loc></url>

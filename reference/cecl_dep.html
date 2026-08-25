@@ -18,7 +18,7 @@ and Tawn (2004) to data transformed to Laplace scale."><!-- mathjax --><script s
       </button>
       <span class="navbar-brand">
         <a class="navbar-link" href="../index.html">CeCl</a>
-        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.1.2</span>
+        <span class="version label label-default" data-toggle="tooltip" data-placement="bottom" title="">0.1.3</span>
       </span>
     </div>
 
@@ -57,9 +57,10 @@ and Tawn (2004) to data transformed to Laplace scale.</p>
     <div id="ref-usage">
     <div class="sourceCode"><pre class="sourceCode r"><code><span><span class="fu">cecl_dep</span><span class="op">(</span></span>
 <span>  <span class="va">obj</span>,</span>
-<span>  <span class="va">cond_prob</span>,</span>
+<span>  cond_prob <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  cond_val <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  vars <span class="op">=</span> <span class="cn">NULL</span>,</span>
-<span>  cond_var <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  cond_vars <span class="op">=</span> <span class="cn">NULL</span>,</span>
 <span>  start <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span>a <span class="op">=</span> <span class="fl">0.01</span>, b <span class="op">=</span> <span class="fl">0.01</span><span class="op">)</span>,</span>
 <span>  ncores <span class="op">=</span> <span class="fl">1</span>,</span>
 <span>  nruns <span class="op">=</span> <span class="fl">1</span>,</span>
@@ -82,12 +83,18 @@ and Tawn (2004) to data transformed to Laplace scale.</p>
 variables.</p></dd>
 
 
+<dt id="arg-cond-val">cond_val<a class="anchor" aria-label="anchor" href="#arg-cond-val"></a></dt>
+<dd><p>Numeric vector of thresholds on the Laplace scale to use
+for conditioning variables. Exactly one of <code>cond_prob</code> and <code>cond_val</code>
+must be supplied.</p></dd>
+
+
 <dt id="arg-vars">vars<a class="anchor" aria-label="anchor" href="#arg-vars"></a></dt>
 <dd><p>Character vector of variable names to fit dependence model for.
 If <code>NULL</code>, all variables are used.</p></dd>
 
 
-<dt id="arg-cond-var">cond_var<a class="anchor" aria-label="anchor" href="#arg-cond-var"></a></dt>
+<dt id="arg-cond-vars">cond_vars<a class="anchor" aria-label="anchor" href="#arg-cond-vars"></a></dt>
 <dd><p>Character vector of variable names to condition on.
 If <code>NULL</code>, all variables are used.</p></dd>
 
@@ -138,7 +145,7 @@ and residuals.</p>
 </div>
 
 <div class="pkgdown">
-  <p></p><p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.0.</p>
+  <p></p><p>Site built with <a href="https://pkgdown.r-lib.org/" class="external-link">pkgdown</a> 2.2.1.</p>
 </div>
 
       </footer></div>
