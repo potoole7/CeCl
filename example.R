@@ -70,6 +70,7 @@ df_clust <- bind_rows(
 #### Threshold ####
 
 # TODO Anything else to test here??
+# TODO Add methods for `cecl_thresh` class!!
 
 # 1: Specific value
 thresh_val <- cecl_marg(
@@ -91,12 +92,14 @@ thresh_q <- cecl_marg(
 )
 
 # 3. Regression
+# TODO Add a quiet option to suppress qgam warnings
 thresh_reg <- cecl_marg(
   df,
   thresh_method = "qgam",
   # TODO Add more checking for these arguments
   thresh_args = list(
-    f      = list("response ~ name", "~ name"),
+    # TODO f shouldn't be list! Or if it is, should be of length n_vars!
+    f      = "response ~ name",
     qu     = .9,
     jitter = TRUE
   ),
@@ -316,6 +319,8 @@ plot(dist, which = "scree", var = "X2")
 
 # TODO Use my theme in this plot (and all others!)
 ggplot(dist, which = "image") # TODO Change colour scheme, don't like
+debugonce(plot_image.cecl_dist)
+ggplot(dist, which = "image", col_max = 0.5, col_breaks = c(0, 0.1, 0.25, 0.3, 0.5))
 ggplot(dist, which = "scree")
 ggplot(dist, which = "scree", var = "X2")
 
@@ -345,6 +350,23 @@ summary(clust) # TODO Can we somehow remove silhouette? Not applicable here..
 # TODO Test this works with locs mixed up (i.e. not loc 1 -> loc 3 in clust 1)
 plot(clust, which = "image")
 plot(clust, which = "scatter", var = "X1", cond_var = "X2")
+
+# PAM cluster plot
+cluster::clusplot(x = clust$pam, dist = clust$dist_mat)
+
+# Multi-dimensional scaling plot
+# cmd <- cmdscale(clust$dist_mat)
+# groups <- levels(factor(clust$pam$clustering))
+# vegan::ordiplot(cmd, type = "n")
+#
+# cols <- c("steelblue", "darkred", "darkgreen", "pink")
+# for(i in seq_along(groups)){
+#   points(cmd[factor(clust$pam$clustering) == groups[i], ], col = cols[i], pch = 16)
+# }
+#
+# # add spider and hull
+# vegan::ordispider(cmd, factor(clust$pam$clustering), label = TRUE)
+# vegan::ordihull(cmd, factor(clust$pam$clustering), lty = "dotted")
 
 # TODO Optionally bin values (and in other heatmaps)
 # TODO White squares across diagonal here, but not for other images?? Standardise!!
